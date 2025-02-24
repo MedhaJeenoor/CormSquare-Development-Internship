@@ -1,18 +1,23 @@
 ﻿using CormSquareSupportHub.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace CormSquareSupportHub.Data
 {
-    public class ApplicationDbContext : DbContext
+    public class ApplicationDbContext : IdentityDbContext
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
 
         }
         public DbSet<Category> Categories { get; set; }
+        public DbSet<CategoryAttachment> CategoryAttachments { get; set; }
+        public DbSet<CategoryReference> CategoryReferences { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+
+            base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<Category>().HasData(
                 // Parent Category: Documentation Types
@@ -23,7 +28,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Different types of documentation for knowledge management.",
                     ParentCategoryId = null,
                     OptimalCreationTime = 0,
-                    DisplayOrder = 1
+                    DisplayOrder = 1,
+                    TemplateJson = "{}"
                 },
                 // Subcategories under Documentation
                 new Category
@@ -33,7 +39,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Short, direct answers to common questions.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 2,
-                    DisplayOrder = 1
+                    DisplayOrder = 1,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -42,7 +49,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Step-by-step guides for specific tasks.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 5,
-                    DisplayOrder = 2
+                    DisplayOrder = 2,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -51,7 +59,8 @@ namespace CormSquareSupportHub.Data
                     Description = "In-depth troubleshooting and fixes.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 7,
-                    DisplayOrder = 3
+                    DisplayOrder = 3,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -60,7 +69,8 @@ namespace CormSquareSupportHub.Data
                     Description = "General guidelines and industry standards.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 4,
-                    DisplayOrder = 4
+                    DisplayOrder = 4,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -69,7 +79,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Real-world problem analysis and results.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 10,
-                    DisplayOrder = 5
+                    DisplayOrder = 5,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -78,7 +89,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Extensive research and validation documents.",
                     ParentCategoryId = 1,
                     OptimalCreationTime = 14,
-                    DisplayOrder = 6
+                    DisplayOrder = 6,
+                    TemplateJson = "{}"
                 },
                 // Parent Category: RCA Templates
                 new Category
@@ -88,7 +100,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Templates and methodologies for identifying root causes.",
                     ParentCategoryId = null,
                     OptimalCreationTime = 0,
-                    DisplayOrder = 2
+                    DisplayOrder = 2,
+                    TemplateJson = "{}"
                 },
                 // Subcategories under RCA Templates
                 new Category
@@ -98,7 +111,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Simple RCA technique by asking 'Why' five times.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 2,
-                    DisplayOrder = 1
+                    DisplayOrder = 1,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -107,7 +121,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Cause-and-effect diagram for RCA.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 5,
-                    DisplayOrder = 2
+                    DisplayOrder = 2,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -116,7 +131,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Proactive RCA technique identifying failure points.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 7,
-                    DisplayOrder = 3
+                    DisplayOrder = 3,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -125,7 +141,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Prioritizes most significant issues for RCA.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 4,
-                    DisplayOrder = 4
+                    DisplayOrder = 4,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -134,7 +151,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Graphical model for identifying root causes.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 10,
-                    DisplayOrder = 5
+                    DisplayOrder = 5,
+                    TemplateJson = "{}"
                 },
                 new Category
                 {
@@ -143,7 +161,8 @@ namespace CormSquareSupportHub.Data
                     Description = "Structured RCA process with eight disciplines.",
                     ParentCategoryId = 8,
                     OptimalCreationTime = 14,
-                    DisplayOrder = 6
+                    DisplayOrder = 6,
+                    TemplateJson = "{}"
                 }
             );
 
