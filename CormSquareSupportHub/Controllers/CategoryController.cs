@@ -1,6 +1,6 @@
 ﻿using CormSquareSupportHub.Data;
 using CormSquareSupportHub.Models;
-using CormSquareSupportHub.ViewModels;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +19,7 @@ namespace CormSquareSupportHub.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var categories = await _db.Categories
+            List<Category> categories = await _db.Categories
                 .Where(c => c.ParentCategoryId == null)
                 .Include(c => c.SubCategories)
                 .OrderBy(c => c.DisplayOrder)
@@ -30,74 +30,72 @@ namespace CormSquareSupportHub.Controllers
         public IActionResult Create()
         {
             var categories = _db.Categories.ToList();
-            return View(new CategoryViewModel { Categories = categories });
+            return View(new Category { Categories = categories });
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create(CategoryViewModel model)
+        public async Task<IActionResult> Create(Category model)
         {
-            if (!ModelState.IsValid) //Ensure client-side validation works
+            if (!ModelState.IsValid)
             {
-                model.Categories = await _db.Categories.ToListAsync();
+                model.Categories = await _db.Categories.ToListAsync(); // Reload categories for dropdown
                 return View(model);
             }
 
-            var category = new Category
-            {
-                Name = model.Name,
-                ParentCategoryId = model.ParentCategoryId == 0 ? null : model.ParentCategoryId,
-                OptimalCreationTime = model.OptimalCreationTime,
-                Description = model.Description,
-                DisplayOrder = model.DisplayOrder,
-                AllowAttachments = model.AllowAttachments,
-                TemplateJson = model.TemplateJson
-            };
+            model.ParentCategoryId = model.ParentCategoryId == 0 ? null : model.ParentCategoryId;
 
-            _db.Categories.Add(category);
+            if (model.ParentCategoryId != null)
+            {
+                var parentExists = await _db.Categories.AnyAsync(c => c.Id == model.ParentCategoryId);
+                if (!parentExists)
+                {
+                    ModelState.AddModelError("ParentCategoryId", "The selected Parent Category does not exist.");
+                    model.Categories = await _db.Categories.ToListAsync();
+                    return View(model);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(model.TemplateJson))
+            {
+                model.TemplateJson = "{}";
+            }
+
+            if (model.TemplateJson == "{}" && model.ParentCategoryId != null)
+            {
+                var parentCategory = await _db.Categories.FindAsync(model.ParentCategoryId);
+                if (parentCategory != null)
+                {
+                    model.TemplateJson = parentCategory.TemplateJson;
+                }
+            }
+
+            if (model.ParentCategoryId != null)
+            {
+                var parentCategory = await _db.Categories.FindAsync(model.ParentCategoryId);
+                if (parentCategory != null)
+                {
+                    model.AllowAttachments = parentCategory.AllowAttachments;
+                    model.AllowReferenceLinks = parentCategory.AllowReferenceLinks;
+                }
+            }
+
+            if (model.DisplayOrder == 0)
+            {
+                int maxOrder = _db.Categories
+                    .Where(c => c.ParentCategoryId == model.ParentCategoryId)
+                    .Max(c => (int?)c.DisplayOrder) ?? 0;
+
+                model.DisplayOrder = maxOrder + 1;
+            }
+
+            _db.Categories.Add(model);
             await _db.SaveChangesAsync();
-
-            //Handle File Uploads
-            if (model.Attachments != null && model.Attachments.Any())
-            {
-                var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
-                if (!Directory.Exists(uploadsFolder))
-                    Directory.CreateDirectory(uploadsFolder);
-
-                foreach (var file in model.Attachments)
-                {
-                    var filePath = Path.Combine(uploadsFolder, file.FileName);
-                    using (var stream = new FileStream(filePath, FileMode.Create))
-                    {
-                        await file.CopyToAsync(stream);
-                    }
-
-                    _db.CategoryAttachments.Add(new CategoryAttachment
-                    {
-                        FileName = file.FileName,
-                        FilePath = "/uploads/" + file.FileName,
-                        CategoryId = category.Id
-                    });
-                }
-                await _db.SaveChangesAsync();
-            }
-
-            //Save Reference Links
-            if (!string.IsNullOrEmpty(model.ReferenceLinks))
-            {
-                var links = model.ReferenceLinks.Split(',').Select(l => l.Trim()).ToList();
-                foreach (var link in links)
-                {
-                    _db.CategoryReferences.Add(new CategoryReference
-                    {
-                        Url = link,
-                        CategoryId = category.Id
-                    });
-                }
-                await _db.SaveChangesAsync();
-            }
 
             return RedirectToAction("Index");
         }
+
+
+
 
 
 

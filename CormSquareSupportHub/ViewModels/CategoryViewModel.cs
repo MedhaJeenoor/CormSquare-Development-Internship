@@ -1,4 +1,5 @@
 ﻿using CormSquareSupportHub.Models;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace CormSquareSupportHub.ViewModels
@@ -7,14 +8,16 @@ namespace CormSquareSupportHub.ViewModels
     {
         [Required(ErrorMessage = "Category Name is required.")]
         [MaxLength(50, ErrorMessage = "Category Name cannot exceed 50 characters.")]
+        [DisplayName("Category Name")]
         public string Name { get; set; }
 
         public int? ParentCategoryId { get; set; } // Nullable for Parent Categories
         public List<Category>? Categories { get; set; } // Load existing categories
 
         [Required(ErrorMessage = "Optimal Creation Time is required.")]
-        [Range(1, 30, ErrorMessage = "Optimal Creation Time must be between 1 and 30.")]
+        [Range(0, 30, ErrorMessage = "For parent categories, it can be 0-30. For subcategories, it must be 1-30.")]
         public int OptimalCreationTime { get; set; }
+
 
         [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
         public string? Description { get; set; }

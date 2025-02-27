@@ -4,6 +4,7 @@ using CormSquareSupportHub.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CormSquareSupportHub.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250225063623_AddAllowReferenceLinks")]
+    partial class AddAllowReferenceLinks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -31,9 +34,6 @@ namespace CormSquareSupportHub.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("AllowAttachments")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("AllowReferenceLinks")
                         .HasColumnType("bit");
 
                     b.Property<string>("Description")
@@ -68,7 +68,6 @@ namespace CormSquareSupportHub.Migrations
                         {
                             Id = 1,
                             AllowAttachments = false,
-                            AllowReferenceLinks = false,
                             Description = "Different types of documentation for knowledge management.",
                             DisplayOrder = 1,
                             Name = "Documentation",
@@ -79,79 +78,72 @@ namespace CormSquareSupportHub.Migrations
                         {
                             Id = 2,
                             AllowAttachments = false,
-                            AllowReferenceLinks = false,
                             Description = "Short, direct answers to common questions.",
                             DisplayOrder = 1,
                             Name = "FAQs",
                             OptimalCreationTime = 2,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Question', 'type': 'text' },\r\n                { 'label': 'Answer', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Question', 'type': 'text' },\r\n                            { 'label': 'Answer', 'type': 'textarea' }\r\n                        ],\r\n                        'allowAttachments': false,\r\n                        'allowReferenceLinks': false\r\n                    }"
                         },
                         new
                         {
                             Id = 3,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Step-by-step guides for specific tasks.",
                             DisplayOrder = 2,
                             Name = "How-To Guides",
                             OptimalCreationTime = 5,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Title', 'type': 'text' },\r\n                { 'label': 'Step-by-Step Instructions', 'type': 'textarea' },\r\n                { 'label': 'Screenshots', 'type': 'image' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Title', 'type': 'text' },\r\n                            { 'label': 'Step-by-Step Instructions', 'type': 'textarea' },\r\n                            { 'label': 'Screenshots', 'type': 'image' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 4,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "In-depth troubleshooting and fixes.",
                             DisplayOrder = 3,
                             Name = "Technical Solutions",
                             OptimalCreationTime = 7,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Problem Statement', 'type': 'text' },\r\n                { 'label': 'Solution', 'type': 'textarea' },\r\n                { 'label': 'Code Snippets', 'type': 'code' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Solution', 'type': 'textarea' },\r\n                            { 'label': 'Code Snippets', 'type': 'code' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 5,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "General guidelines and industry standards.",
                             DisplayOrder = 4,
                             Name = "Best Practices",
                             OptimalCreationTime = 4,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Guideline Title', 'type': 'text' },\r\n                { 'label': 'Description', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Guideline Title', 'type': 'text' },\r\n                            { 'label': 'Description', 'type': 'textarea' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 6,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Real-world problem analysis and results.",
                             DisplayOrder = 5,
                             Name = "Case Studies",
                             OptimalCreationTime = 10,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Case Study Title', 'type': 'text' },\r\n                { 'label': 'Background', 'type': 'textarea' },\r\n                { 'label': 'Findings', 'type': 'textarea' },\r\n                { 'label': 'Conclusion', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Case Study Title', 'type': 'text' },\r\n                            { 'label': 'Background', 'type': 'textarea' },\r\n                            { 'label': 'Findings', 'type': 'textarea' },\r\n                            { 'label': 'Conclusion', 'type': 'textarea' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 7,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Extensive research and validation documents.",
                             DisplayOrder = 6,
                             Name = "Whitepapers",
                             OptimalCreationTime = 14,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Abstract', 'type': 'textarea' },\r\n                { 'label': 'Methodology', 'type': 'textarea' },\r\n                { 'label': 'Results', 'type': 'textarea' },\r\n                { 'label': 'References', 'type': 'text' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Abstract', 'type': 'textarea' },\r\n                            { 'label': 'Methodology', 'type': 'textarea' },\r\n                            { 'label': 'Results', 'type': 'textarea' },\r\n                            { 'label': 'References', 'type': 'text' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 8,
                             AllowAttachments = false,
-                            AllowReferenceLinks = false,
                             Description = "Templates and methodologies for identifying root causes.",
                             DisplayOrder = 2,
                             Name = "Root Cause Analysis (RCA)",
@@ -162,73 +154,45 @@ namespace CormSquareSupportHub.Migrations
                         {
                             Id = 9,
                             AllowAttachments = false,
-                            AllowReferenceLinks = true,
                             Description = "Simple RCA technique by asking 'Why' five times.",
                             DisplayOrder = 1,
                             Name = "5 Whys Analysis",
                             OptimalCreationTime = 2,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Problem Statement', 'type': 'text' },\r\n                { 'label': 'Why 1', 'type': 'text' },\r\n                { 'label': 'Why 2', 'type': 'text' },\r\n                { 'label': 'Why 3', 'type': 'text' },\r\n                { 'label': 'Why 4', 'type': 'text' },\r\n                { 'label': 'Why 5', 'type': 'text' },\r\n                { 'label': 'Root Cause', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Why 1', 'type': 'text' },\r\n                            { 'label': 'Why 2', 'type': 'text' },\r\n                            { 'label': 'Why 3', 'type': 'text' },\r\n                            { 'label': 'Why 4', 'type': 'text' },\r\n                            { 'label': 'Why 5', 'type': 'text' },\r\n                            { 'label': 'Root Cause', 'type': 'textarea' }\r\n                        ],\r\n                        'allowAttachments': false,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 10,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Cause-and-effect diagram for RCA.",
                             DisplayOrder = 2,
                             Name = "Fishbone Diagram (Ishikawa)",
                             OptimalCreationTime = 5,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Problem Statement', 'type': 'text' },\r\n                { 'label': 'Causes', 'type': 'textarea' },\r\n                { 'label': 'Fishbone Diagram Image', 'type': 'image' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Causes', 'type': 'textarea' },\r\n                            { 'label': 'Fishbone Diagram Image', 'type': 'image' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 11,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Proactive RCA technique identifying failure points.",
                             DisplayOrder = 3,
                             Name = "Failure Mode and Effects Analysis (FMEA)",
                             OptimalCreationTime = 7,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Component', 'type': 'text' },\r\n                { 'label': 'Potential Failure Mode', 'type': 'text' },\r\n                { 'label': 'Effect of Failure', 'type': 'textarea' },\r\n                { 'label': 'Recommended Action', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Component', 'type': 'text' },\r\n                            { 'label': 'Potential Failure Mode', 'type': 'text' },\r\n                            { 'label': 'Effect of Failure', 'type': 'textarea' },\r\n                            { 'label': 'Recommended Action', 'type': 'textarea' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         },
                         new
                         {
                             Id = 12,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
+                            AllowAttachments = false,
                             Description = "Prioritizes most significant issues for RCA.",
                             DisplayOrder = 4,
                             Name = "Pareto Analysis (80/20 Rule)",
                             OptimalCreationTime = 4,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Problem Statement', 'type': 'text' },\r\n                { 'label': 'Contributing Factors', 'type': 'textarea' },\r\n                { 'label': 'Pareto Chart', 'type': 'image' }\r\n            ]\r\n        }"
-                        },
-                        new
-                        {
-                            Id = 13,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
-                            Description = "Graphical model for identifying root causes.",
-                            DisplayOrder = 5,
-                            Name = "Fault Tree Analysis (FTA)",
-                            OptimalCreationTime = 10,
-                            ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Fault Event', 'type': 'text' },\r\n                { 'label': 'Contributing Factors', 'type': 'textarea' }\r\n            ]\r\n        }"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            AllowAttachments = true,
-                            AllowReferenceLinks = true,
-                            Description = "Structured RCA process with eight disciplines.",
-                            DisplayOrder = 6,
-                            Name = "8D Problem Solving",
-                            OptimalCreationTime = 14,
-                            ParentCategoryId = 8,
-                            TemplateJson = "{\r\n            'fields': [\r\n                { 'label': 'Problem Description', 'type': 'text' },\r\n                { 'label': 'Root Cause', 'type': 'textarea' },\r\n                { 'label': 'Corrective Action', 'type': 'textarea' }\r\n            ]\r\n        }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Contributing Factors', 'type': 'textarea' },\r\n                            { 'label': 'Pareto Chart', 'type': 'image' }\r\n                        ],\r\n                        'allowAttachments': true,\r\n                        'allowReferenceLinks': true\r\n                    }"
                         });
                 });
 

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.AspNetCore.Http; // Required for IFormFile
 
 namespace CormSquareSupportHub.Models
 {
@@ -14,47 +15,37 @@ namespace CormSquareSupportHub.Models
         public string Name { get; set; }
 
         public int? ParentCategoryId { get; set; } // Nullable for Parent Categories
-        public virtual Category? ParentCategory { get; set; } // Self-referencing relationship
+        public virtual Category? ParentCategory { get; set; }
         public virtual ICollection<Category>? SubCategories { get; set; }
 
-        [Range(1, 30)]
+        [Range(0, 30, ErrorMessage = "For parent categories, it can be 0-30. For subcategories, it must be 1-30.")]
         [Required]
+        [DisplayName("Optimal Creation Time")]
         public int OptimalCreationTime { get; set; }
 
         [MaxLength(500)]
         public string? Description { get; set; }
 
         [Required]
+        [Range(0, int.MaxValue, ErrorMessage = "Display Order cannot be negative.")]
+        [DisplayName("Display Order")]
         public int DisplayOrder { get; set; }
 
         public bool AllowAttachments { get; set; }
+        public bool AllowReferenceLinks { get; set; } = false;
 
-        public string? TemplateJson { get; set; } // Stores template structure in JSON
+        [Column(TypeName = "NVARCHAR(MAX)")]
+        public string? TemplateJson { get; set; }
 
         public virtual ICollection<CategoryAttachment>? Attachments { get; set; }
         public virtual ICollection<CategoryReference>? References { get; set; }
-    }
 
-    public class CategoryAttachment
-    {
-        [Key]
-        public int Id { get; set; }
-        public string FileName { get; set; }
-        public string FilePath { get; set; }
+        //Added for Dropdown in View
+        [NotMapped]
+        public List<Category>? Categories { get; set; } // Load existing categories for dropdown
 
-        [ForeignKey("Category")]
-        public int CategoryId { get; set; }
-        public virtual Category Category { get; set; }
-    }
-
-    public class CategoryReference
-    {
-        [Key]
-        public int Id { get; set; }
-        public string Url { get; set; }
-
-        [ForeignKey("Category")]
-        public int CategoryId { get; set; }
-        public virtual Category Category { get; set; }
+        //Added for handling file uploads
+        [NotMapped]
+        public List<IFormFile>? AttachmentFiles { get; set; }
     }
 }

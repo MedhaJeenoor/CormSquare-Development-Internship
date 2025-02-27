@@ -1,79 +1,88 @@
-﻿@using CormSquareSupportHub.ViewModels
-@model CategoryViewModel
+﻿@model Category
 
 @{
-    ViewData["Title"] = "Create New Category"; // Sets browser tab title
+    ViewData["Title"] = "Create New Category";
 }
 
 <div class="card shadow border-0 mt-4">
     <div class="card-header bg-secondary bg-gradient ml-0 py-3">
         <div class="row">
             <div class="col-12 text-center">
-                <h2 class="py-2">Category Details</h2>
+                <h2 class="py-2">Create New Category</h2>
             </div>
         </div>
     </div>
+
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data">
-                <div class="form-group mb-3">
-                    <label>Category Name</label>
-                    <input asp-for="Name" class="form-control" required>
+
+                <div class="mb-3 row p-1">
+                    <label asp-for="Name"></label>
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
                 </div>
 
-                <div class="form-group mb-3">
-                    <label>Select Parent Category (Optional)</label>
-                    <select asp-for="ParentCategoryId" class="form-control">
+                <!-- Parent Category Dropdown -->
+                <div class="mb-3 row p-1">
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories)
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
                         {
                             <option value="@category.Id">@category.Name</option>
+                            @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
+                            {
+                                <option value="@subcategory.Id">— @subcategory.Name</option>
+                            }
                         }
                     </select>
                 </div>
 
-                <div class="form-group mb-3">
+                <div class="mb-3 row p-1">
                     <label>Optimal Creation Time</label>
-                    <input asp-for="OptimalCreationTime" class="form-control" required>
+                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
+                    <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
                 </div>
 
-                <div class="form-group mb-3">
-                    <label asp-for="Description"></label>
+                <div class="mb-3 row p-1">
+                    <label>Description</label>
                     <textarea asp-for="Description" class="form-control"></textarea>
+                    <span asp-validation-for="Description" class="text-danger"></span>
                 </div>
 
-                <div class="form-group mb-3">
+                <div class="mb-3 row p-1">
                     <label>Display Order</label>
-                    <input asp-for="DisplayOrder" class="form-control" required>
+                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
+                    <span asp-validation-for="DisplayOrder" class="text-danger"></span>
                 </div>
 
                 <!-- Template Fields -->
-                <div class="form-group mb-3">
+                <div class="mb-3 p-1">
                     <label>Template Fields</label>
-                    <div id="templateFieldsContainer" class="mt-3" required></div> <!-- Fields appear here -->
+                    <div id="templateFieldsContainer" class="mt-3"></div>
                     <button type="button" id="addFieldBtn" class="btn btn-success mt-2">
                         <i class="bi bi-plus-circle"></i> Add Field
                     </button>
+                    <input type="hidden" id="TemplateJson" name="TemplateJson" />
                 </div>
 
-                <input type="hidden" id="TemplateJson" name="TemplateJson">
-
-                <!-- Attachments & Reference Links -->
-                <div class="form-group mt-4">
+                <div class="mb-4 row p-1">
                     <div class="form-check">
-                        <input type="checkbox" class="form-check-input" asp-for="AllowAttachments">
-                        <label class="form-check-label" asp-for="AllowAttachments">Enable Attachments</label>
+                        <input asp-for="AllowAttachments" class="form-check-input" id="allowAttachments" />
+                        <label class="form-check-label">Enable Attachments</label>
                     </div>
                     <div class="form-check mt-2">
-                        <input type="checkbox" class="form-check-input" asp-for="AllowReferenceLinks">
-                        <label class="form-check-label" asp-for="AllowReferenceLinks">Enable Reference Links</label>
+                        <input asp-for="AllowReferenceLinks" class="form-check-input" id="allowReferenceLinks" />
+                        <label class="form-check-label">Enable Reference Links</label>
                     </div>
                 </div>
 
-                <!-- Centered Buttons -->
                 <div class="text-center mt-4">
-                    <button type="submit" class="btn btn-primary mx-2"><i class="bi bi-check-circle"></i> Create</button>
-                    <a asp-controller="Category" asp-action="Index" class="btn btn-secondary mx-2">
+                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Create
+                    </button>
+                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
                         <i class="bi bi-arrow-left-circle"></i> Back to List
                     </a>
                 </div>
@@ -82,67 +91,66 @@
     </div>
 </div>
 
-<div class="mb-5 pb-5"></div> <!-- Adds extra space before footer -->
-<!-- TinyMCE Setup -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<div class="mb-5 pb-5"></div>
+
+<!-- JavaScript for Inheriting Parent Fields -->
 <script>
-    tinymce.init({
-        selector: '.tinymce-editor',
-        plugins: 'image link lists advlist media table code',
-        toolbar: 'undo redo | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image media | code',
-        height: 400
+    document.getElementById("parentCategoryDropdown").addEventListener("change", function () {
+        var selectedCategoryId = this.value;
+
+        fetch('/Category/GetTemplateJson?parentCategoryId=' + selectedCategoryId)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("templateFieldsContainer").innerHTML = data.templateJson;
+                document.getElementById("optimalCreationTime").value = data.optimalCreationTime;
+            });
     });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var fieldContainer = document.getElementById("templateFieldsContainer");
+        var addFieldBtn = document.getElementById("addFieldBtn");
+        var templateJsonInput = document.getElementById("TemplateJson");
 
-    document.getElementById("addFieldBtn").addEventListener("click", function () {
-        var container = document.getElementById("templateFieldsContainer");
+        function updateJson() {
+            var fields = [];
+            fieldContainer.querySelectorAll("input").forEach(input => {
+                if (input.value.trim() !== "") {
+                    fields.push({ "label": input.value, "type": "text" });
+                }
+            });
+            templateJsonInput.value = JSON.stringify({ "fields": fields });
+        }
 
-        // Create wrapper for input field and delete button
-        var fieldWrapper = document.createElement("div");
-        fieldWrapper.className = "form-group mt-3 d-flex align-items-center field-wrapper";
+        addFieldBtn.addEventListener("click", function () {
+            var fieldWrapper = document.createElement("div");
+            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
 
-        // Create input field
-        var newField = document.createElement("input");
-        newField.type = "text";
-        newField.name = "DynamicFields[]";
-        newField.className = "form-control me-2 field-input";
-        newField.placeholder = "Enter field name here";
+            var newField = document.createElement("input");
+            newField.type = "text";
+            newField.className = "form-control me-2";
+            newField.placeholder = "Enter field name here";
 
-        // Create delete button (hidden initially)
-        var deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "btn btn-danger btn-sm ms-2 d-none";
-        deleteBtn.innerHTML = "Remove";
+            var deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "btn btn-danger btn-sm ms-2";
+            deleteBtn.innerHTML = "Remove";
 
-        // Auto-remove empty fields without needing to click inside them
-        setTimeout(() => {
-            if (newField.value.trim() === "") {
+            deleteBtn.addEventListener("click", function () {
                 fieldWrapper.remove();
-            }
-        }, 5000); // Removes after 5 seconds if no input
+                updateJson();
+            });
 
-        // Show delete button only when text is entered
-        newField.addEventListener("input", function () {
-            if (newField.value.trim() !== "") {
-                deleteBtn.classList.remove("d-none");
-            } else {
-                deleteBtn.classList.add("d-none");
-            }
+            newField.addEventListener("input", updateJson);
+
+            fieldWrapper.appendChild(newField);
+            fieldWrapper.appendChild(deleteBtn);
+            fieldContainer.appendChild(fieldWrapper);
+
+            updateJson();
         });
-
-        // Delete button functionality
-        deleteBtn.addEventListener("click", function () {
-            fieldWrapper.remove();
-        });
-
-        // Append input field and delete button to wrapper
-        fieldWrapper.appendChild(newField);
-        fieldWrapper.appendChild(deleteBtn);
-
-        // Append wrapper to container (fields appear below the button)
-        container.appendChild(fieldWrapper);
     });
 </script>
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
-
