@@ -1,4 +1,4 @@
-﻿using CormSquareSupportHub.Models;
+﻿using SupportHub.Models;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 

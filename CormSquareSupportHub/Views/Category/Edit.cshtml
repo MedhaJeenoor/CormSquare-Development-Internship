@@ -1,0 +1,156 @@
+﻿@model Category
+
+@{
+    ViewData["Title"] = "Edit Category";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">Edit Category</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mb-5 pb-5">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" asp-for="Id" />
+                <div class="mb-3 row p-1">
+                    <label asp-for="Name"></label>
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+
+                <!-- Parent Category Dropdown -->
+                <div class="mb-3 row p-1">
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
+                        <option value="0">This is a Parent Category</option>
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                            @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
+                            {
+                                <option value="@subcategory.Id">— @subcategory.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3 row p-1">
+                    <label>Optimal Creation Time</label>
+                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
+                    <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3 row p-1">
+                    <label>Description</label>
+                    <textarea asp-for="Description" class="form-control"></textarea>
+                    <span asp-validation-for="Description" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3 row p-1">
+                    <label>Display Order</label>
+                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
+                    <span asp-validation-for="DisplayOrder" class="text-danger"></span>
+                </div>
+
+                <!-- Template Fields -->
+                <div class="mb-3 p-1">
+                    <label>Template Fields</label>
+                    <div id="templateFieldsContainer" class="mt-3"></div>
+                    <button type="button" id="addFieldBtn" class="btn btn-success mt-2">
+                        <i class="bi bi-plus-circle"></i> Add Field
+                    </button>
+                    <input type="hidden" id="TemplateJson" name="TemplateJson" />
+                </div>
+
+                <div class="mb-4 row p-1">
+                    <div class="form-check">
+                        <input asp-for="AllowAttachments" class="form-check-input" id="allowAttachments" />
+                        <label class="form-check-label">Enable Attachments</label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input asp-for="AllowReferenceLinks" class="form-check-input" id="allowReferenceLinks" />
+                        <label class="form-check-label">Enable Reference Links</label>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Update
+                    </button>
+                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
+                        <i class="bi bi-arrow-left-circle"></i> Back to List
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="mb-5 pb-5"></div>
+
+<!-- JavaScript for Inheriting Parent Fields -->
+<script>
+    document.getElementById("parentCategoryDropdown").addEventListener("change", function () {
+        var selectedCategoryId = this.value;
+
+        fetch('/Category/GetTemplateJson?parentCategoryId=' + selectedCategoryId)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("templateFieldsContainer").innerHTML = data.templateJson;
+                document.getElementById("optimalCreationTime").value = data.optimalCreationTime;
+            });
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var fieldContainer = document.getElementById("templateFieldsContainer");
+        var addFieldBtn = document.getElementById("addFieldBtn");
+        var templateJsonInput = document.getElementById("TemplateJson");
+
+        function updateJson() {
+            var fields = [];
+            fieldContainer.querySelectorAll("input").forEach(input => {
+                if (input.value.trim() !== "") {
+                    fields.push({ "label": input.value, "type": "text" });
+                }
+            });
+            templateJsonInput.value = JSON.stringify({ "fields": fields });
+        }
+
+        addFieldBtn.addEventListener("click", function () {
+            var fieldWrapper = document.createElement("div");
+            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+
+            var newField = document.createElement("input");
+            newField.type = "text";
+            newField.className = "form-control me-2";
+            newField.placeholder = "Enter field name here";
+
+            var deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "btn btn-danger btn-sm ms-2";
+            deleteBtn.innerHTML = "Remove";
+
+            deleteBtn.addEventListener("click", function () {
+                fieldWrapper.remove();
+                updateJson();
+            });
+
+            newField.addEventListener("input", updateJson);
+
+            fieldWrapper.appendChild(newField);
+            fieldWrapper.appendChild(deleteBtn);
+            fieldContainer.appendChild(fieldWrapper);
+
+            updateJson();
+        });
+    });
+</script>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

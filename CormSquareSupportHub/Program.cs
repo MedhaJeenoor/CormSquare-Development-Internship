@@ -1,7 +1,7 @@
-using CormSquareSupportHub.Data;
-using CormSquareSupportHub.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using SupportHub.DataAccess.Data;
+using SupportHub.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 

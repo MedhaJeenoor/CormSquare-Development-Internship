@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using CormSquareSupportHub.Models;
+using SupportHub.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CormSquareSupportHub.Controllers
