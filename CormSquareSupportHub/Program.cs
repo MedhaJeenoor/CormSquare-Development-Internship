@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SupportHub.DataAccess.Data;
+using SupportHub.DataAccess.Repository;
+using SupportHub.DataAccess.Repository.IRepository;
 using SupportHub.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +13,7 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options => options.SignIn.R
     .AddRoles<IdentityRole>() // If roles are used
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();

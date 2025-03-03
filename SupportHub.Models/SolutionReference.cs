@@ -3,14 +3,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SupportHub.Models
 {
-    public class CategoryReference
+    public class SolutionReference
     {
         [Key]
         public int Id { get; set; }
+
+        [Required]
         public string Url { get; set; }
 
-        [ForeignKey("Category")]
-        public int CategoryId { get; set; }
-        public virtual Category Category { get; set; }
+        [ForeignKey("Solution")]
+        public int SolutionId { get; set; }
+        public virtual Solution Solution { get; set; }
     }
 }

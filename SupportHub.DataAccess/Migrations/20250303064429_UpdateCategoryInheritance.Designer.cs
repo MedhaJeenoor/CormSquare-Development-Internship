@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250303064429_UpdateCategoryInheritance")]
+    partial class UpdateCategoryInheritance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -303,7 +306,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "FAQs",
                             OptimalCreationTime = 2,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Question\", \"type\": \"text\" },\r\n                            { \"label\": \"Answer\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Question', 'type': 'text' },\r\n                            { 'label': 'Answer', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -317,7 +320,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "How-To Guides",
                             OptimalCreationTime = 5,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Title\", \"type\": \"text\" },\r\n                            { \"label\": \"Step-by-Step Instructions\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Screenshots\", \"type\": \"image\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Title', 'type': 'text' },\r\n                            { 'label': 'Step-by-Step Instructions', 'type': 'textarea' },\r\n                            { 'label': 'Screenshots', 'type': 'image' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -331,7 +334,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Technical Solutions",
                             OptimalCreationTime = 7,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Problem Statement\", \"type\": \"text\" },\r\n                            { \"label\": \"Solution\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Code Snippets\", \"type\": \"code\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Solution', 'type': 'textarea' },\r\n                            { 'label': 'Code Snippets', 'type': 'code' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -345,7 +348,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Best Practices",
                             OptimalCreationTime = 4,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Guideline Title\", \"type\": \"text\" },\r\n                            { \"label\": \"Description\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Guideline Title', 'type': 'text' },\r\n                            { 'label': 'Description', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -359,7 +362,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Case Studies",
                             OptimalCreationTime = 10,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n        \"fields\": [\r\n            { \"label\": \"Case Study Title\", \"type\": \"text\" },\r\n            { \"label\": \"Background\", \"type\": \"textarea\" },\r\n            { \"label\": \"Findings\", \"type\": \"textarea\" },\r\n            { \"label\": \"Conclusion\", \"type\": \"textarea\" }\r\n        ]\r\n    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Case Study Title', 'type': 'text' },\r\n                            { 'label': 'Background', 'type': 'textarea' },\r\n                            { 'label': 'Findings', 'type': 'textarea' },\r\n                            { 'label': 'Conclusion', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -373,7 +376,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Whitepapers",
                             OptimalCreationTime = 14,
                             ParentCategoryId = 1,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Abstract\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Methodology\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Results\", \"type\": \"textarea\" },\r\n                            { \"label\": \"References\", \"type\": \"text\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Abstract', 'type': 'textarea' },\r\n                            { 'label': 'Methodology', 'type': 'textarea' },\r\n                            { 'label': 'Results', 'type': 'textarea' },\r\n                            { 'label': 'References', 'type': 'text' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -395,12 +398,12 @@ namespace SupportHub.DataAccess.Migrations
                             AllowReferenceLinks = true,
                             CreatedBy = 0,
                             CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Description = "Simple RCA technique by asking \"Why\" five times.",
+                            Description = "Simple RCA technique by asking 'Why' five times.",
                             DisplayOrder = 1,
                             Name = "5 Whys Analysis",
                             OptimalCreationTime = 2,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Problem Statement\", \"type\": \"text\" },\r\n                            { \"label\": \"Why 1\", \"type\": \"text\" },\r\n                            { \"label\": \"Why 2\", \"type\": \"text\" },\r\n                            { \"label\": \"Why 3\", \"type\": \"text\" },\r\n                            { \"label\": \"Why 4\", \"type\": \"text\" },\r\n                            { \"label\": \"Why 5\", \"type\": \"text\" },\r\n                            { \"label\": \"Root Cause\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Why 1', 'type': 'text' },\r\n                            { 'label': 'Why 2', 'type': 'text' },\r\n                            { 'label': 'Why 3', 'type': 'text' },\r\n                            { 'label': 'Why 4', 'type': 'text' },\r\n                            { 'label': 'Why 5', 'type': 'text' },\r\n                            { 'label': 'Root Cause', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -414,7 +417,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Fishbone Diagram (Ishikawa)",
                             OptimalCreationTime = 5,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Problem Statement\", \"type\": \"text\" },\r\n                            { \"label\": \"Causes\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Fishbone Diagram Image\", \"type\": \"image\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Causes', 'type': 'textarea' },\r\n                            { 'label': 'Fishbone Diagram Image', 'type': 'image' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -428,7 +431,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Failure Mode and Effects Analysis (FMEA)",
                             OptimalCreationTime = 7,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Component\", \"type\": \"text\" },\r\n                            { \"label\": \"Potential Failure Mode\", \"type\": \"text\" },\r\n                            { \"label\": \"Effect of Failure\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Recommended Action\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Component', 'type': 'text' },\r\n                            { 'label': 'Potential Failure Mode', 'type': 'text' },\r\n                            { 'label': 'Effect of Failure', 'type': 'textarea' },\r\n                            { 'label': 'Recommended Action', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -442,7 +445,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Pareto Analysis (80/20 Rule)",
                             OptimalCreationTime = 4,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Problem Statement\", \"type\": \"text\" },\r\n                            { \"label\": \"Contributing Factors\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Pareto Chart\", \"type\": \"image\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Statement', 'type': 'text' },\r\n                            { 'label': 'Contributing Factors', 'type': 'textarea' },\r\n                            { 'label': 'Pareto Chart', 'type': 'image' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -456,7 +459,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "Fault Tree Analysis (FTA)",
                             OptimalCreationTime = 10,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Fault Event\", \"type\": \"text\" },\r\n                            { \"label\": \"Contributing Factors\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Fault Event', 'type': 'text' },\r\n                            { 'label': 'Contributing Factors', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         },
                         new
                         {
@@ -470,7 +473,7 @@ namespace SupportHub.DataAccess.Migrations
                             Name = "8D Problem Solving",
                             OptimalCreationTime = 14,
                             ParentCategoryId = 8,
-                            TemplateJson = "{\r\n                        \"fields\": [\r\n                            { \"label\": \"Problem Description\", \"type\": \"text\" },\r\n                            { \"label\": \"Root Cause\", \"type\": \"textarea\" },\r\n                            { \"label\": \"Corrective Action\", \"type\": \"textarea\" }\r\n                        ]\r\n                    }"
+                            TemplateJson = "{\r\n                        'fields': [\r\n                            { 'label': 'Problem Description', 'type': 'text' },\r\n                            { 'label': 'Root Cause', 'type': 'textarea' },\r\n                            { 'label': 'Corrective Action', 'type': 'textarea' }\r\n                        ]\r\n                    }"
                         });
                 });
 

@@ -1,15 +1,11 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.AspNetCore.Http;
 
 namespace SupportHub.Models
 {
-    public class Category
-    {
-        [Key]
-        public int Id { get; set; }
-
+    public class Category : AuditableEntity
+    {        
         [Required, MaxLength(50)]
         [DisplayName("Category Name")]
         public string Name { get; set; }
@@ -37,15 +33,10 @@ namespace SupportHub.Models
         [Column(TypeName = "NVARCHAR(MAX)")]
         public string? TemplateJson { get; set; }
 
-        public virtual ICollection<CategoryAttachment>? Attachments { get; set; }
-        public virtual ICollection<CategoryReference>? References { get; set; }
+        public virtual ICollection<Solution>? Solutions { get; set; } // Updated: Solutions linked to Category
 
         //Added for Dropdown in View
         [NotMapped]
         public List<Category>? Categories { get; set; } // Load existing categories for dropdown
-
-        //Added for handling file uploads
-        [NotMapped]
-        public List<IFormFile>? AttachmentFiles { get; set; }
     }
 }
