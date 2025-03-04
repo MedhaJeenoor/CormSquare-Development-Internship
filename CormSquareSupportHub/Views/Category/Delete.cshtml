@@ -24,22 +24,8 @@
                 </div>
 
                 <div class="mb-3 row p-1">
-                    <label>Select Parent Category</label>
-                    <select asp-for="ParentCategoryId" class="form-control" disabled>
-                        <option value="0">This is a Parent Category</option>
-                        @if (Model.Categories != null)
-                        {
-                            @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
-                            {
-                                <option value="@category.Id">@category.Name</option>
-                                @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
-                                {
-                                    <option value="@subcategory.Id">— @subcategory.Name</option>
-                                }
-                            }
-                        }
-                    </select>
-
+                    <label>Parent Category</label>
+                    <input type="text" class="form-control" value="@(Model.ParentCategory != null ? Model.ParentCategory.Name : "This is a Parent Category")" disabled />
                 </div>
 
                 <div class="mb-3 row p-1">

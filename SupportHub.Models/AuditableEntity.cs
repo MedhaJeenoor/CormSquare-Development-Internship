@@ -12,6 +12,10 @@ namespace SupportHub.Models
         public DateTime CreatedDate { get; set; }
         public int? UpdatedBy { get; set; }
         public DateTime? UpdatedDate { get; set; }
+        public bool IsDeleted { get; set; } = false;
+        public int? DeletedBy { get; set; } // Nullable - because it may not be deleted
+        public DateTime? DeletedDate { get; set; } // Nullable - because it may not be deleted
+
 
         public void UpdateAudit(int userId)
         {
@@ -30,6 +34,16 @@ namespace SupportHub.Models
         {
             CreatedBy = userId;
 
+        }
+
+        public void SoftDelete(int userId)
+        {
+            if (!IsDeleted) // Prevent multiple deletions
+            {
+                IsDeleted = true;
+                DeletedBy = userId;
+                DeletedDate = DateTime.UtcNow;
+            }
         }
     }
 }

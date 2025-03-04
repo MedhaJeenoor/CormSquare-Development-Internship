@@ -17,6 +17,7 @@
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data">
                 <input type="hidden" asp-for="Id" />
+
                 <div class="mb-3 row p-1">
                     <label asp-for="Name"></label>
                     <input asp-for="Name" class="form-control" />
@@ -28,7 +29,7 @@
                     <label>Select Parent Category</label>
                     <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
                         {
                             <option value="@category.Id">@category.Name</option>
                             @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
@@ -93,6 +94,7 @@
 
 <div class="mb-5 pb-5"></div>
 
+<!-- JavaScript for Inheriting Parent Settings -->
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
@@ -107,9 +109,8 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data) {
-                            // Parent allows it, so enable & allow user to uncheck
                             allowAttachmentsCheckbox.checked = data.allowAttachments;
-                            allowAttachmentsCheckbox.disabled = !data.allowAttachments; // Disable if parent has false
+                            allowAttachmentsCheckbox.disabled = !data.allowAttachments;
 
                             allowReferenceLinksCheckbox.checked = data.allowReferenceLinks;
                             allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
@@ -117,33 +118,44 @@
                     })
                     .catch(error => console.error("Error fetching category settings:", error));
             } else {
-                // Enable checkboxes when no parent is selected
                 allowAttachmentsCheckbox.disabled = false;
                 allowReferenceLinksCheckbox.disabled = false;
             }
         }
 
-        // Run on page load
         updateCheckboxes();
-
-        // Update when category changes
         parentCategoryDropdown.addEventListener("change", updateCheckboxes);
     });
 </script>
 
-<!-- JavaScript for Inheriting Parent Fields -->
+<!-- JavaScript for Loading Template Fields on Page Load -->
 <script>
-    document.getElementById("parentCategoryDropdown").addEventListener("change", function () {
-        var selectedCategoryId = this.value;
+        document.addEventListener("DOMContentLoaded", function () {
+        var templateJson = @Html.Raw(Json.Serialize(ViewData["TemplateJson"]));
+        var templateFieldsContainer = document.getElementById("templateFieldsContainer");
 
-        fetch('/Category/GetTemplateJson?parentCategoryId=' + selectedCategoryId)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("templateFieldsContainer").innerHTML = data.templateJson;
-                document.getElementById("optimalCreationTime").value = data.optimalCreationTime;
-            });
+        function loadTemplateFields(jsonData) {
+            templateFieldsContainer.innerHTML = ""; // Clear previous values
+
+            if (jsonData && jsonData !== "{}") {
+                var templateData = JSON.parse(jsonData);
+
+                templateData.fields.forEach(field => {
+                    var input = document.createElement("input");
+                    input.type = field.type === "textarea" ? "text" : field.type;
+                    input.className = "form-control mt-2";
+                    input.value = field.label;  // Populate only the textbox with the field label
+
+                    templateFieldsContainer.appendChild(input);
+                });
+            }
+        }
+
+        loadTemplateFields(templateJson);
     });
 </script>
+
+<!-- JavaScript for Adding New Fields -->
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         var fieldContainer = document.getElementById("templateFieldsContainer");
@@ -189,6 +201,7 @@
         });
     });
 </script>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }

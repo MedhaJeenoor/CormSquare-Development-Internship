@@ -5,34 +5,44 @@ using SupportHub.Models;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using SupportHub.DataAccess.Repository.IRepository;
+using Microsoft.AspNetCore.Hosting;
 
 namespace CormSquareSupportHub.Controllers
 {
     public class CategoryController : Controller
     {
-        private readonly ApplicationDbContext _categoryRepo;
-        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IUnitOfWork _unitOfWork;
+        //private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public CategoryController(ApplicationDbContext db, IWebHostEnvironment webHostEnvironment)
+        //public CategoryController(IUnitOfWork unitOfWork, IWebHostEnvironment webHostEnvironment)
+        //{
+        //    _unitOfWork = unitOfWork;
+        //    _webHostEnvironment = webHostEnvironment;
+        //}
+        public CategoryController(IUnitOfWork unitOfWork)
         {
-            _categoryRepo = db;
-            _webHostEnvironment = webHostEnvironment;
+            _unitOfWork = unitOfWork;
         }
 
         public async Task<IActionResult> Index()
         {
-            List<Category> categories = await _categoryRepo.Categories
-                .Where(c => c.ParentCategoryId == null)
-                .Include(c => c.SubCategories)
+            List<Category> categories = (await _unitOfWork.Category
+                .GetAllAsync(
+                    filter: c => c.ParentCategoryId == null && !c.IsDeleted,
+                    includeProperties: "SubCategories"
+                ))
                 .OrderBy(c => c.DisplayOrder)
-                .ToListAsync();
+                .ToList();
+
             return View(categories);
         }
 
-        public IActionResult Create()
+
+        public async Task<IActionResult> Create()
         {
-            var categories = _categoryRepo.Categories.AsNoTracking().ToList();
-            return View(new Category { Categories = categories });
+            var categories = await _unitOfWork.Category.GetAllAsync();
+            return View(new Category { Categories = categories.ToList() });
         }
 
         [HttpPost]
@@ -40,7 +50,7 @@ namespace CormSquareSupportHub.Controllers
         {
             if (!ModelState.IsValid)
             {
-                obj.Categories = await _categoryRepo.Categories.AsNoTracking().ToListAsync();
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                 return View(obj);
             }
 
@@ -48,36 +58,29 @@ namespace CormSquareSupportHub.Controllers
 
             if (obj.ParentCategoryId != null)
             {
-                var parentCategory = await _categoryRepo.Categories
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == obj.ParentCategoryId);
-
+                var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == obj.ParentCategoryId);
                 if (parentCategory == null)
                 {
                     ModelState.AddModelError("ParentCategoryId", "The selected Parent Category does not exist.");
-                    obj.Categories = await _categoryRepo.Categories.AsNoTracking().ToListAsync();
+                    obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                     return View(obj);
                 }
 
-                // Ensure subcategory CANNOT enable what the parent has disabled
-                obj.AllowAttachments &= parentCategory.AllowAttachments;
-                obj.AllowReferenceLinks &= parentCategory.AllowReferenceLinks;
-
-                // Inherit TemplateJson if empty
+                obj.AllowAttachments = parentCategory.AllowAttachments ? obj.AllowAttachments : false;
+                obj.AllowReferenceLinks = parentCategory.AllowReferenceLinks ? obj.AllowReferenceLinks : false;
                 obj.TemplateJson = string.IsNullOrWhiteSpace(obj.TemplateJson) ? parentCategory.TemplateJson : obj.TemplateJson;
             }
 
-            // Auto-assign Display Order
             obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
-                (_categoryRepo.Categories
-                    .Where(c => c.ParentCategoryId == obj.ParentCategoryId)
-                    .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
+            ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId))
+            .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
 
-            _categoryRepo.Categories.Add(obj);
-            await _categoryRepo.SaveChangesAsync();
+            _unitOfWork.Category.Add(obj);
+            _unitOfWork.Save();
             TempData["success"] = "Category created successfully";
             return RedirectToAction("Index");
         }
+
 
         public async Task<IActionResult> Edit(int? id)
         {
@@ -86,16 +89,17 @@ namespace CormSquareSupportHub.Controllers
                 return NotFound();
             }
 
-            var categoryFromDb = await _categoryRepo.Categories
-                .Include(c => c.SubCategories)
-                .FirstOrDefaultAsync(c => c.Id == id);
-
+            var categoryFromDb = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
             if (categoryFromDb == null)
             {
                 return NotFound();
             }
 
-            categoryFromDb.Categories = await _categoryRepo.Categories.AsNoTracking().ToListAsync();
+            categoryFromDb.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
+            
+            // Ensure TemplateJson is available in ViewData
+            ViewData["TemplateJson"] = categoryFromDb.TemplateJson ?? "{}";
+
             return View(categoryFromDb);
         }
 
@@ -104,7 +108,7 @@ namespace CormSquareSupportHub.Controllers
         {
             if (!ModelState.IsValid)
             {
-                obj.Categories = await _categoryRepo.Categories.AsNoTracking().ToListAsync();
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                 return View(obj);
             }
 
@@ -112,20 +116,18 @@ namespace CormSquareSupportHub.Controllers
 
             if (obj.ParentCategoryId != null)
             {
-                var parentCategory = await _categoryRepo.Categories
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == obj.ParentCategoryId);
+                var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == obj.ParentCategoryId);
 
                 if (parentCategory == null)
                 {
                     ModelState.AddModelError("ParentCategoryId", "The selected Parent Category does not exist.");
-                    obj.Categories = await _categoryRepo.Categories.AsNoTracking().ToListAsync();
+                    obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                     return View(obj);
                 }
 
                 // Ensure subcategory CANNOT enable what the parent has disabled
-                obj.AllowAttachments &= parentCategory.AllowAttachments;
-                obj.AllowReferenceLinks &= parentCategory.AllowReferenceLinks;
+                if (!parentCategory.AllowAttachments) obj.AllowAttachments = false;
+                if (!parentCategory.AllowReferenceLinks) obj.AllowReferenceLinks = false;
 
                 // Inherit TemplateJson if empty
                 obj.TemplateJson = string.IsNullOrWhiteSpace(obj.TemplateJson) ? parentCategory.TemplateJson : obj.TemplateJson;
@@ -133,12 +135,12 @@ namespace CormSquareSupportHub.Controllers
 
             // Auto-assign Display Order
             obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
-                (_categoryRepo.Categories
-                    .Where(c => c.ParentCategoryId == obj.ParentCategoryId)
-                    .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
+            ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId))
+            .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
 
-            _categoryRepo.Categories.Update(obj);
-            await _categoryRepo.SaveChangesAsync();
+
+            _unitOfWork.Category.Update(obj);
+            _unitOfWork.Save();
             TempData["success"] = "Category updated successfully";
             return RedirectToAction("Index");
         }
@@ -150,8 +152,10 @@ namespace CormSquareSupportHub.Controllers
                 return NotFound();
             }
 
-            var categoryFromDb = await _categoryRepo.Categories
-                .FirstOrDefaultAsync(c => c.Id == id);
+            var categoryFromDb = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                c => c.Id == id,
+                includeProperties: "ParentCategory"
+                );
 
             if (categoryFromDb == null)
             {
@@ -169,23 +173,25 @@ namespace CormSquareSupportHub.Controllers
                 return NotFound();
             }
 
-            var category = await _categoryRepo.Categories.FirstOrDefaultAsync(c => c.Id == id);
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
 
             if (category == null)
             {
                 return NotFound();
             }
 
-            _categoryRepo.Categories.Remove(category);
-            await _categoryRepo.SaveChangesAsync();
-            TempData["success"] = "Category deleted successfully";
+            // Use Soft Delete from Base Repository
+            _unitOfWork.Category.SoftDelete(category, userId: 1);  // TODO: Replace 1 with logged-in user's ID
+            await _unitOfWork.SaveAsync();
+
+            TempData["success"] = "Category deleted successfully (Soft Delete)";
             return RedirectToAction("Index");
         }
 
         [HttpGet]
         public async Task<IActionResult> GetCategorySettings(int id)
         {
-            var parentCategory = await _categoryRepo.Categories.FindAsync(id);
+            var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
 
             if (parentCategory == null)
             {
