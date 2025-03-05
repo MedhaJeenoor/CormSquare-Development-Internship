@@ -2,8 +2,9 @@ using System.Diagnostics;
 using SupportHub.Models;
 using Microsoft.AspNetCore.Mvc;
 
-namespace CormSquareSupportHub.Controllers
+namespace CormSquareSupportHub.Areas.Public.Controllers
 {
+    [Area("Public")]
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;

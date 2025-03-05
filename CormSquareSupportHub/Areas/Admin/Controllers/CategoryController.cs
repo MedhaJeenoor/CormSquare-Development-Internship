@@ -8,8 +8,9 @@ using System.Collections.Generic;
 using SupportHub.DataAccess.Repository.IRepository;
 using Microsoft.AspNetCore.Hosting;
 
-namespace CormSquareSupportHub.Controllers
+namespace CormSquareSupportHub.Areas.Admin.Controllers
 {
+    [Area("Admin")]
     public class CategoryController : Controller
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -96,7 +97,7 @@ namespace CormSquareSupportHub.Controllers
             }
 
             categoryFromDb.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
-            
+
             // Ensure TemplateJson is available in ViewData
             ViewData["TemplateJson"] = categoryFromDb.TemplateJson ?? "{}";
 

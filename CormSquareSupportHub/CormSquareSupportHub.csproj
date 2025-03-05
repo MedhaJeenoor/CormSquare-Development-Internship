@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Areas\KnowledgeBase\Controllers\" />
+    <Folder Include="Areas\UserManagement\Controllers\" />
+    <Folder Include="Controllers\" />
     <Folder Include="wwwroot\images\" />
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
