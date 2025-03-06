@@ -130,9 +130,20 @@
 
 <!-- JavaScript for Loading Template Fields on Page Load -->
 <script>
-        document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
         var templateJson = @Html.Raw(Json.Serialize(ViewData["TemplateJson"]));
         var templateFieldsContainer = document.getElementById("templateFieldsContainer");
+        var templateJsonInput = document.getElementById("TemplateJson");
+
+        function updateJson() {
+            var fields = [];
+            templateFieldsContainer.querySelectorAll("input").forEach(input => {
+                if (input.value.trim() !== "") {
+                    fields.push({ "label": input.value, "type": "text" });
+                }
+            });
+            templateJsonInput.value = JSON.stringify({ "fields": fields });
+        }
 
         function loadTemplateFields(jsonData) {
             templateFieldsContainer.innerHTML = ""; // Clear previous values
@@ -141,19 +152,39 @@
                 var templateData = JSON.parse(jsonData);
 
                 templateData.fields.forEach(field => {
+                    var fieldWrapper = document.createElement("div");
+                    fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+
                     var input = document.createElement("input");
                     input.type = field.type === "textarea" ? "text" : field.type;
-                    input.className = "form-control mt-2";
+                    input.className = "form-control me-2";
                     input.value = field.label;  // Populate only the textbox with the field label
 
-                    templateFieldsContainer.appendChild(input);
+                    var deleteBtn = document.createElement("button");
+                    deleteBtn.type = "button";
+                    deleteBtn.className = "btn btn-danger btn-sm ms-2";
+                    deleteBtn.innerHTML = "Remove";
+
+                    deleteBtn.addEventListener("click", function () {
+                        fieldWrapper.remove(); // Remove the whole wrapper div
+                        updateJson(); // Update JSON
+                    });
+
+                    input.addEventListener("input", updateJson);
+
+                    fieldWrapper.appendChild(input);
+                    fieldWrapper.appendChild(deleteBtn);
+                    templateFieldsContainer.appendChild(fieldWrapper);
                 });
+
+                updateJson(); // Update JSON on page load
             }
         }
 
         loadTemplateFields(templateJson);
     });
 </script>
+
 
 <!-- JavaScript for Adding New Fields -->
 <script>

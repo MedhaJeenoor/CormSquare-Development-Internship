@@ -1,0 +1,87 @@
+﻿@model string
+@{
+    var isReadOnly = ViewData["IsReadOnly"] as bool? ?? false;
+    var templateJson = !string.IsNullOrEmpty(Model) ? Model : "{}";
+}
+
+<div id="templateFieldsContainer" class="mt-3"></div>
+@if (!isReadOnly)
+{
+    <button type="button" id="addFieldBtn" class="btn btn-success mt-2">
+        <i class="bi bi-plus-circle"></i> Add Field
+    </button>
+}
+
+<input type="hidden" id="TemplateJson" name="TemplateJson" value="@Model" />
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var fieldContainer = document.getElementById("templateFieldsContainer");
+        var templateJsonInput = document.getElementById("TemplateJson");
+        var addFieldBtn = document.getElementById("addFieldBtn");
+        var isReadOnly = @((isReadOnly ? "true" : "false"));
+
+        function updateJson() {
+            var fields = [];
+            fieldContainer.querySelectorAll("input").forEach(input => {
+                if (input.value.trim() !== "") {
+                    fields.push({ "label": input.value, "type": "text" });
+                }
+            });
+            templateJsonInput.value = JSON.stringify({ "fields": fields });
+        }
+
+        function loadTemplateFields(jsonData) {
+            fieldContainer.innerHTML = ""; // Clear previous values
+            if (jsonData && jsonData !== "{}") {
+                var templateData = JSON.parse(jsonData);
+
+                templateData.fields.forEach(field => {
+                    addField(field.label);
+                });
+            }
+        }
+
+        function addField(label = "") {
+            var fieldWrapper = document.createElement("div");
+            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+
+            var input = document.createElement("input");
+            input.type = "text";
+            input.className = "form-control me-2";
+            input.placeholder = "Enter field name here";
+            input.value = label;
+
+            if (isReadOnly) {
+                input.readOnly = true;
+            } else {
+                input.addEventListener("input", updateJson);
+            }
+
+            fieldWrapper.appendChild(input);
+
+            if (!isReadOnly) {
+                var deleteBtn = document.createElement("button");
+                deleteBtn.type = "button";
+                deleteBtn.className = "btn btn-danger btn-sm ms-2";
+                deleteBtn.innerHTML = "Remove";
+                deleteBtn.addEventListener("click", function () {
+                    fieldWrapper.remove();
+                    updateJson();
+                });
+                fieldWrapper.appendChild(deleteBtn);
+            }
+
+            fieldContainer.appendChild(fieldWrapper);
+            updateJson();
+        }
+
+        if (addFieldBtn) {
+            addFieldBtn.addEventListener("click", function () {
+                addField();
+            });
+        }
+
+        loadTemplateFields(templateJsonInput.value);
+    });
+</script>

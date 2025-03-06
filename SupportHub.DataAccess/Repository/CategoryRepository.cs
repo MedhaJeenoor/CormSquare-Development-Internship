@@ -21,29 +21,34 @@ namespace SupportHub.DataAccess.Repository
 
 
         public async Task<IEnumerable<Category>> GetAllAsync(
-            Expression<Func<Category, bool>>? filter = null,
-            string? includeProperties = null
-        )
+        Expression<Func<Category, bool>>? filter = null,
+        string? includeProperties = null)
         {
             IQueryable<Category> query = _db.Categories.Where(c => !c.IsDeleted); // Always exclude soft-deleted categories
 
-            // Apply additional filters if provided
+            // Apply filter if any
             if (filter != null)
             {
                 query = query.Where(filter);
             }
 
-            // Include related properties if specified
+            // Include related properties with nested support
             if (!string.IsNullOrEmpty(includeProperties))
             {
                 foreach (var includeProperty in includeProperties.Split(',', StringSplitOptions.RemoveEmptyEntries))
                 {
-                    query = query.Include(includeProperty);
+                    query = query.Include(includeProperty.Trim());
                 }
             }
 
+            // Include nested subcategories explicitly to ensure all levels are loaded
+            query = query.Include(c => c.SubCategories)
+                         .ThenInclude(sc => sc.SubCategories);
+
             return await query.ToListAsync();
         }
+
+
 
         public void Update(Category obj)
         {
