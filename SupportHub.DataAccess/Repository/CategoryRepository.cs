@@ -55,7 +55,15 @@ namespace SupportHub.DataAccess.Repository
             var existingCategory = _db.Categories.FirstOrDefault(c => c.Id == obj.Id);
             if (existingCategory != null)
             {
+                // Preserve CreatedBy and CreatedDate
+                obj.CreatedBy = existingCategory.CreatedBy;
+                obj.CreatedDate = existingCategory.CreatedDate;
+
                 _db.Entry(existingCategory).CurrentValues.SetValues(obj);
+
+                // Prevent overriding CreatedBy & CreatedDate in EF tracking
+                _db.Entry(existingCategory).Property(c => c.CreatedBy).IsModified = false;
+                _db.Entry(existingCategory).Property(c => c.CreatedDate).IsModified = false;
             }
         }
 

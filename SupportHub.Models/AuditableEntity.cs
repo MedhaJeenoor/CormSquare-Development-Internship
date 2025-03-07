@@ -19,21 +19,22 @@ namespace SupportHub.Models
 
         public void UpdateAudit(int userId)
         {
-            if (Id > 0)
+            if (Id > 0)  // Existing entity (Update)
             {
+                if (CreatedBy == 0)  // Ensure CreatedBy is never overwritten
+                {
+                    CreatedBy = userId;
+                    CreatedDate = DateTime.UtcNow;
+                }
+
                 UpdatedBy = userId;
                 UpdatedDate = DateTime.UtcNow;
             }
-            else
+            else  // New entity (Create)
             {
                 CreatedBy = userId;
                 CreatedDate = DateTime.UtcNow;
             }
-        }
-        public void setCreatedBy(int userId)
-        {
-            CreatedBy = userId;
-
         }
 
         public void SoftDelete(int userId)

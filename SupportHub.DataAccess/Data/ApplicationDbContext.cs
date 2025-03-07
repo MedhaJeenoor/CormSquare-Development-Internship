@@ -303,11 +303,16 @@ namespace SupportHub.DataAccess.Data
 
                 if (entry.State == EntityState.Modified)
                 {
+                    // Skip updating UpdatedBy and UpdatedDate if the entity is soft-deleted
+                    if (entry.Entity.IsDeleted)
+                        continue;
+
                     entry.Entity.UpdatedDate = DateTime.UtcNow;
                     entry.Entity.UpdatedBy = currentUserId;
                 }
             }
         }
+
 
 
 
