@@ -49,7 +49,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Question"", ""type"": ""text"" },
-                            { ""label"": ""Answer"", ""type"": ""textarea"" }
+                            { ""label"": ""Answer"", ""type"": ""textarea"", ""editor"": ""tinymce""}
                         ]
                     }"
                 },
@@ -66,7 +66,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Title"", ""type"": ""text"" },
-                            { ""label"": ""Step-by-Step Instructions"", ""type"": ""textarea"" },
+                            { ""label"": ""Step-by-Step Instructions"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
                             { ""label"": ""Screenshots"", ""type"": ""image"" }
                         ]
                     }"
@@ -84,7 +84,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Problem Statement"", ""type"": ""text"" },
-                            { ""label"": ""Solution"", ""type"": ""textarea"" },
+                            { ""label"": ""Solution"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
                             { ""label"": ""Code Snippets"", ""type"": ""code"" }
                         ]
                     }"
@@ -102,29 +102,29 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Guideline Title"", ""type"": ""text"" },
-                            { ""label"": ""Description"", ""type"": ""textarea"" }
+                            { ""label"": ""Description"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
                         ]
                     }"
                 },
                 new Category
-{
-    Id = 6,
-    Name = "Case Studies",
-    Description = "Real-world problem analysis and results.",
-    ParentCategoryId = 1,
-    OptimalCreationTime = 10,
-    DisplayOrder = 5,
-    AllowAttachments = true,
-    AllowReferenceLinks = true,
-    TemplateJson = @"{
-        ""fields"": [
-            { ""label"": ""Case Study Title"", ""type"": ""text"" },
-            { ""label"": ""Background"", ""type"": ""textarea"" },
-            { ""label"": ""Findings"", ""type"": ""textarea"" },
-            { ""label"": ""Conclusion"", ""type"": ""textarea"" }
-        ]
-    }"
-},
+                {
+                    Id = 6,
+                    Name = "Case Studies",
+                    Description = "Real-world problem analysis and results.",
+                    ParentCategoryId = 1,
+                    OptimalCreationTime = 10,
+                    DisplayOrder = 5,
+                    AllowAttachments = true,
+                    AllowReferenceLinks = true,
+                    TemplateJson = @"{
+                        ""fields"": [
+                            { ""label"": ""Case Study Title"", ""type"": ""text"" },
+                            { ""label"": ""Background"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Findings"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Conclusion"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
+                        ]
+                    }"
+                },
                 new Category
                 {
                     Id = 7,
@@ -137,9 +137,9 @@ namespace SupportHub.DataAccess.Data
                     AllowReferenceLinks = true,
                     TemplateJson = @"{
                         ""fields"": [
-                            { ""label"": ""Abstract"", ""type"": ""textarea"" },
-                            { ""label"": ""Methodology"", ""type"": ""textarea"" },
-                            { ""label"": ""Results"", ""type"": ""textarea"" },
+                            { ""label"": ""Abstract"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Methodology"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Results"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
                             { ""label"": ""References"", ""type"": ""text"" }
                         ]
                     }"
@@ -176,7 +176,7 @@ namespace SupportHub.DataAccess.Data
                             { ""label"": ""Why 3"", ""type"": ""text"" },
                             { ""label"": ""Why 4"", ""type"": ""text"" },
                             { ""label"": ""Why 5"", ""type"": ""text"" },
-                            { ""label"": ""Root Cause"", ""type"": ""textarea"" }
+                            { ""label"": ""Root Cause"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
                         ]
                     }"
                 },
@@ -193,7 +193,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Problem Statement"", ""type"": ""text"" },
-                            { ""label"": ""Causes"", ""type"": ""textarea"" },
+                            { ""label"": ""Causes"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
                             { ""label"": ""Fishbone Diagram Image"", ""type"": ""image"" }
                         ]
                     }"
@@ -212,8 +212,8 @@ namespace SupportHub.DataAccess.Data
                         ""fields"": [
                             { ""label"": ""Component"", ""type"": ""text"" },
                             { ""label"": ""Potential Failure Mode"", ""type"": ""text"" },
-                            { ""label"": ""Effect of Failure"", ""type"": ""textarea"" },
-                            { ""label"": ""Recommended Action"", ""type"": ""textarea"" }
+                            { ""label"": ""Effect of Failure"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Recommended Action"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
                         ]
                     }"
                 },
@@ -230,7 +230,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Problem Statement"", ""type"": ""text"" },
-                            { ""label"": ""Contributing Factors"", ""type"": ""textarea"" },
+                            { ""label"": ""Contributing Factors"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
                             { ""label"": ""Pareto Chart"", ""type"": ""image"" }
                         ]
                     }"
@@ -248,7 +248,7 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Fault Event"", ""type"": ""text"" },
-                            { ""label"": ""Contributing Factors"", ""type"": ""textarea"" }
+                            { ""label"": ""Contributing Factors"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
                         ]
                     }"
                 },
@@ -265,8 +265,8 @@ namespace SupportHub.DataAccess.Data
                     TemplateJson = @"{
                         ""fields"": [
                             { ""label"": ""Problem Description"", ""type"": ""text"" },
-                            { ""label"": ""Root Cause"", ""type"": ""textarea"" },
-                            { ""label"": ""Corrective Action"", ""type"": ""textarea"" }
+                            { ""label"": ""Root Cause"", ""type"": ""textarea"", ""editor"": ""tinymce"" },
+                            { ""label"": ""Corrective Action"", ""type"": ""textarea"", ""editor"": ""tinymce"" }
                         ]
                     }"
                 }
@@ -318,23 +318,52 @@ namespace SupportHub.DataAccess.Data
 
         private void InheritCategorySettings()
         {
-            // Get all categories that were added or modified
             var affectedCategories = ChangeTracker.Entries<Category>()
                 .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
                 .Select(e => e.Entity)
                 .ToList();
 
-            // Apply inheritance logic
             foreach (var subcategory in affectedCategories)
             {
-                if (subcategory.ParentCategoryId.HasValue) // If it has a parent
+                if (subcategory.ParentCategoryId.HasValue)
                 {
                     var parent = Categories.Find(subcategory.ParentCategoryId.Value);
                     if (parent != null)
                     {
-                        subcategory.AllowAttachments = parent.AllowAttachments;
-                        subcategory.AllowReferenceLinks = parent.AllowReferenceLinks;
+                        // If parent disabled attachments, force subcategory to be disabled
+                        if (!parent.AllowAttachments)
+                        {
+                            subcategory.AllowAttachments = false;
+                            Entry(subcategory).Property(x => x.AllowAttachments).IsModified = true;
+                        }
+                        // If parent enabled, allow user to decide (don't force overwrite)
+                        else
+                        {
+                            // Default to true but allow user to modify
+                            if (!subcategory.AllowAttachments)
+                            {
+                                subcategory.AllowAttachments = true; // Default to true
+                                Entry(subcategory).Property(x => x.AllowAttachments).IsModified = true;
+                            }
+                        }
+
+                        // Apply same logic for references
+                        if (!parent.AllowReferenceLinks)
+                        {
+                            subcategory.AllowReferenceLinks = false;
+                            Entry(subcategory).Property(x => x.AllowReferenceLinks).IsModified = true;
+                        }
+                        else
+                        {
+                            // Default to true but allow user to modify
+                            if (!subcategory.AllowReferenceLinks)
+                            {
+                                subcategory.AllowReferenceLinks = true; // Default to true
+                                Entry(subcategory).Property(x => x.AllowReferenceLinks).IsModified = true;
+                            }
+                        }
                     }
+
                 }
             }
         }

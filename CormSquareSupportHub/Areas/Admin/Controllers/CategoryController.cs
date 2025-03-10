@@ -77,7 +77,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
 
             _unitOfWork.Category.Add(obj);
-            _unitOfWork.Save();
+            await _unitOfWork.SaveAsync();
             TempData["success"] = "Category created successfully";
             return RedirectToAction("Index");
         }
@@ -192,19 +192,22 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCategorySettings(int id)
         {
-            var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
+            var categories = await _unitOfWork.Category.GetAllAsync();
+            var categoryDict = categories.ToDictionary(c => c.Id);
 
-            if (parentCategory == null)
+            bool allowAttachments = true, allowReferenceLinks = true;
+            while (categoryDict.ContainsKey(id))
             {
-                return NotFound();
+                var category = categoryDict[id];
+                if (!category.AllowAttachments) allowAttachments = false;
+                if (!category.AllowReferenceLinks) allowReferenceLinks = false;
+                id = category.ParentCategoryId ?? 0;
             }
 
-            return Json(new
-            {
-                allowAttachments = parentCategory.AllowAttachments,
-                allowReferenceLinks = parentCategory.AllowReferenceLinks
-            });
+            return Json(new { allowAttachments, allowReferenceLinks });
         }
+
+
 
     }
 }

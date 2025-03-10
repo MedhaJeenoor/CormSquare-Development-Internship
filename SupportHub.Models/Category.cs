@@ -27,7 +27,7 @@ namespace SupportHub.Models
         [DisplayName("Display Order")]
         public int DisplayOrder { get; set; }
 
-        public bool AllowAttachments { get; set; }
+        public bool AllowAttachments { get; set; } = false;
         public bool AllowReferenceLinks { get; set; } = false;
 
         [Column(TypeName = "NVARCHAR(MAX)")]
