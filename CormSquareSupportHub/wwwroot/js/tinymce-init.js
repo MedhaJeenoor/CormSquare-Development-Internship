@@ -21,3 +21,25 @@
         input.click();
     }
 });
+
+//By default, TinyMCE doesn’t include a built -in code editor, but you can enable it using:
+
+//Preformatted Text(<pre><code>...</code></pre>)
+//Plugins like codesample(for syntax - highlighted code blocks)
+//Custom Buttons(to insert / edit raw HTML)
+//Example Configuration for TinyMCE with Code Support
+//js
+//Copy
+//Edit
+//tinymce.init({
+//    selector: '#editor',  // Replace with your textarea ID
+//    height: 400,
+//    plugins: 'codesample table lists link image',
+//    toolbar: 'undo redo | formatselect | bold italic underline | bullist numlist | codesample table',
+//    content_style: 'pre {background: #f4f4f4; padding: 10px; border-radius: 5px;}'
+//});
+//This will allow users to:
+//✅ Add and format text
+//✅ Insert tables
+//✅ Use lists, links, images
+//✅ Include code blocks with syntax highlighting

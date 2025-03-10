@@ -99,15 +99,18 @@
         var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
         var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
 
-        function updateCheckboxes() {
-            var selectedParentId = parentCategoryDropdown.value;
-
+        function updateCheckboxes(selectedParentId) {
             if (selectedParentId && selectedParentId !== "0") {
                 fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data) {
-                            // Parent allows it, so enable & allow user to uncheck
+                            // Update checkboxes based on parent category settings
                             allowAttachmentsCheckbox.checked = data.allowAttachments;
                             allowAttachmentsCheckbox.disabled = !data.allowAttachments; // Disable if parent has false
 
@@ -115,19 +118,28 @@
                             allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
                         }
                     })
-                    .catch(error => console.error("Error fetching category settings:", error));
-            } else {
+                    .catch(error => {
+                        console.error("Error fetching category settings:", error);
+                        // Optionally, show an error message to the user
+                        alert("Failed to fetch category settings. Please try again.");
+                    });
+            } else {  
                 // Enable checkboxes when no parent is selected
+                allowAttachmentsCheckbox.checked = false; // Reset to unchecked
                 allowAttachmentsCheckbox.disabled = false;
+
+                allowReferenceLinksCheckbox.checked = false; // Reset to unchecked
                 allowReferenceLinksCheckbox.disabled = false;
             }
         }
 
-        // Run on page load
-        updateCheckboxes();
+        // Run on page load to set initial state
+        updateCheckboxes(parentCategoryDropdown.value);
 
         // Update when category changes
-        parentCategoryDropdown.addEventListener("change", updateCheckboxes);
+        parentCategoryDropdown.addEventListener("change", function () {
+            updateCheckboxes(this.value);
+        });
     });
 </script>
 
@@ -151,23 +163,45 @@
         var templateJsonInput = document.getElementById("TemplateJson");
 
         function updateJson() {
-            var fields = [];
-            fieldContainer.querySelectorAll("input").forEach(input => {
-                if (input.value.trim() !== "") {
-                    fields.push({ "label": input.value, "type": "text" });
+        var fields = [];
+        fieldContainer.querySelectorAll(".field-row").forEach(fieldRow => {
+            var input = fieldRow.querySelector("input.field-name");
+            var type = fieldRow.querySelector("select.field-type").value;
+
+            if (input.value.trim() !== "") {
+                var fieldObj = { "label": input.value, "type": type };
+
+                // Add editor property if textarea is selected
+                if (type === "textarea") {
+                    fieldObj["editor"] = "tinymce";
                 }
-            });
-            templateJsonInput.value = JSON.stringify({ "fields": fields });
-        }
+
+                fields.push(fieldObj);
+            }
+        });
+
+        templateJsonInput.value = JSON.stringify({ "fields": fields });
+    }
 
         addFieldBtn.addEventListener("click", function () {
             var fieldWrapper = document.createElement("div");
-            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+            fieldWrapper.className = "field-row form-group d-flex align-items-center mt-2";
 
             var newField = document.createElement("input");
             newField.type = "text";
-            newField.className = "form-control me-2";
+            newField.className = "form-control me-2 field-name";
             newField.placeholder = "Enter field name here";
+
+            var typeDropdown = document.createElement("select");
+            typeDropdown.className = "form-select me-2 field-type";
+            typeDropdown.style.width = "300px"; // Reduced width
+            typeDropdown.innerHTML = `
+                <option value="text">Text</option>
+                <option value="textarea">Textarea (TinyMCE)</option>
+                <option value="code">Code</option>
+                <option value="image">Image</option>
+            `;
+
 
             var deleteBtn = document.createElement("button");
             deleteBtn.type = "button";
@@ -180,8 +214,12 @@
             });
 
             newField.addEventListener("input", updateJson);
+            typeDropdown.addEventListener("change", function () {
+                updateJson();
+            });
 
             fieldWrapper.appendChild(newField);
+            fieldWrapper.appendChild(typeDropdown);
             fieldWrapper.appendChild(deleteBtn);
             fieldContainer.appendChild(fieldWrapper);
 
@@ -189,6 +227,7 @@
         });
     });
 </script>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }

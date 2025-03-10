@@ -188,29 +188,52 @@
 
 <!-- JavaScript for Adding New Fields -->
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener("DOMContentLoaded", function () {
+        var templateJson = @Html.Raw(Json.Serialize(ViewData["TemplateJson"]));
         var fieldContainer = document.getElementById("templateFieldsContainer");
-        var addFieldBtn = document.getElementById("addFieldBtn");
         var templateJsonInput = document.getElementById("TemplateJson");
 
         function updateJson() {
-            var fields = [];
-            fieldContainer.querySelectorAll("input").forEach(input => {
-                if (input.value.trim() !== "") {
-                    fields.push({ "label": input.value, "type": "text" });
-                }
-            });
-            templateJsonInput.value = JSON.stringify({ "fields": fields });
-        }
+        var fields = [];
+        fieldContainer.querySelectorAll(".field-row").forEach(fieldRow => {
+            var input = fieldRow.querySelector("input.field-name");
+            var type = fieldRow.querySelector("select.field-type").value;
 
-        addFieldBtn.addEventListener("click", function () {
+            if (input.value.trim() !== "") {
+                var fieldObj = { "label": input.value, "type": type };
+
+                // Add editor property if textarea is selected
+                if (type === "textarea") {
+                    fieldObj["editor"] = "tinymce";
+                }
+
+                fields.push(fieldObj);
+            }
+        });
+
+        templateJsonInput.value = JSON.stringify({ "fields": fields });
+    }
+
+        function createFieldRow(fieldName = "", fieldType = "text") {
             var fieldWrapper = document.createElement("div");
-            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+            fieldWrapper.className = "field-row form-group d-flex align-items-center mt-2";
 
             var newField = document.createElement("input");
             newField.type = "text";
-            newField.className = "form-control me-2";
+            newField.className = "form-control me-2 field-name";
             newField.placeholder = "Enter field name here";
+            newField.value = fieldName;
+
+            var typeDropdown = document.createElement("select");
+            typeDropdown.className = "form-select me-2 field-type";
+            typeDropdown.style.width = "300px"; // Reduced width
+            typeDropdown.innerHTML = `
+                <option value="text">Text</option>
+                <option value="textarea">Textarea (TinyMCE)</option>
+                <option value="code">Code</option>
+                <option value="image">Image</option>
+            `;
+            typeDropdown.value = fieldType;
 
             var deleteBtn = document.createElement("button");
             deleteBtn.type = "button";
@@ -223,14 +246,30 @@
             });
 
             newField.addEventListener("input", updateJson);
+            typeDropdown.addEventListener("change", updateJson);
 
             fieldWrapper.appendChild(newField);
+            fieldWrapper.appendChild(typeDropdown);
             fieldWrapper.appendChild(deleteBtn);
             fieldContainer.appendChild(fieldWrapper);
 
             updateJson();
-        });
+        }
+
+        function loadTemplateFields(jsonData) {
+            fieldContainer.innerHTML = "";
+            if (jsonData && jsonData !== "{}") {
+                var templateData = JSON.parse(jsonData);
+                templateData.fields.forEach(field => {
+                    createFieldRow(field.label, field.type);
+                });
+            }
+            updateJson();
+        }
+
+        loadTemplateFields(templateJson);
     });
+
 </script>
 
 @section Scripts {
