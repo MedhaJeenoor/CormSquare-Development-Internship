@@ -9,6 +9,7 @@ namespace SupportHub.DataAccess.Repository.IRepository
     public interface IUnitOfWork
     {
         ICategoryRepository Category { get; }
+        ISolutionRepository Solution { get; }
         void Save();
         Task SaveAsync();
     }

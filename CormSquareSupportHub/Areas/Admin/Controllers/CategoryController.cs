@@ -39,11 +39,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             return View(categories);
         }
 
-
+        [HttpGet]
         public async Task<IActionResult> Create()
         {
             var categories = await _unitOfWork.Category.GetAllAsync();
-            return View(new Category { Categories = categories.ToList() });
+                return View(new Category { Categories = categories.ToList() });
         }
 
         [HttpPost]
@@ -53,6 +53,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             {
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                 return View(obj);
+            }
+            // If it's a subcategory, OptimalCreationTime must be > 1
+            if (obj.OptimalCreationTime <= 1)
+            {
+                ModelState.AddModelError("OptimalCreationTime", "Subcategories must have an Optimal Creation Time greater than 1.");
             }
 
             obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
@@ -188,23 +193,45 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             TempData["success"] = "Category deleted successfully (Soft Delete)";
             return RedirectToAction("Index");
         }
-
         [HttpGet]
+        [Route("api/Category/GetCategorySettings/{id}")]
         public async Task<IActionResult> GetCategorySettings(int id)
         {
-            var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
-
-            if (parentCategory == null)
+            // Validate input id
+            if (id <= 0)
             {
-                return NotFound();
+                return BadRequest(new { error = "Invalid category ID" });
             }
 
-            return Json(new
+            // Fetch category from database
+            var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id);
+
+            // If category not found, return 404
+            if (parentCategory == null)
+            {
+                return NotFound(new { error = "Category not found" });
+            }
+
+            // Return category settings
+            return Ok(new
             {
                 allowAttachments = parentCategory.AllowAttachments,
                 allowReferenceLinks = parentCategory.AllowReferenceLinks
             });
         }
+
+        [HttpGet]
+        [Route("/api/Category/GetExistingDisplayOrders")]
+        public async Task<JsonResult> GetExistingDisplayOrders()
+        {
+            var existingOrders = (await _unitOfWork.Category.GetAllAsync())
+                .Select(c => c.DisplayOrder)
+                .ToList();
+
+            return Json(existingOrders);
+        }
+
+
 
     }
 }

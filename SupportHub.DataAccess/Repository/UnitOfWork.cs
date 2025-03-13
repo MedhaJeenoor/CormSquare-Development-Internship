@@ -12,6 +12,7 @@ namespace SupportHub.DataAccess.Repository
     {
         private ApplicationDbContext _db;
         public ICategoryRepository Category { get; private set; }
+        public ISolutionRepository Solution { get; private set; }
 
         public UnitOfWork(ApplicationDbContext db)
         {

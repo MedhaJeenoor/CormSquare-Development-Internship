@@ -318,12 +318,13 @@ namespace SupportHub.DataAccess.Data
 
         private void InheritCategorySettings()
         {
+     
             // Get all categories that were added or modified
-            var affectedCategories = ChangeTracker.Entries<Category>()
+           var affectedCategories = ChangeTracker.Entries<Category>()
                 .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
                 .Select(e => e.Entity)
                 .ToList();
-
+     
             // Apply inheritance logic
             foreach (var subcategory in affectedCategories)
             {
@@ -336,6 +337,7 @@ namespace SupportHub.DataAccess.Data
                         subcategory.AllowReferenceLinks = parent.AllowReferenceLinks;
                     }
                 }
+         
             }
         }
     }

@@ -5,10 +5,8 @@ using Microsoft.AspNetCore.Http;
 
 namespace SupportHub.Models
 {
-    public class Solution
+    public class Solution : AuditableEntity
     {
-        [Key]
-        public int Id { get; set; }
 
         [Required]
         [MaxLength(255)]
@@ -19,6 +17,7 @@ namespace SupportHub.Models
         [DisplayName("Category")]
         public int CategoryId { get; set; }
         public virtual Category Category { get; set; } = null!;
+        public int? ParentCategoryId => Category?.ParentCategoryId;
 
         [ForeignKey("Product")]
         [DisplayName("Product")]
@@ -28,6 +27,7 @@ namespace SupportHub.Models
         [Column(TypeName = "NVARCHAR(MAX)")]
         [DisplayName("Solution Content")]
         public string Content { get; set; } = string.Empty;
+        public string TemplateCategory { get; set; }
 
         [Required]
         [DisplayName("Document ID")]
@@ -39,5 +39,8 @@ namespace SupportHub.Models
         // Added for handling file uploads in forms
         [NotMapped]
         public List<IFormFile>? AttachmentFiles { get; set; }
+        public List<Solution> Solutions { get; set; }
+
     }
 }
+

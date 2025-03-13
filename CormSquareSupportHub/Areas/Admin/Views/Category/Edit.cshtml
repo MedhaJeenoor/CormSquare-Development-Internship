@@ -93,38 +93,63 @@
 </div>
 
 <div class="mb-5 pb-5"></div>
-
-<!-- JavaScript for Inheriting Parent Settings -->
 <script>
     document.addEventListener("DOMContentLoaded", function () {
+        // Get references to the dropdown and checkboxes
         var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
         var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
         var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
 
+        if (!parentCategoryDropdown || !allowAttachmentsCheckbox || !allowReferenceLinksCheckbox) {
+            console.error("One or more required elements are missing from the page.");
+            return;
+        }
+
+        // Function to check if a category is a subcategory
+        function isSubCategory() {
+            return parentCategoryDropdown.value && parentCategoryDropdown.value !== "0";
+        }
+
+        // Function to update checkboxes based on parent category selection
         function updateCheckboxes() {
             var selectedParentId = parentCategoryDropdown.value;
 
-            if (selectedParentId && selectedParentId !== "0") {
-                fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                    .then(response => response.json())
+            if (isSubCategory()) {
+                var url = `/api/Category/GetCategorySettings/${selectedParentId}`;
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data) {
+                            // Inherit settings from parent category
                             allowAttachmentsCheckbox.checked = data.allowAttachments;
-                            allowAttachmentsCheckbox.disabled = !data.allowAttachments;
-
                             allowReferenceLinksCheckbox.checked = data.allowReferenceLinks;
-                            allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
+
+                            // Disable checkboxes for subcategories
+                            allowAttachmentsCheckbox.disabled = true;
+                            allowReferenceLinksCheckbox.disabled = true;
                         }
                     })
-                    .catch(error => console.error("Error fetching category settings:", error));
+                    .catch(error => {
+                        console.error("Error fetching category settings:", error);
+                    });
             } else {
+                // Enable checkboxes for parent categories
                 allowAttachmentsCheckbox.disabled = false;
                 allowReferenceLinksCheckbox.disabled = false;
             }
         }
 
-        updateCheckboxes();
+        // Attach event listener to dropdown change
         parentCategoryDropdown.addEventListener("change", updateCheckboxes);
+
+        // Call update function once on page load
+        updateCheckboxes();
     });
 </script>
 

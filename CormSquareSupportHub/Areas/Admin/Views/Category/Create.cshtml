@@ -12,7 +12,6 @@
             </div>
         </div>
     </div>
-
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data">
@@ -41,10 +40,12 @@
 
                 <div class="mb-3 row p-1">
                     <label>Optimal Creation Time</label>
-                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
+                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" type="number" min="0" />
                     <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
+                    <span id="optimalCreationTimeError" class="text-danger d-none">Subcategories must have an Optimal Creation Time greater than 0.</span>
+                    <span id="parentOptimalCreationTimeError" class="text-danger d-none">Parent categories must have an Optimal Creation Time of 0.</span>
                 </div>
-
+  
                 <div class="mb-3 row p-1">
                     <label>Description</label>
                     <textarea asp-for="Description" class="form-control"></textarea>
@@ -53,9 +54,11 @@
 
                 <div class="mb-3 row p-1">
                     <label>Display Order</label>
-                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
+                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" id="displayOrderInput" />
                     <span asp-validation-for="DisplayOrder" class="text-danger"></span>
+                    <span id="displayOrderError" class="text-danger d-none">This display order is already taken.</span>
                 </div>
+
 
                 <!-- Template Fields -->
                 <div class="mb-3 p-1">
@@ -92,103 +95,181 @@
 </div>
 
 <div class="mb-5 pb-5"></div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var displayOrderInput = document.getElementById("displayOrderInput");
+        var displayOrderError = document.getElementById("displayOrderError");
+
+        if (!displayOrderInput || !displayOrderError) {
+            console.error("Display order input or error message is missing.");
+            return;
+        }
+
+        // Fetch existing display order values from API
+        fetch("/api/Category/GetExistingDisplayOrders")
+            .then(response => response.json())
+            .then(existingDisplayOrders => {
+                console.log("Existing Display Orders:", existingDisplayOrders);
+
+                // Validate input when user types
+                displayOrderInput.addEventListener("input", function () {
+                    var enteredValue = displayOrderInput.value.trim();
+
+                    if (enteredValue !== "" && existingDisplayOrders.includes(parseInt(enteredValue))) {
+                        displayOrderError.classList.remove("d-none"); // Show error message
+                        displayOrderInput.classList.add("border-danger"); // Highlight input field
+                    } else {
+                        displayOrderError.classList.add("d-none"); // Hide error message
+                        displayOrderInput.classList.remove("border-danger"); // Remove highlight
+                    }
+                });
+            })
+            .catch(error => console.error("Error fetching display order data:", error));
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
+        var optimalCreationTimeInput = document.getElementById("optimalCreationTime");
+        var optimalCreationTimeError = document.getElementById("optimalCreationTimeError");
+        var parentOptimalCreationTimeError = document.getElementById("parentOptimalCreationTimeError");
+
+        function validateOptimalCreationTime() {
+            var isSubcategory = parentCategoryDropdown.value !== "0"; // Assuming "0" means it's a parent category
+            var enteredValue = parseInt(optimalCreationTimeInput.value.trim());
+
+            if (isSubcategory) {
+                // Subcategories must have Optimal Creation Time > 0
+                if (enteredValue <= 0) {
+                    optimalCreationTimeError.classList.remove("d-none");
+                    parentOptimalCreationTimeError.classList.add("d-none");
+                    optimalCreationTimeInput.classList.add("border-danger");
+                } else {
+                    optimalCreationTimeError.classList.add("d-none");
+                    optimalCreationTimeInput.classList.remove("border-danger");
+                }
+            } else {
+                // Parent categories must have Optimal Creation Time = 0
+                if (enteredValue !== 0) {
+                    parentOptimalCreationTimeError.classList.remove("d-none");
+                    optimalCreationTimeError.classList.add("d-none");
+                    optimalCreationTimeInput.classList.add("border-danger");
+                } else {
+                    parentOptimalCreationTimeError.classList.add("d-none");
+                    optimalCreationTimeInput.classList.remove("border-danger");
+                }
+            }
+        }
+
+        // Run validation when input changes
+        optimalCreationTimeInput.addEventListener("input", validateOptimalCreationTime);
+        parentCategoryDropdown.addEventListener("change", validateOptimalCreationTime);
+    });
+</script>
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
-        var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
-        var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
+        var optimalCreationTimeInput = document.getElementById("optimalCreationTime");
+        var optimalCreationTimeError = document.getElementById("optimalCreationTimeError");
 
-        function updateCheckboxes() {
-            var selectedParentId = parentCategoryDropdown.value;
+        function validateOptimalCreationTime() {
+            var isSubcategory = parentCategoryDropdown.value !== "0";
+            var enteredValue = parseInt(optimalCreationTimeInput.value.trim());
 
-            if (selectedParentId && selectedParentId !== "0") {
-                fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data) {
-                            // Parent allows it, so enable & allow user to uncheck
-                            allowAttachmentsCheckbox.checked = data.allowAttachments;
-                            allowAttachmentsCheckbox.disabled = !data.allowAttachments; // Disable if parent has false
-
-                            allowReferenceLinksCheckbox.checked = data.allowReferenceLinks;
-                            allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
-                        }
-                    })
-                    .catch(error => console.error("Error fetching category settings:", error));
+            if (isSubcategory && enteredValue <= 1) {
+                optimalCreationTimeError.classList.remove("d-none"); // Show error message
+                optimalCreationTimeInput.classList.add("border-danger"); // Highlight input
             } else {
-                // Enable checkboxes when no parent is selected
-                allowAttachmentsCheckbox.disabled = false;
-                allowReferenceLinksCheckbox.disabled = false;
+                optimalCreationTimeError.classList.add("d-none"); // Hide error
+                optimalCreationTimeInput.classList.remove("border-danger"); // Remove highlight
             }
         }
 
-        // Run on page load
-        updateCheckboxes();
-
-        // Update when category changes
-        parentCategoryDropdown.addEventListener("change", updateCheckboxes);
+        // Run validation when input changes
+        optimalCreationTimeInput.addEventListener("input", validateOptimalCreationTime);
+        parentCategoryDropdown.addEventListener("change", validateOptimalCreationTime);
     });
 </script>
 
-<!-- JavaScript for Inheriting Parent Fields -->
-<script>
-    document.getElementById("parentCategoryDropdown").addEventListener("change", function () {
-        var selectedCategoryId = this.value;
-
-        fetch('/Category/GetTemplateJson?parentCategoryId=' + selectedCategoryId)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("templateFieldsContainer").innerHTML = data.templateJson;
-                // document.getElementById("optimalCreationTime").value = data.optimalCreationTime;
-            });
-    });
-</script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        var fieldContainer = document.getElementById("templateFieldsContainer");
-        var addFieldBtn = document.getElementById("addFieldBtn");
-        var templateJsonInput = document.getElementById("TemplateJson");
+        // Get references to the dropdown and checkboxes
+        var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
+        var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
+        var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
 
-        function updateJson() {
-            var fields = [];
-            fieldContainer.querySelectorAll("input").forEach(input => {
-                if (input.value.trim() !== "") {
-                    fields.push({ "label": input.value, "type": "text" });
-                }
-            });
-            templateJsonInput.value = JSON.stringify({ "fields": fields });
+        // Ensure all elements exist
+        if (!parentCategoryDropdown || !allowAttachmentsCheckbox || !allowReferenceLinksCheckbox) {
+            console.error("One or more required elements are missing from the page.");
+            return;
         }
 
-        addFieldBtn.addEventListener("click", function () {
-            var fieldWrapper = document.createElement("div");
-            fieldWrapper.className = "form-group d-flex align-items-center mt-2";
+        function updateCheckboxes() {
+            var selectedParentId = parentCategoryDropdown.value;
+            console.log("Selected Parent Category ID:", selectedParentId); // Debugging
 
-            var newField = document.createElement("input");
-            newField.type = "text";
-            newField.className = "form-control me-2";
-            newField.placeholder = "Enter field name here";
+            if (selectedParentId && selectedParentId !== "0") {
+                var url = `/api/Category/GetCategorySettings/${selectedParentId}`;
+                console.log("Fetching data from:", url); // Debugging
 
-            var deleteBtn = document.createElement("button");
-            deleteBtn.type = "button";
-            deleteBtn.className = "btn btn-danger btn-sm ms-2";
-            deleteBtn.innerHTML = "Remove";
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Received Data:", data); // Debugging
 
-            deleteBtn.addEventListener("click", function () {
-                fieldWrapper.remove();
-                updateJson();
-            });
+                        // Ensure the response is an object
+                        if (!data || typeof data !== "object") {
+                            throw new Error("Invalid API response format");
+                        }
 
-            newField.addEventListener("input", updateJson);
+                        // Handle missing properties safely
+                        const allowAttachments = data.allowAttachments ?? false;
+                        const parentHasAttachments = data.parentHasAttachments ?? false;
+                        const allowReferenceLinks = data.allowReferenceLinks ?? false;
+                        const parentHasReferenceLinks = data.parentHasReferenceLinks ?? false;
 
-            fieldWrapper.appendChild(newField);
-            fieldWrapper.appendChild(deleteBtn);
-            fieldContainer.appendChild(fieldWrapper);
+                        // Set checkboxes
+                        allowAttachmentsCheckbox.checked = allowAttachments;
+                        allowAttachmentsCheckbox.disabled = !parentHasAttachments;
 
-            updateJson();
-        });
+                        allowReferenceLinksCheckbox.checked = allowReferenceLinks;
+                        allowReferenceLinksCheckbox.disabled = !parentHasReferenceLinks;
+                    })
+                    .catch(error => {
+                        console.error("Error fetching category settings:", error);
+
+                        // Reset checkboxes in case of an error
+                        resetCheckboxes();
+                    });
+            } else {
+                console.log("No parent category selected. Resetting checkboxes."); // Debugging
+                resetCheckboxes();
+            }
+        }
+
+        function resetCheckboxes() {
+            allowAttachmentsCheckbox.checked = false;
+            allowAttachmentsCheckbox.disabled = false;
+
+            allowReferenceLinksCheckbox.checked = false;
+            allowReferenceLinksCheckbox.disabled = false;
+        }
+
+        // Attach event listener to dropdown change
+        parentCategoryDropdown.addEventListener("change", updateCheckboxes);
+
+        // Call once on page load
+        updateCheckboxes();
     });
 </script>
+
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
