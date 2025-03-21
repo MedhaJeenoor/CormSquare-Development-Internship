@@ -1,42 +1,49 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.AspNetCore.Http;
 
 namespace SupportHub.Models
 {
     public class Category : AuditableEntity
-    {        
+    {
+        // Category Name
         [Required, MaxLength(50)]
         [DisplayName("Category Name")]
         public string Name { get; set; }
 
+        // Parent Category Relationship
+        [ForeignKey("ParentCategory")]
         public int? ParentCategoryId { get; set; } // Nullable for Parent Categories
         public virtual Category? ParentCategory { get; set; }
         public virtual ICollection<Category>? SubCategories { get; set; }
 
-        [Range(0, 30, ErrorMessage = "For parent categories, it can be 0-30. For subcategories, it must be 1-30.")]
-        [Required]
-        [DisplayName("Optimal Creation Time")]
-        public int OptimalCreationTime { get; set; }
-
+        // Description (Optional)
         [MaxLength(500)]
         public string? Description { get; set; }
 
-        [Required]
-        [Range(0, int.MaxValue, ErrorMessage = "Display Order cannot be negative.")]
-        [DisplayName("Display Order")]
+        // Display Order for Sorting
         public int DisplayOrder { get; set; }
 
-        public bool AllowAttachments { get; set; } = false;
-        public bool AllowReferenceLinks { get; set; } = false;
-
+        // HTML Content (TinyMCE Content as HTML)
         [Column(TypeName = "NVARCHAR(MAX)")]
-        public string? TemplateJson { get; set; }
+        public string? HtmlContent { get; set; }
 
-        public virtual ICollection<Solution>? Solutions { get; set; } // Updated: Solutions linked to Category
+        // Attachments Collection (Correctly Mapped)
+        public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
 
-        //Added for Dropdown in View
+        // References Collection (Correctly Mapped)
+        public virtual ICollection<Reference> References { get; set; } = new List<Reference>();
+
+        // Load Existing Categories for Dropdown (NOT MAPPED)
         [NotMapped]
-        public List<Category>? Categories { get; set; } // Load existing categories for dropdown
+        public List<Category>? Categories { get; set; } // Used for Parent Category Dropdown
+
+        // Determine if the Category is a Subcategory
+        public bool IsSubcategory => ParentCategoryId != null;
+
+        // Correctly handle IFormFile for Uploads (NOT MAPPED to DB)
+        [NotMapped]
+        public List<IFormFile>? UploadAttachments { get; set; } // For file uploads only
     }
 }

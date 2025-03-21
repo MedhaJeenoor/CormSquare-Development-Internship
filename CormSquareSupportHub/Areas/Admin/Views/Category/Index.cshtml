@@ -28,8 +28,8 @@
                 <tr>
                     <th>Category Name</th>
                     <th>Description</th>
-                    <th>Optimal Creation Time (Days)</th>
-                    <th>Display Order</th>
+                    @* <th>Optimal Creation Time (Days)</th> *@
+                    @* <th>Display Order</th> *@
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -37,10 +37,10 @@
                     @foreach (var category in Model.Where(c => !c.IsDeleted).OrderBy(c => c.DisplayOrder))
                     {
                         <tr class="table-primary">
-                            <td><strong>@category.Name</strong></td>
+                            <td>@category.Name</td>
                             <td>@category.Description</td>
-                            <td>@category.OptimalCreationTime</td>
-                            <td>@category.DisplayOrder</td>
+                            @* <td>@category.OptimalCreationTime</td> *@
+                            @* <td>@category.DisplayOrder</td>*@
                             <td>
                                 <div class="w-75 btn-group" role="group">
                                     <a asp-controller="Category" asp-action="Edit" asp-route-id="@category.Id" class="btn btn-warning mx-2">
@@ -60,8 +60,8 @@
                                 <tr>
                                     <td style="padding-left: 40px;">↳ @subCategory.Name</td>
                                     <td>@subCategory.Description</td>
-                                    <td>@subCategory.OptimalCreationTime</td>
-                                    <td>@subCategory.DisplayOrder</td>
+                                    @* <td>@subCategory.OptimalCreationTime</td> *@
+                                    @* <td>@subCategory.DisplayOrder</td>*@
                                     <td>
                                         <div class="btn-group w-75" role="group">
                                             <a asp-action="Edit" asp-route-id="@subCategory.Id" class="btn btn-warning mx-2">
@@ -74,28 +74,28 @@
                                     </td>
                                 </tr>
 
-                                @if (subCategory.SubCategories != null && subCategory.SubCategories.Any(sc => !sc.IsDeleted))
-                                {
-                                    foreach (var subSubCategory in subCategory.SubCategories.Where(sc => !sc.IsDeleted).OrderBy(sc => sc.DisplayOrder))
-                                    {
-                                        <tr>
-                                            <td style="padding-left: 80px;">↳↳ @subSubCategory.Name</td>
-                                            <td>@subSubCategory.Description</td>
-                                            <td>@subSubCategory.OptimalCreationTime</td>
-                                            <td>@subSubCategory.DisplayOrder</td>
-                                            <td>
-                                                <div class="btn-group w-75" role="group">
-                                                    <a asp-action="Edit" asp-route-id="@subSubCategory.Id" class="btn btn-warning mx-2">
-                                                        <i class="bi bi-pencil-square"></i> Edit
-                                                    </a>
-                                                    <a asp-action="Delete" asp-route-id="@subSubCategory.Id" class="btn btn-danger mx-2">
-                                                        <i class="bi bi-trash"></i> Delete
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                }
+                                @* @if (subCategory.SubCategories != null && subCategory.SubCategories.Any(sc => !sc.IsDeleted)) *@
+                                @* { *@
+                                @*     foreach (var subSubCategory in subCategory.SubCategories.Where(sc => !sc.IsDeleted).OrderBy(sc => sc.DisplayOrder)) *@
+                                @*     { *@
+                                @*         <tr> *@
+                                @*             <td style="padding-left: 80px;">↳↳ @subSubCategory.Name</td> *@
+                                @*             <td>@subSubCategory.Description</td> *@
+                                @*             <td>@subSubCategory.OptimalCreationTime</td> *@
+                                @*             <td>@subSubCategory.DisplayOrder</td> *@
+                                @*             <td> *@
+                                @*                 <div class="btn-group w-75" role="group"> *@
+                                @*                     <a asp-action="Edit" asp-route-id="@subSubCategory.Id" class="btn btn-warning mx-2"> *@
+                                @*                         <i class="bi bi-pencil-square"></i> Edit *@
+                                @*                     </a> *@
+                                @*                     <a asp-action="Delete" asp-route-id="@subSubCategory.Id" class="btn btn-danger mx-2"> *@
+                                @*                         <i class="bi bi-trash"></i> Delete *@
+                                @*                     </a> *@
+                                @*                 </div> *@
+                                @*             </td> *@
+                                @*         </tr> *@
+                                @*     } *@
+                                @* } *@
                             }
                         }
                     }
