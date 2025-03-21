@@ -17,10 +17,18 @@
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data">
 
+                <!-- Category Name -->
                 <div class="mb-3 row p-1">
                     <label asp-for="Name"></label>
                     <input asp-for="Name" class="form-control" />
                     <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-3 row p-1">
+                    <label>Description</label>
+                    <textarea asp-for="Description" class="form-control"></textarea>
+                    <span asp-validation-for="Description" class="text-danger"></span>
                 </div>
 
                 <!-- Parent Category Dropdown -->
@@ -31,53 +39,33 @@
                         @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
                         {
                             <option value="@category.Id">@category.Name</option>
-                            @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
-                            {
-                                <option value="@subcategory.Id">— @subcategory.Name</option>
-                            }
                         }
                     </select>
                 </div>
 
-                <div class="mb-3 row p-1">
-                    <label>Optimal Creation Time</label>
-                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
-                    <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3 row p-1">
-                    <label>Description</label>
-                    <textarea asp-for="Description" class="form-control"></textarea>
-                    <span asp-validation-for="Description" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3 row p-1">
-                    <label>Display Order</label>
-                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
-                    <span asp-validation-for="DisplayOrder" class="text-danger"></span>
-                </div>
-
-                <!-- Template Fields -->
+                <!-- Template Section -->
                 <div class="mb-3 p-1">
-                    <label>Template Fields</label>
-                    <div id="templateFieldsContainer" class="mt-3"></div>
-                    <button type="button" id="addFieldBtn" class="btn btn-success mt-2">
-                        <i class="bi bi-plus-circle"></i> Add Field
-                    </button>
-                    <input type="hidden" id="TemplateJson" name="TemplateJson" />
+                    <label>Template</label>
+                    <textarea id="editor"></textarea> <!-- TinyMCE Editor -->
+                    <input type="hidden" name="HtmlContent" id="HtmlContent" />
                 </div>
 
-                <div class="mb-4 row p-1">
-                    <div class="form-check">
-                        <input asp-for="AllowAttachments" class="form-check-input" id="allowAttachments" />
-                        <label class="form-check-label">Enable Attachments</label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input asp-for="AllowReferenceLinks" class="form-check-input" id="allowReferenceLinks" />
-                        <label class="form-check-label">Enable Reference Links</label>
-                    </div>
+                <!-- Attachments Section -->
+                <div class="mb-3">
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload Attachments</button>
+                    <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
+                    <ul id="attachmentList" class="list-group mt-2"></ul>
+                    <input type="hidden" id="attachmentData" name="AttachmentData" />
                 </div>
 
+                <!-- References Section -->
+                <div class="mb-3">
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add References</button>
+                    <ul id="referenceList" class="list-group mt-2"></ul>
+                    <input type="hidden" id="referenceData" name="ReferenceData" />
+                </div>
+
+                <!-- Buttons -->
                 <div class="text-center mt-4">
                     <button type="submit" class="btn btn-primary mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Create
@@ -86,6 +74,7 @@
                         <i class="bi bi-arrow-left-circle"></i> Back to List
                     </a>
                 </div>
+
             </form>
         </div>
     </div>
@@ -93,141 +82,13 @@
 
 <div class="mb-5 pb-5"></div>
 
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
-        var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
-        var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
-
-        function updateCheckboxes(selectedParentId) {
-            if (selectedParentId && selectedParentId !== "0") {
-                fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data) {
-                            // Update checkboxes based on parent category settings
-                            allowAttachmentsCheckbox.checked = data.allowAttachments;
-                            allowAttachmentsCheckbox.disabled = !data.allowAttachments; // Disable if parent has false
-
-                            allowReferenceLinksCheckbox.checked = data.allowReferenceLinks;
-                            allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error fetching category settings:", error);
-                        // Optionally, show an error message to the user
-                        alert("Failed to fetch category settings. Please try again.");
-                    });
-            } else {  
-                // Enable checkboxes when no parent is selected
-                allowAttachmentsCheckbox.checked = false; // Reset to unchecked
-                allowAttachmentsCheckbox.disabled = false;
-
-                allowReferenceLinksCheckbox.checked = false; // Reset to unchecked
-                allowReferenceLinksCheckbox.disabled = false;
-            }
-        }
-
-        // Run on page load to set initial state
-        updateCheckboxes(parentCategoryDropdown.value);
-
-        // Update when category changes
-        parentCategoryDropdown.addEventListener("change", function () {
-            updateCheckboxes(this.value);
-        });
-    });
-</script>
-
-<!-- JavaScript for Inheriting Parent Fields -->
-<script>
-    document.getElementById("parentCategoryDropdown").addEventListener("change", function () {
-        var selectedCategoryId = this.value;
-
-        fetch('/Category/GetTemplateJson?parentCategoryId=' + selectedCategoryId)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("templateFieldsContainer").innerHTML = data.templateJson;
-                // document.getElementById("optimalCreationTime").value = data.optimalCreationTime;
-            });
-    });
-</script>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var fieldContainer = document.getElementById("templateFieldsContainer");
-        var addFieldBtn = document.getElementById("addFieldBtn");
-        var templateJsonInput = document.getElementById("TemplateJson");
-
-        function updateJson() {
-        var fields = [];
-        fieldContainer.querySelectorAll(".field-row").forEach(fieldRow => {
-            var input = fieldRow.querySelector("input.field-name");
-            var type = fieldRow.querySelector("select.field-type").value;
-
-            if (input.value.trim() !== "") {
-                var fieldObj = { "label": input.value, "type": type };
-
-                // Add editor property if textarea is selected
-                if (type === "textarea") {
-                    fieldObj["editor"] = "tinymce";
-                }
-
-                fields.push(fieldObj);
-            }
-        });
-
-        templateJsonInput.value = JSON.stringify({ "fields": fields });
-    }
-
-        addFieldBtn.addEventListener("click", function () {
-            var fieldWrapper = document.createElement("div");
-            fieldWrapper.className = "field-row form-group d-flex align-items-center mt-2";
-
-            var newField = document.createElement("input");
-            newField.type = "text";
-            newField.className = "form-control me-2 field-name";
-            newField.placeholder = "Enter field name here";
-
-            var typeDropdown = document.createElement("select");
-            typeDropdown.className = "form-select me-2 field-type";
-            typeDropdown.style.width = "300px"; // Reduced width
-            typeDropdown.innerHTML = `
-                <option value="text">Text</option>
-                <option value="textarea">Textarea (TinyMCE)</option>
-                <option value="code">Code</option>
-                <option value="image">Image</option>
-            `;
-
-
-            var deleteBtn = document.createElement("button");
-            deleteBtn.type = "button";
-            deleteBtn.className = "btn btn-danger btn-sm ms-2";
-            deleteBtn.innerHTML = "Remove";
-
-            deleteBtn.addEventListener("click", function () {
-                fieldWrapper.remove();
-                updateJson();
-            });
-
-            newField.addEventListener("input", updateJson);
-            typeDropdown.addEventListener("change", function () {
-                updateJson();
-            });
-
-            fieldWrapper.appendChild(newField);
-            fieldWrapper.appendChild(typeDropdown);
-            fieldWrapper.appendChild(deleteBtn);
-            fieldContainer.appendChild(fieldWrapper);
-
-            updateJson();
-        });
-    });
-</script>
-
 @section Scripts {
+    <!-- TinyMCE Initialization -->
+    <script src="~/js/tinymce-init.js"></script>
+
+    <!-- Attachments & References JS -->
+    <script src="~/js/category-attachments-references.js"></script>
+
+    <!-- Validation Scripts -->
     <partial name="_ValidationScriptsPartial" />
 }

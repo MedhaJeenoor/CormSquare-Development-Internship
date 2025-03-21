@@ -42,13 +42,23 @@ namespace SupportHub.DataAccess.Repository
             }
 
             // Include nested subcategories explicitly to ensure all levels are loaded
-            query = query.Include(c => c.SubCategories)
-                         .ThenInclude(sc => sc.SubCategories);
+            query = query.Include(c => c.SubCategories);
+                         //.ThenInclude(sc => sc.SubCategories);
 
             return await query.ToListAsync();
         }
 
+        //public async Task<Category> GetFirstOrDefaultAsync(Expression<Func<Category, bool>> filter, string includeProperties = "")
+        //{
+        //    IQueryable<Category> query = _db.Where(filter);
 
+        //    foreach (var includeProperty in includeProperties.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+        //    {
+        //        query = query.Include(includeProperty);
+        //    }
+
+        //    return await query.FirstOrDefaultAsync();
+        //}
 
         public void Update(Category obj)
         {

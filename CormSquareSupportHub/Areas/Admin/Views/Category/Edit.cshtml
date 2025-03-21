@@ -16,6 +16,146 @@
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data">
+
+                <!-- Hidden Category ID -->
+                <input type="hidden" asp-for="Id" />
+
+                <!-- Category Name -->
+                <div class="mb-3 row p-1">
+                    <label asp-for="Name"></label>
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-3 row p-1">
+                    <label>Description</label>
+                    <textarea asp-for="Description" class="form-control"></textarea>
+                    <span asp-validation-for="Description" class="text-danger"></span>
+                </div>
+
+                <!-- Parent Category Dropdown -->
+                <div class="mb-3 row p-1">
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
+                        <option value="0">This is a Parent Category</option>
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null && c.Id != Model.Id))
+                        {
+                            <option value="@category.Id" selected="@(category.Id == Model.ParentCategoryId ? "selected" : null)">
+                                @category.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- Template Section -->
+                <div class="mb-3 p-1">
+                    <label>Template</label>
+                    <textarea id="editor">@Html.Raw(ViewData["HtmlContent"])</textarea> <!-- TinyMCE Editor -->
+                    <input type="hidden" name="HtmlContent" id="HtmlContent" />
+                </div>
+
+                <!-- Attachments Section -->
+                <div class="mb-3">
+                    <label>Existing Attachments</label>
+                    <ul id="existingAttachmentList" class="list-group mt-2">
+                        @if (Model.Attachments != null && Model.Attachments.Any())
+                        {
+                            @foreach (var attachment in Model.Attachments)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <a href="~/@attachment.FilePath" target="_blank">@attachment.FileName</a>
+                                    <button type="button" class="btn btn-danger btn-sm delete-attachment" data-id="@attachment.Id">Delete</button>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item">No existing attachments.</li>
+                        }
+                    </ul>
+
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm mt-2">Upload New Attachments</button>
+                    <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
+                    <ul id="attachmentList" class="list-group mt-2"></ul>
+                    <input type="hidden" id="attachmentData" name="AttachmentData" />
+                </div>
+
+                <!-- References Section -->
+                <div class="mb-3">
+                    <label>Existing References</label>
+                    <ul id="existingReferenceList" class="list-group mt-2">
+                        @if (Model.References != null && Model.References.Any())
+                        {
+                            @foreach (var reference in Model.References)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <a href="@reference.Url" target="@(reference.OpenOption == "New" ? "_blank" : "_self")">@reference.Description</a>
+                                    <button type="button" class="btn btn-danger btn-sm delete-reference" data-id="@reference.Id">Delete</button>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item">No existing references.</li>
+                        }
+                    </ul>
+
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm mt-2">Add New References</button>
+                    <ul id="referenceList" class="list-group mt-2"></ul>
+                    <input type="hidden" id="referenceData" name="ReferenceData" />
+                </div>
+
+                <!-- Buttons -->
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Save Changes
+                    </button>
+                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
+                        <i class="bi bi-arrow-left-circle"></i> Back to List
+                    </a>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="mb-5 pb-5"></div>
+
+@section Scripts {
+    <!-- TinyMCE Initialization -->
+    <script src="~/js/tinymce-init.js"></script>
+
+    <!-- Attachments & References JS -->
+    <script src="~/js/category-attachments-references.js"></script>
+
+    <!-- Edit Category JS -->
+    @* <script src="~/js/category-edit.js"></script> *@
+
+    <!-- Validation Scripts -->
+    <partial name="_ValidationScriptsPartial" />
+}
+
+
+@*@model Category
+
+@{
+    ViewData["Title"] = "Edit Category";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">Edit Category</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mb-5 pb-5">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data" asp-action="Edit">
                 <input type="hidden" asp-for="Id" />
 
                 <div class="mb-3 row p-1">
@@ -24,61 +164,79 @@
                     <span asp-validation-for="Name" class="text-danger"></span>
                 </div>
 
-                <!-- Parent Category Dropdown -->
-                <div class="mb-3 row p-1">
-                    <label>Select Parent Category</label>
-                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
-                        <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
-                        {
-                            <option value="@category.Id">@category.Name</option>
-                            @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
-                            {
-                                <option value="@subcategory.Id">— @subcategory.Name</option>
-                            }
-                        }
-                    </select>
-                </div>
-
-                <div class="mb-3 row p-1">
-                    <label>Optimal Creation Time</label>
-                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
-                    <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
-                </div>
-
                 <div class="mb-3 row p-1">
                     <label>Description</label>
                     <textarea asp-for="Description" class="form-control"></textarea>
                     <span asp-validation-for="Description" class="text-danger"></span>
                 </div>
 
+                <!-- Parent Category Dropdown -->
                 <div class="mb-3 row p-1">
-                    <label>Display Order</label>
-                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
-                    <span asp-validation-for="DisplayOrder" class="text-danger"></span>
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
+                        <option value="0">This is a Parent Category</option>
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
+                        {
+                            <option value="@category.Id" selected="@(Model.ParentCategoryId == category.Id ? "selected" : null)">
+                                @category.Name
+                            </option>
+                            @foreach (var subcategory in Model.Categories.Where(c => c.ParentCategoryId == category.Id))
+                            {
+                                <option value="@subcategory.Id" selected="@(Model.ParentCategoryId == subcategory.Id ? "selected" : null)">
+                                    — @subcategory.Name
+                                </option>
+                            }
+                        }
+                    </select>
                 </div>
 
-                <!-- Template Fields -->
+                <!-- Template Section -->
                 <div class="mb-3 p-1">
-                    <label>Template Fields</label>
-                    <div id="templateFieldsContainer" class="mt-3"></div>
-                    <button type="button" id="addFieldBtn" class="btn btn-success mt-2">
-                        <i class="bi bi-plus-circle"></i> Add Field
-                    </button>
-                    <input type="hidden" id="TemplateJson" name="TemplateJson" />
+                    <label>Template</label>
+                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
+                    <input type="hidden" name="HtmlContent" id="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
                 </div>
 
-                <div class="mb-4 row p-1">
-                    <div class="form-check">
-                        <input asp-for="AllowAttachments" class="form-check-input" id="allowAttachments" />
-                        <label class="form-check-label">Enable Attachments</label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input asp-for="AllowReferenceLinks" class="form-check-input" id="allowReferenceLinks" />
-                        <label class="form-check-label">Enable Reference Links</label>
-                    </div>
-                </div>
+                @* <!-- Attachments Section --> *@
+                @* <div class="mb-3"> *@
+                @*     <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload Attachments</button> *@
+                @*     <input type="file" name="attachments" id="attachmentInput" multiple style="display: none;" /> *@
+                @*     <ul id="attachmentList" class="list-group mt-2"> *@
+                @*         @if (Model.Attachments != null && Model.Attachments.Any()) *@
+                @*         { *@
+                @*             @foreach (var attachment in Model.Attachments) *@
+                @*             { *@
+                @*                 <li class="list-group-item d-flex justify-content-between align-items-center"> *@
+                @*                     <a href="@Url.Content(attachment.FilePath)" target="_blank">@attachment.FileName</a> *@
+                @*                     <button type="button" class="btn btn-danger btn-sm remove-attachment" data-id="@attachment.Id"> *@
+                @*                         <i class="bi bi-trash"></i> *@
+                @*                     </button> *@
+                @*                 </li> *@
+                @*             } *@
+                @*         } *@
+                @*     </ul> *@
+                @* </div> *@
 
+                <!-- References Section -->
+                @* <div class="mb-3"> *@
+                @*     <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add References</button> *@
+                @*     <ul id="referenceList" class="list-group mt-2"> *@
+                @*         @if (Model.References != null && Model.References.Any()) *@
+                @*         { *@
+                @*             @foreach (var reference in Model.References) *@
+                @*             { *@
+                @*                 <li class="list-group-item d-flex justify-content-between align-items-center"> *@
+                @*                     <a href="@reference.Url" target="_blank">@reference.Url</a> *@
+                @*                     <button type="button" class="btn btn-danger btn-sm remove-reference" data-id="@reference.Id"> *@
+                @*                         <i class="bi bi-trash"></i> *@
+                @*                     </button> *@
+                @*                 </li> *@
+                @*             } *@
+                @*         } *@
+                @*     </ul> *@
+                @* </div> 
+
+                <!-- Buttons -->
                 <div class="text-center mt-4">
                     <button type="submit" class="btn btn-primary mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Update
@@ -87,6 +245,7 @@
                         <i class="bi bi-arrow-left-circle"></i> Back to List
                     </a>
                 </div>
+
             </form>
         </div>
     </div>
@@ -94,184 +253,24 @@
 
 <div class="mb-5 pb-5"></div>
 
-<!-- JavaScript for Inheriting Parent Settings -->
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
-        var allowAttachmentsCheckbox = document.getElementById("allowAttachments");
-        var allowReferenceLinksCheckbox = document.getElementById("allowReferenceLinks");
-
-        function updateCheckboxes() {
-            var selectedParentId = parentCategoryDropdown.value;
-
-            if (selectedParentId && selectedParentId !== "0") {
-                fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data) {
-                            allowAttachmentsCheckbox.checked = data.allowAttachments;
-                            allowAttachmentsCheckbox.disabled = !data.allowAttachments;
-
-                            allowReferenceLinksCheckbox.checked = data.allowReferenceLinks;
-                            allowReferenceLinksCheckbox.disabled = !data.allowReferenceLinks;
-                        }
-                    })
-                    .catch(error => console.error("Error fetching category settings:", error));
-            } else {
-                allowAttachmentsCheckbox.disabled = false;
-                allowReferenceLinksCheckbox.disabled = false;
-            }
-        }
-
-        updateCheckboxes();
-        parentCategoryDropdown.addEventListener("change", updateCheckboxes);
-    });
-</script>
-
-<!-- JavaScript for Loading Template Fields on Page Load -->
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var templateJson = @Html.Raw(Json.Serialize(ViewData["TemplateJson"]));
-        var templateFieldsContainer = document.getElementById("templateFieldsContainer");
-        var templateJsonInput = document.getElementById("TemplateJson");
-
-        function updateJson() {
-            var fields = [];
-            templateFieldsContainer.querySelectorAll("input").forEach(input => {
-                if (input.value.trim() !== "") {
-                    fields.push({ "label": input.value, "type": "text" });
-                }
-            });
-            templateJsonInput.value = JSON.stringify({ "fields": fields });
-        }
-
-        function loadTemplateFields(jsonData) {
-            templateFieldsContainer.innerHTML = ""; // Clear previous values
-
-            if (jsonData && jsonData !== "{}") {
-                var templateData = JSON.parse(jsonData);
-
-                templateData.fields.forEach(field => {
-                    var fieldWrapper = document.createElement("div");
-                    fieldWrapper.className = "form-group d-flex align-items-center mt-2";
-
-                    var input = document.createElement("input");
-                    input.type = field.type === "textarea" ? "text" : field.type;
-                    input.className = "form-control me-2";
-                    input.value = field.label;  // Populate only the textbox with the field label
-
-                    var deleteBtn = document.createElement("button");
-                    deleteBtn.type = "button";
-                    deleteBtn.className = "btn btn-danger btn-sm ms-2";
-                    deleteBtn.innerHTML = "Remove";
-
-                    deleteBtn.addEventListener("click", function () {
-                        fieldWrapper.remove(); // Remove the whole wrapper div
-                        updateJson(); // Update JSON
-                    });
-
-                    input.addEventListener("input", updateJson);
-
-                    fieldWrapper.appendChild(input);
-                    fieldWrapper.appendChild(deleteBtn);
-                    templateFieldsContainer.appendChild(fieldWrapper);
-                });
-
-                updateJson(); // Update JSON on page load
-            }
-        }
-
-        loadTemplateFields(templateJson);
-    });
-</script>
-
-
-<!-- JavaScript for Adding New Fields -->
-<script>
-        document.addEventListener("DOMContentLoaded", function () {
-        var templateJson = @Html.Raw(Json.Serialize(ViewData["TemplateJson"]));
-        var fieldContainer = document.getElementById("templateFieldsContainer");
-        var templateJsonInput = document.getElementById("TemplateJson");
-
-        function updateJson() {
-        var fields = [];
-        fieldContainer.querySelectorAll(".field-row").forEach(fieldRow => {
-            var input = fieldRow.querySelector("input.field-name");
-            var type = fieldRow.querySelector("select.field-type").value;
-
-            if (input.value.trim() !== "") {
-                var fieldObj = { "label": input.value, "type": type };
-
-                // Add editor property if textarea is selected
-                if (type === "textarea") {
-                    fieldObj["editor"] = "tinymce";
-                }
-
-                fields.push(fieldObj);
-            }
+@section Scripts {
+    <script src="~/js/tinymce-init.js"></script>
+    <script src="~/js/category-attachments-references.js"></script>
+    <script>
+        // Handling attachment deletion
+        $(".remove-attachment").click(function () {
+            let attachmentId = $(this).data("id");
+            $(this).closest("li").remove();
+            // Add logic to delete from database via AJAX
         });
 
-        templateJsonInput.value = JSON.stringify({ "fields": fields });
-    }
-
-        function createFieldRow(fieldName = "", fieldType = "text") {
-            var fieldWrapper = document.createElement("div");
-            fieldWrapper.className = "field-row form-group d-flex align-items-center mt-2";
-
-            var newField = document.createElement("input");
-            newField.type = "text";
-            newField.className = "form-control me-2 field-name";
-            newField.placeholder = "Enter field name here";
-            newField.value = fieldName;
-
-            var typeDropdown = document.createElement("select");
-            typeDropdown.className = "form-select me-2 field-type";
-            typeDropdown.style.width = "300px"; // Reduced width
-            typeDropdown.innerHTML = `
-                <option value="text">Text</option>
-                <option value="textarea">Textarea (TinyMCE)</option>
-                <option value="code">Code</option>
-                <option value="image">Image</option>
-            `;
-            typeDropdown.value = fieldType;
-
-            var deleteBtn = document.createElement("button");
-            deleteBtn.type = "button";
-            deleteBtn.className = "btn btn-danger btn-sm ms-2";
-            deleteBtn.innerHTML = "Remove";
-
-            deleteBtn.addEventListener("click", function () {
-                fieldWrapper.remove();
-                updateJson();
-            });
-
-            newField.addEventListener("input", updateJson);
-            typeDropdown.addEventListener("change", updateJson);
-
-            fieldWrapper.appendChild(newField);
-            fieldWrapper.appendChild(typeDropdown);
-            fieldWrapper.appendChild(deleteBtn);
-            fieldContainer.appendChild(fieldWrapper);
-
-            updateJson();
-        }
-
-        function loadTemplateFields(jsonData) {
-            fieldContainer.innerHTML = "";
-            if (jsonData && jsonData !== "{}") {
-                var templateData = JSON.parse(jsonData);
-                templateData.fields.forEach(field => {
-                    createFieldRow(field.label, field.type);
-                });
-            }
-            updateJson();
-        }
-
-        loadTemplateFields(templateJson);
-    });
-
-</script>
-
-@section Scripts {
+        // Handling reference deletion
+        $(".remove-reference").click(function () {
+            let referenceId = $(this).data("id");
+            $(this).closest("li").remove();
+            // Add logic to delete from database via AJAX
+        });
+    </script>
     <partial name="_ValidationScriptsPartial" />
 }
+*@
