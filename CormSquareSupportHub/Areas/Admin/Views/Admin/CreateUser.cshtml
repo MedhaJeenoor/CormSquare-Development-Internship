@@ -1,0 +1,83 @@
+﻿@model SupportHub.Models.CreateUserViewModel
+
+@{
+    ViewData["Title"] = "Create New User";
+}
+
+<div class="container mt-4">
+    <h2 class="text-center mb-4">Create New User</h2>
+
+    <div class="card shadow-lg p-4">
+        <form asp-action="CreateUser" method="post">
+            <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+            <div class="row">
+                <!-- Left Column -->
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" asp-for="Name" required />
+                        <span class="text-danger" asp-validation-for="Name"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Company</label>
+                        <input type="text" class="form-control" asp-for="CompanyName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Employee ID</label>
+                        <input type="text" class="form-control" asp-for="EmployeeID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" asp-for="Password" required />
+                        <span class="text-danger" asp-validation-for="Password"></span>
+                    </div>
+
+                </div>
+
+                <!-- Right Column -->
+                <div class="col-md-6">
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" asp-for="Email" required />
+                        <span class="text-danger" asp-validation-for="Email"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" required>
+                            <option value="">-- Select Role --</option>
+                        </select>
+                        <span class="text-danger" asp-validation-for="Role"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Country</label>
+                        <select class="form-select" asp-for="Country" required>
+                            <option value="">-- Select Country --</option>
+                            <option value="India">India</option>
+                            <option value="USA">USA</option>
+                            <option value="UK">UK</option>
+                            <option value="Canada">Canada</option>
+                        </select>
+                        <span class="text-danger" asp-validation-for="Country"></span>
+                    </div>
+
+
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-primary px-4">Create User</button>
+                <a asp-action="UserApproval" class="btn btn-secondary px-4 ms-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="mb-5 pb-5"></div>
+<!-- Spacer to push content above footer -->
+<div style="min-height: 100px;"></div>
