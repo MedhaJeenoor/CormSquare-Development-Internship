@@ -13,6 +13,7 @@ namespace SupportHub.DataAccess.Data
         public DbSet<Category> Categories { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Reference> References { get; set; }
+        public DbSet<ExternalUser> ExternalUsers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
