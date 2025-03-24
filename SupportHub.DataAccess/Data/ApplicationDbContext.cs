@@ -1,37 +1,24 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SupportHub.Models;
 
 namespace SupportHub.DataAccess.Data
 {
-    public class ApplicationDbContext : IdentityDbContext<ExternalUser>
+    public class ApplicationDbContext : IdentityDbContext
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
         }
 
         public DbSet<Category> Categories { get; set; }
-<<<<<<< HEAD
-        public DbSet<Solution> Solutions { get; set; }
-        public DbSet<ExternalUser> ExternalUsers { get; set; }  // Replaces Product table// Replaces Product table
-        public DbSet<SolutionAttachment> SolutionAttachments { get; set; } // Replaces CategoryAttachment
-        public DbSet<SolutionReference> SolutionReferences { get; set; } // Replaces CategoryReference
-=======
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Reference> References { get; set; }
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-<<<<<<< HEAD
-            modelBuilder.Ignore<SelectListGroup>();
-=======
 
             // Seed Initial Data
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
             modelBuilder.Entity<Category>().HasData(
                 new Category
                 {

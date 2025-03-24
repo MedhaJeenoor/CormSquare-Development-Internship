@@ -1,15 +1,8 @@
-﻿@using Microsoft.AspNetCore.Components.Forms
-@model Category
+﻿@model Category
 
 @{
     ViewData["Title"] = "Create New Category";
 }
-
-<!-- Load Editor.js and tools with pinned versions -->
-
-@* <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.29.1/dist/editorjs.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1/dist/header.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0/dist/list.umd.js"></script> *@
 
 <div class="card shadow border-0 mt-4">
     <div class="card-header bg-secondary bg-gradient ml-0 py-3">
@@ -22,13 +15,9 @@
 
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-<<<<<<< HEAD
-            <form method="post">
-=======
             <form method="post" enctype="multipart/form-data">
 
                 <!-- Category Name -->
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
                 <div class="mb-3 row p-1">
                     <label asp-for="Name"></label>
                     <input asp-for="Name" class="form-control" />
@@ -47,35 +36,13 @@
                     <label>Select Parent Category</label>
                     <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null)) // Parent Categories
                         {
                             <option value="@category.Id">@category.Name</option>
                         }
                     </select>
                 </div>
 
-<<<<<<< HEAD
-                <div class="mb-3 row p-1">
-                    <label>Optimal Creation Time</label>
-                    <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
-                    <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
-                </div>
-
-                <!-- Description (Editor.js) -->
-                <div class="mb-3 row p-1">
-                    <label asp-for="Description">Description</label>
-                    <div id="editorjs"></div>
-                    <input type="hidden" asp-for="Description" id="Description" name="Description" />
-                    <span asp-validation-for="Description" class="text-danger"></span>
-                </div>
-
-                <div class="mb-3 row p-1">
-                    <label>Display Order</label>
-                    <input asp-for="DisplayOrder" class="form-control" type="number" min="0" />
-                    <span asp-validation-for="DisplayOrder" class="text-danger"></span>
-                </div>
-
-=======
                 <!-- Template Section -->
                 <div class="mb-3 p-1">
                     <label>Template</label>
@@ -99,7 +66,6 @@
                 </div>
 
                 <!-- Buttons -->
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
                 <div class="text-center mt-4">
                     <button type="submit" class="btn btn-primary mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Create
@@ -114,82 +80,6 @@
     </div>
 </div>
 
-<<<<<<< HEAD
-@section Scripts {
-    <script>
-        // Function to wait for Editor.js and its tools to load
-        function waitForEditorJs(callback) {
-            if (typeof EditorJS !== "undefined" && typeof Header !== "undefined" && typeof List !== "undefined") {
-                callback();
-            } else {
-                setTimeout(() => waitForEditorJs(callback), 100); // Retry every 100ms
-            }
-        }
-
-        document.addEventListener("DOMContentLoaded", function () {
-            waitForEditorJs(function () {
-                // Initialize Editor.js
-                const editor = new EditorJS({
-                    holder: 'editorjs',
-                    tools: {
-                        header: Header,
-                        list: List
-                    },
-                    placeholder: 'Enter category description here...',
-                    onChange: function () {
-                        editor.save().then((outputData) => {
-                            document.getElementById('Description').value = JSON.stringify(outputData);
-                        }).catch((error) => {
-                            console.error('Error saving Editor.js content:', error);
-                        });
-                    }
-                });
-
-                // Handle Parent Category Changes
-                const parentCategoryDropdown = document.getElementById("parentCategoryDropdown");
-
-                function updateCheckboxes(selectedParentId) {
-                    if (selectedParentId && selectedParentId !== "0") {
-                        fetch(`/Category/GetCategorySettings/${selectedParentId}`)
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data) {
-                                    // Ensure these elements exist in your HTML if used
-                                    const allowAttachments = document.getElementById("allowAttachments");
-                                    const allowReferenceLinks = document.getElementById("allowReferenceLinks");
-                                    if (allowAttachments) {
-                                        allowAttachments.checked = data.allowAttachments;
-                                        allowAttachments.disabled = !data.allowAttachments;
-                                    }
-                                    if (allowReferenceLinks) {
-                                        allowReferenceLinks.checked = data.allowReferenceLinks;
-                                        allowReferenceLinks.disabled = !data.allowReferenceLinks;
-                                    }
-                                }
-                            })
-                            .catch(error => console.error("Error fetching category settings:", error));
-                    } else {
-                        const allowAttachments = document.getElementById("allowAttachments");
-                        const allowReferenceLinks = document.getElementById("allowReferenceLinks");
-                        if (allowAttachments) {
-                            allowAttachments.checked = false;
-                            allowAttachments.disabled = false;
-                        }
-                        if (allowReferenceLinks) {
-                            allowReferenceLinks.checked = false;
-                            allowReferenceLinks.disabled = false;
-                        }
-                    }
-                }
-
-                updateCheckboxes(parentCategoryDropdown.value);
-                parentCategoryDropdown.addEventListener("change", function () {
-                    updateCheckboxes(this.value);
-                });
-            });
-        });
-    </script>
-=======
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
@@ -200,6 +90,5 @@
     <script src="~/js/category-attachments-references.js"></script>
 
     <!-- Validation Scripts -->
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
     <partial name="_ValidationScriptsPartial" />
 }

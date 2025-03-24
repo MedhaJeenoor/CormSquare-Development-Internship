@@ -36,10 +36,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             return View(categories);
         }
 
-<<<<<<< HEAD
-=======
         // GET: Create Category Page
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
         public async Task<IActionResult> Create()
         {
             var categories = await _unitOfWork.Category.GetAllAsync();
@@ -83,16 +80,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     await SaveReferences(references, obj.Id);
                 }
 
-<<<<<<< HEAD
-                obj.TemplateJson = string.IsNullOrWhiteSpace(obj.TemplateJson) ? parentCategory.TemplateJson : obj.TemplateJson;
-            }
-
-            _unitOfWork.Category.Add(obj);
-            await _unitOfWork.SaveAsync();
-
-            TempData["success"] = "Category created successfully";
-            return RedirectToAction("Index");
-=======
                 // Commit Transaction
                 await _unitOfWork.CommitTransactionAsync();
 
@@ -106,7 +93,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                 return View(obj);
             }
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
         }
 
         // GET: Edit Category

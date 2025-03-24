@@ -29,11 +29,6 @@ namespace SupportHub.Models
         [Column(TypeName = "NVARCHAR(MAX)")]
         public string? HtmlContent { get; set; }
 
-<<<<<<< HEAD
-        public virtual ICollection<Solution>? Solutions { get; set; } // Updated: Solutions linked to Category
-       
-        //Added for Dropdown in View
-=======
         // Attachments Collection (Correctly Mapped)
         public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
 
@@ -41,7 +36,6 @@ namespace SupportHub.Models
         public virtual ICollection<Reference> References { get; set; } = new List<Reference>();
 
         // Load Existing Categories for Dropdown (NOT MAPPED)
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
         [NotMapped]
         public List<Category>? Categories { get; set; } // Used for Parent Category Dropdown
 
