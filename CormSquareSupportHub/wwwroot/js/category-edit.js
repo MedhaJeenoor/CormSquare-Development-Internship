@@ -10,7 +10,7 @@
     success: function (response) {
                     if (response.success) {
         alert(response.message);
-    location.reload(); // Refresh after deletion 1
+    location.reload(); // Refresh after deletion
                     } else {
         alert("Error: " + response.message);
                     }
