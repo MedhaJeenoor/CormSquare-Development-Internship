@@ -84,17 +84,17 @@ tinymce.init({
 });
 
 
-    //setup: function (editor) {
-    //    // When TinyMCE content changes, update the hidden input
-    //    editor.on('change', function () {
-    //        document.getElementById('TemplateJson').value = editor.getContent();
-    //    });
+//setup: function (editor) {
+//    // When TinyMCE content changes, update the hidden input
+//    editor.on('change', function () {
+//        document.getElementById('TemplateJson').value = editor.getContent();
+//    });
 
-    //    // When form is submitted, ensure latest content is saved
-    //    document.getElementById('categoryForm').addEventListener('submit', function () {
-    //        document.getElementById('TemplateJson').value = editor.getContent();
-    //    });
-    //}
+//    // When form is submitted, ensure latest content is saved
+//    document.getElementById('categoryForm').addEventListener('submit', function () {
+//        document.getElementById('TemplateJson').value = editor.getContent();
+//    });
+//}
 //});
 
 

@@ -14,10 +14,10 @@ namespace SupportHub.Models
 
         [Required(ErrorMessage = "Last name is required")]
         public string LastName { get; set; }
-    
-        [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Invalid email format")]
-        public override string Email { get; set; } // Keep it as an override
+
+        //[Required(ErrorMessage = "Email is required")]
+        //[EmailAddress(ErrorMessage = "Invalid email format")]
+        //public string Email { get; set; } // Keep it as an override
         [Required]
         public string Country { get; set; } // Store selected country
         [NotMapped]
@@ -25,13 +25,11 @@ namespace SupportHub.Models
 
         public override string? PhoneNumber { get; set; } // Allow null (optional)
 
-        //public string? Address { get; set; } // Fix spelling from "Adress" to "Address"
-
         public string? CompanyName { get; set; }
 
         [Required(ErrorMessage = "Employee ID is required")]
         public string EmployeeID { get; set; }
-        public bool IsApproved { get; set; } = false; // Default to false
+        public bool IsApproved { get; set; } // Default to false
 
     }
 }

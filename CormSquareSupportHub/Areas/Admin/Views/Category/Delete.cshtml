@@ -15,7 +15,7 @@
 
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-            @* <h4 class="text-center text-danger">Are you sure you want to delete this category?</h4> 
+            @* <h4 class="text-center text-danger">Are you sure you want to delete this category?</h4>
             <hr />
 
             <div class="mb-3 row p-1">
@@ -41,35 +41,35 @@
                 </div>
             </div>
 
-            <!-- Attachments Section --> 
-            @if (Model.Attachments != null && Model.Attachments.Any()) 
-            { 
+            <!-- Attachments Section -->
+            @if (Model.Attachments != null && Model.Attachments.Any())
+            {
                 <div class="mb-3">
             @*         <label class="fw-bold">Attachments:</label> *@
-            @*         <ul class="list-group mt-2"> *@
-            @*             @foreach (var attachment in Model.Attachments) *@
-            @*             { *@
-            @*                 <li class="list-group-item"> *@
-            @*                     <a href="@Url.Content(attachment.FilePath)" target="_blank">@attachment.FileName</a> *@
-            @*                 </li> *@
-            @*             } *@
-            @*         </ul> *@
-            @*     </div> *@
-            @* }
+@*         <ul class="list-group mt-2"> *@
+@*             @foreach (var attachment in Model.Attachments) *@
+@*             { *@
+@*                 <li class="list-group-item"> *@
+@*                     <a href='' target="_blank">@attachment.FileName</a> *@
+@*                 </li> *@
+@*             } *@
+@*         </ul> *@
+@*     </div> *@
+@* }
 
             <!-- References Section -->
             @* @if (Model.References != null && Model.References.Any()) *@
-            @* { *@
-            @*     <div class="mb-3"> *@
-            @*         <label class="fw-bold">References:</label> *@
-            @*         <ul class="list-group mt-2"> *@
-            @*             @foreach (var reference in Model.References) *@
-            @*             { *@
-            @*                 <li class="list-group-item"> *@
-            @*                     <a href="@reference.Url" target="_blank">@reference.Url</a> *@
-            @*                 </li> *@
-            @*             } *@
-            @*         </ul>
+@* { *@
+@*     <div class="mb-3"> *@
+@*         <label class="fw-bold">References:</label> *@
+@*         <ul class="list-group mt-2"> *@
+@*             @foreach (var reference in Model.References) *@
+@*             { *@
+@*                 <li class="list-group-item"> *@
+@*                     <a href='' target="_blank">@reference.Url</a> *@
+@*                 </li> *@
+@*             } *@
+@*         </ul>
             @*     </div>
              }
 

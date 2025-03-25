@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using SupportHub.Models;
 
@@ -18,6 +19,7 @@ namespace SupportHub.DataAccess.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Ignore<SelectListGroup>();
 
             // Seed Initial Data
             modelBuilder.Entity<Category>().HasData(
@@ -305,7 +307,8 @@ namespace SupportHub.DataAccess.Data
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             ApplyAuditInfo();
-            return await base.SaveChangesAsync(cancellationToken);
+            var result = await base.SaveChangesAsync(cancellationToken);
+            return result;
         }
 
         // Handle CreatedDate and UpdatedDate for all Auditable Entities
@@ -331,6 +334,12 @@ namespace SupportHub.DataAccess.Data
                         entry.Entity.UpdatedBy = currentUserId;
                     }
                 }
+            }
+            var userEntries = ChangeTracker.Entries<ExternalUser>()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+            foreach (var entry in userEntries)
+            {
+                Console.WriteLine($"Saving ExternalUser: Email={entry.Entity.Email}, UserName={entry.Entity.UserName}, State={entry.State}");
             }
         }
     }

@@ -69,7 +69,8 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
 
             if (ModelState.IsValid)
             {
-                var user = await _userManager.FindByEmailAsync(Input.Email); // ✅ Fixed method call
+                _logger.LogInformation($"Login attempt with Email: {Input.Email}, Password: {Input.Password}");
+                var user = await _userManager.FindByEmailAsync(Input.Email);
 
                 if (user == null)
                 {
@@ -77,13 +78,15 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
                     return Page();
                 }
 
-                if (!user.IsApproved) // 🚫 Prevent unapproved users from logging in
+                _logger.LogInformation($"User found: UserName={user.UserName}, IsApproved={user.IsApproved}");
+                if (!user.IsApproved)
                 {
                     ModelState.AddModelError(string.Empty, "Your account is pending admin approval.");
                     return Page();
                 }
 
-                var result = await _signInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+                var result = await _signInManager.PasswordSignInAsync(user.UserName, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+                _logger.LogInformation($"Sign-in result: Succeeded={result.Succeeded}");
 
                 if (result.Succeeded)
                 {

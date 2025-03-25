@@ -57,7 +57,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 CompanyName = model.CompanyName,
                 EmployeeID = model.EmployeeID,
                 Country = model.Country,
-                IsApproved = false  
+                IsApproved = false
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);

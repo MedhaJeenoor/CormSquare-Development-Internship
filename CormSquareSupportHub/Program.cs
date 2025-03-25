@@ -3,51 +3,36 @@ using Microsoft.EntityFrameworkCore;
 using SupportHub.DataAccess.Data;
 using SupportHub.DataAccess.Repository.IRepository;
 using SupportHub.DataAccess.Repository;
-using SupportHub.Utility;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using SupportHub.Models;
 using SupportHub.Utility.EmailServices;
+using SupportHub.Utility;
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddIdentity<ExternalUser, IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();  // Required for email confirmation, password reset, etc.
-
-builder.Services.Configure<IdentityOptions>(options =>
+builder.Services.AddIdentity<ExternalUser, IdentityRole>(options =>
 {
-    options.User.RequireUniqueEmail = true; // Ensure email is unique
-
-    // Extend token lifespan
-    options.Tokens.PasswordResetTokenProvider = TokenOptions.DefaultProvider;
-    options.Tokens.EmailConfirmationTokenProvider = TokenOptions.DefaultProvider;
-
-    // Extend token expiry time (Default is 1 day, here we set it to 3 days)
-    options.Tokens.PasswordResetTokenProvider = TokenOptions.DefaultProvider;
-});
-
-// Override the default token lifespan (e.g., set password reset token expiry to 3 days)
-builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
-{
-    options.TokenLifespan = TimeSpan.FromDays(3); // Extend token expiry to 3 days
-});
-
+    options.User.RequireUniqueEmail = true;
+    options.Password.RequiredLength = 6;
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
 builder.Services.AddSingleton<EmailService>();
 
-
-
 var app = builder.Build();
 
-// Configure middleware pipeline
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -56,13 +41,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-
 app.UseRouting();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Seed the admin user
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -71,16 +53,12 @@ using (var scope = app.Services.CreateScope())
     await SeedAdminUser(userManager, roleManager);
 }
 
-// Configure endpoints
 app.UseEndpoints(endpoints =>
 {
-    endpoints.MapRazorPages(); // Required for Razor Pages to work
-
+    endpoints.MapRazorPages();
     endpoints.MapControllerRoute(
         name: "Public",
         pattern: "{area=Public}/{controller=Home}/{action=Index}/{id?}");
-
-    // Redirect unauthenticated users to Login page
     endpoints.MapGet("/", async context =>
     {
         if (!context.User.Identity.IsAuthenticated)
@@ -96,49 +74,64 @@ app.UseEndpoints(endpoints =>
 
 app.Run();
 
-
-// ======================== Seed Admin User ========================
 async Task SeedAdminUser(UserManager<ExternalUser> userManager, RoleManager<IdentityRole> roleManager)
 {
     string adminEmail = "admin123@cormsquare.com";
-    string adminPassword = "Admin@CormSquare123456";
+    string adminPassword = "AdminPassword123!";
 
-    // Ensure Admin Role Exists
+    Console.WriteLine("Starting admin user seeding...");
+
     if (!await roleManager.RoleExistsAsync("Admin"))
     {
-        await roleManager.CreateAsync(new IdentityRole("Admin"));
+        var roleResult = await roleManager.CreateAsync(new IdentityRole("Admin"));
+        Console.WriteLine($"Role 'Admin' creation: {(roleResult.Succeeded ? "Succeeded" : "Failed")}");
     }
 
-    // Check if the admin user already exists
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     if (adminUser == null)
     {
+        Console.WriteLine($"No user found with email: {adminEmail}. Creating new user...");
         var user = new ExternalUser
         {
-            UserName = adminEmail,
             Email = adminEmail,
-            EmailConfirmed = true, // Skip email confirmation
+            UserName = adminEmail,
+            NormalizedEmail = adminEmail.ToUpper(),
+            NormalizedUserName = adminEmail.ToUpper(),
+            EmailConfirmed = true,
             FirstName = "Admin",
             LastName = "User",
             PhoneNumber = "1234567890",
             CompanyName = "CormSquare",
             EmployeeID = "ADM001",
-            Country = "India"
+            Country = "India",
+            IsApproved = true
         };
 
-        var result = await userManager.CreateAsync(user, adminPassword);
-        if (result.Succeeded)
+        Console.WriteLine($"User object before creation: Email='{user.Email}', UserName='{user.UserName}', NormalizedEmail='{user.NormalizedEmail}'");
+        try
         {
-            await userManager.AddToRoleAsync(user, "Admin"); // Assign role
-            Console.WriteLine("Admin user created successfully!");
-        }
-        else
-        {
-            Console.WriteLine("Error creating admin user:");
-            foreach (var error in result.Errors)
+            var result = await userManager.CreateAsync(user, adminPassword);
+            if (result.Succeeded)
             {
-                Console.WriteLine(error.Description);
+                Console.WriteLine("Admin user created successfully!");
+                await userManager.AddToRoleAsync(user, "Admin");
+                Console.WriteLine("Admin role assigned successfully!");
+            }
+            else
+            {
+                var errorMessage = "Error creating admin user: " + string.Join(", ", result.Errors.Select(e => e.Description));
+                Console.WriteLine(errorMessage);
+                throw new Exception(errorMessage);
             }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception during user creation: {ex.Message}");
+            throw;
+        }
+    }
+    else
+    {
+        Console.WriteLine($"User with email {adminEmail} already exists. Skipping creation.");
     }
 }
