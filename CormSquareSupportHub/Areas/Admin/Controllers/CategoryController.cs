@@ -36,10 +36,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             return View(categories);
         }
 
-<<<<<<< HEAD
-=======
-        // GET: Create Category Page
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
+//<<<<<<< HEAD
+//=======
+//        // GET: Create Category Page
+//>>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
         public async Task<IActionResult> Create()
         {
             var categories = await _unitOfWork.Category.GetAllAsync();
@@ -55,58 +55,58 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
                 return View(obj);
             }
+            return View();
+            //            // Start Transaction
+            //            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
 
-            // Start Transaction
-            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
+            //            try
+            //            {
+            //                // Handle Parent Category Logic
+            //                obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
 
-            try
-            {
-                // Handle Parent Category Logic
-                obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
+            //                // Auto-assign Display Order
+            //                obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
+            //                    ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId))
+            //                    .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
 
-                // Auto-assign Display Order
-                obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
-                    ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId))
-                    .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
+            //                // Save Category
+            //                _unitOfWork.Category.Add(obj);
+            //                await _unitOfWork.SaveAsync();
 
-                // Save Category
-                _unitOfWork.Category.Add(obj);
-                await _unitOfWork.SaveAsync();
+            //                // Save Attachments
+            //                await ProcessAttachmentsAsync(obj, files);
 
-                // Save Attachments
-                await ProcessAttachmentsAsync(obj, files);
+            //                // Process References
+            //                if (!string.IsNullOrEmpty(ReferenceData))
+            //                {
+            //                    var references = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
+            //                    await SaveReferences(references, obj.Id);
+            //                }
 
-                // Process References
-                if (!string.IsNullOrEmpty(ReferenceData))
-                {
-                    var references = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
-                    await SaveReferences(references, obj.Id);
-                }
+            //<<<<<<< HEAD
+            //                obj.TemplateJson = string.IsNullOrWhiteSpace(obj.TemplateJson) ? parentCategory.TemplateJson : obj.TemplateJson;
+            //            }
 
-<<<<<<< HEAD
-                obj.TemplateJson = string.IsNullOrWhiteSpace(obj.TemplateJson) ? parentCategory.TemplateJson : obj.TemplateJson;
-            }
+            //            _unitOfWork.Category.Add(obj);
+            //            await _unitOfWork.SaveAsync();
 
-            _unitOfWork.Category.Add(obj);
-            await _unitOfWork.SaveAsync();
+            //            TempData["success"] = "Category created successfully";
+            //            return RedirectToAction("Index");
+            //=======
+            //                // Commit Transaction
+            //                await _unitOfWork.CommitTransactionAsync();
 
-            TempData["success"] = "Category created successfully";
-            return RedirectToAction("Index");
-=======
-                // Commit Transaction
-                await _unitOfWork.CommitTransactionAsync();
-
-                TempData["success"] = "Category created successfully!";
-                return RedirectToAction("Index");
-            }
-            catch (Exception)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
-                ModelState.AddModelError(string.Empty, "An error occurred while creating the category.");
-                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
-                return View(obj);
-            }
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
+            //                TempData["success"] = "Category created successfully!";
+            //                return RedirectToAction("Index");
+            //            }
+            //            catch (Exception)
+            //            {
+            //                await _unitOfWork.RollbackTransactionAsync();
+            //                ModelState.AddModelError(string.Empty, "An error occurred while creating the category.");
+            //                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
+            //                return View(obj);
+            //            }
+            //>>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
         }
 
         // GET: Edit Category

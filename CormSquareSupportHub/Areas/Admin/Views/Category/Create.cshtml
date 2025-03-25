@@ -22,13 +22,13 @@
 
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-<<<<<<< HEAD
-            <form method="post">
-=======
+@* <<<<<<< HEAD *@
+           @*  <form method="post"> *@
+
             <form method="post" enctype="multipart/form-data">
 
                 <!-- Category Name -->
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
+
                 <div class="mb-3 row p-1">
                     <label asp-for="Name"></label>
                     <input asp-for="Name" class="form-control" />
@@ -54,13 +54,13 @@
                     </select>
                 </div>
 
-<<<<<<< HEAD
+@* <<<<<<< HEAD
                 <div class="mb-3 row p-1">
                     <label>Optimal Creation Time</label>
                     <input asp-for="OptimalCreationTime" class="form-control" id="optimalCreationTime" />
                     <span asp-validation-for="OptimalCreationTime" class="text-danger"></span>
                 </div>
-
+ *@
                 <!-- Description (Editor.js) -->
                 <div class="mb-3 row p-1">
                     <label asp-for="Description">Description</label>
@@ -115,7 +115,8 @@
 </div>
 
 <<<<<<< HEAD
-@section Scripts {
+@section Scripts
+{
     <script>
         // Function to wait for Editor.js and its tools to load
         function waitForEditorJs(callback) {
@@ -189,7 +190,7 @@
             });
         });
     </script>
-=======
+}
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {

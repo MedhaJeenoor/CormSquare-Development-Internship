@@ -13,25 +13,25 @@ namespace SupportHub.DataAccess.Data
         }
 
         public DbSet<Category> Categories { get; set; }
-<<<<<<< HEAD
-        public DbSet<Solution> Solutions { get; set; }
+//<<<<<<< HEAD
+        //public DbSet<Solution> Solutions { get; set; }
         public DbSet<ExternalUser> ExternalUsers { get; set; }  // Replaces Product table// Replaces Product table
-        public DbSet<SolutionAttachment> SolutionAttachments { get; set; } // Replaces CategoryAttachment
-        public DbSet<SolutionReference> SolutionReferences { get; set; } // Replaces CategoryReference
-=======
+        //public DbSet<SolutionAttachment> SolutionAttachments { get; set; } // Replaces CategoryAttachment
+        //public DbSet<SolutionReference> SolutionReferences { get; set; } // Replaces CategoryReference
+//=======
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Reference> References { get; set; }
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
+//>>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-<<<<<<< HEAD
+//<<<<<<< HEAD
             modelBuilder.Ignore<SelectListGroup>();
-=======
+//=======
 
-            // Seed Initial Data
->>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
+//            // Seed Initial Data
+//>>>>>>> e524f3233d44cfc1603dd81100fef59a05af4ae6
             modelBuilder.Entity<Category>().HasData(
                 new Category
                 {
