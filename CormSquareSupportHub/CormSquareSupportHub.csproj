@@ -7,6 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="wwwroot\uploads\temp\**" />
+    <Content Remove="wwwroot\uploads\temp\**" />
+    <EmbeddedResource Remove="wwwroot\uploads\temp\**" />
+    <None Remove="wwwroot\uploads\temp\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MailKit" Version="4.11.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.11" />
@@ -28,7 +35,6 @@
     <Folder Include="Services\" />
     <Folder Include="wwwroot\images\" />
     <Folder Include="wwwroot\uploads\categories\" />
-    <Folder Include="wwwroot\uploads\temp\" />
   </ItemGroup>
 
   <ItemGroup>
