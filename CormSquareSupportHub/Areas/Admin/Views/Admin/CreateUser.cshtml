@@ -48,7 +48,7 @@
 
                     <div class="mb-3">
                         <label class="form-label">Role</label>
-                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" required>
+                        <select class="form-select" asp-for="Role" asp-items="@Model.AvailableRoles" required>
                             <option value="">-- Select Role --</option>
                         </select>
                         <span class="text-danger" asp-validation-for="Role"></span>

@@ -39,12 +39,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         {
             if (!ModelState.IsValid)
             {
-                model.AvailableRoles = new List<SelectListItem>
-                {
-                    new SelectListItem { Value = "Internal User", Text = "Internal User" },
-                    new SelectListItem { Value = "KM Creator", Text = "KM Creator" },
-                    new SelectListItem { Value = "KM Champion", Text = "KM Champion" }
-                };
+                model.AvailableRoles = await GetRoles(); // Fetch roles dynamically
                 return View(model);
             }
 
@@ -80,13 +75,13 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             // Reload roles in case of an error
             model.AvailableRoles = new List<SelectListItem>
-    {
+     {
         new SelectListItem { Value = "Internal User", Text = "Internal User" },
         new SelectListItem { Value = "KM Creator", Text = "KM Creator" },
         new SelectListItem { Value = "KM Champion", Text = "KM Champion" }
     };
 
-
+            model.AvailableRoles = await GetRoles();
             return View(model);
         }
         // Helper method to fetch available roles

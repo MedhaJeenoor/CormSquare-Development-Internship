@@ -5,8 +5,8 @@ using SupportHub.DataAccess.Repository.IRepository;
 using SupportHub.DataAccess.Repository;
 using SupportHub.Models;
 using SupportHub.Utility.EmailServices;
-using SupportHub.Utility;
 using Microsoft.AspNetCore.Identity.UI.Services;
+using SupportHub.Utility;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +50,9 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var userManager = services.GetRequiredService<UserManager<ExternalUser>>();
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-    await SeedAdminUser(userManager, roleManager);
+
+    await SeedRolesAsync(roleManager);
+    await SeedAdminUserAsync(userManager, roleManager);
 }
 
 app.UseEndpoints(endpoints =>
@@ -74,23 +76,27 @@ app.UseEndpoints(endpoints =>
 
 app.Run();
 
-async Task SeedAdminUser(UserManager<ExternalUser> userManager, RoleManager<IdentityRole> roleManager)
+async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
+{
+    string[] roleNames = { "Internal User", "KM Creator", "KM Champion" };
+
+    foreach (var role in roleNames)
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+        {
+            await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+}
+
+async Task SeedAdminUserAsync(UserManager<ExternalUser> userManager, RoleManager<IdentityRole> roleManager)
 {
     string adminEmail = "admin123@cormsquare.com";
     string adminPassword = "AdminPassword123!";
 
-    Console.WriteLine("Starting admin user seeding...");
-
-    if (!await roleManager.RoleExistsAsync("Admin"))
-    {
-        var roleResult = await roleManager.CreateAsync(new IdentityRole("Admin"));
-        Console.WriteLine($"Role 'Admin' creation: {(roleResult.Succeeded ? "Succeeded" : "Failed")}");
-    }
-
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     if (adminUser == null)
     {
-        Console.WriteLine($"No user found with email: {adminEmail}. Creating new user...");
         var user = new ExternalUser
         {
             Email = adminEmail,
@@ -107,31 +113,10 @@ async Task SeedAdminUser(UserManager<ExternalUser> userManager, RoleManager<Iden
             IsApproved = true
         };
 
-        Console.WriteLine($"User object before creation: Email='{user.Email}', UserName='{user.UserName}', NormalizedEmail='{user.NormalizedEmail}'");
-        try
+        var result = await userManager.CreateAsync(user, adminPassword);
+        if (result.Succeeded)
         {
-            var result = await userManager.CreateAsync(user, adminPassword);
-            if (result.Succeeded)
-            {
-                Console.WriteLine("Admin user created successfully!");
-                await userManager.AddToRoleAsync(user, "Admin");
-                Console.WriteLine("Admin role assigned successfully!");
-            }
-            else
-            {
-                var errorMessage = "Error creating admin user: " + string.Join(", ", result.Errors.Select(e => e.Description));
-                Console.WriteLine(errorMessage);
-                throw new Exception(errorMessage);
-            }
+            await userManager.AddToRoleAsync(user, "Admin");
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Exception during user creation: {ex.Message}");
-            throw;
-        }
-    }
-    else
-    {
-        Console.WriteLine($"User with email {adminEmail} already exists. Skipping creation.");
     }
 }
