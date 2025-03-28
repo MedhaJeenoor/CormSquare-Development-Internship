@@ -5,9 +5,11 @@
 
 <h2 class="mb-3">Edit Product</h2>
 
-<div class="card shadow-sm p-4">
-    <form asp-action="Edit" method="post">
-        <input type="hidden" asp-for="Id" />
+    <div class="container mb-5 pb-5">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                <!-- Hidden ID Field -->
+                <input type="hidden" asp-for="Id" />
 
         <div class="mb-3">
             <label class="form-label">Product Name:</label>
@@ -19,104 +21,109 @@
             <textarea asp-for="Description" class="form-control"></textarea>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Subcategories:</label>
-            <div class="input-group">
-                <input type="text" id="subCategoryInput" class="form-control" placeholder="Enter subcategory">
-                <button type="button" class="btn btn-success" onclick="addSubcategory()">
-                    <i class="fas fa-plus"></i> Add
-                </button>
-            </div>
+                <!-- Parent Category Dropdown -->
+                <div class="mb-3 row p-1">
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
+                        <option value="0">This is a Parent Category</option>
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        {
+                            <option value="@category.Id" selected="@(Model.ParentCategoryId == category.Id)">
+                                @category.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- Template Section -->
+                <div class="mb-3 p-1">
+                    <label>Template</label>
+                    <textarea id="editor" name="HtmlContent">@Html.Raw(Model.HtmlContent)</textarea>
+                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
+                </div>
+
+                <!-- Attachments Section -->
+                <div class="mb-3">
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload New Attachments</button>
+                    <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
+                    <ul id="attachmentList" class="list-group mt-2">
+                        @foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
+                                <div>
+                                    <strong>@attachment.FileName</strong><br />
+                                    <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption"
+                                           value="@attachment.Caption" data-index="@Model.Attachments.ToList().IndexOf(attachment)" />
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="form-check-input internal-attachment"
+                                           data-index="@Model.Attachments.ToList().IndexOf(attachment)" @(attachment.IsInternal ? "checked" : "") />
+                                    <span>Internal</span>
+                                    <span class="text-danger delete-attachment ms-3" style="cursor:pointer;"
+                                          data-index="@Model.Attachments.ToList().IndexOf(attachment)">❌</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                </div>
+
+                <!-- References Section -->
+                <div class="mb-3">
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add New Reference</button>
+                    <ul id="referenceList" class="list-group mt-2">
+                        @foreach (var reference in Model.References.Where(r => !r.IsDeleted))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
+                                <div>
+                                    <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
+                                    <input type="text" class="form-control mt-1 description-input" placeholder="Enter description"
+                                           value="@reference.Description" data-index="@Model.References.ToList().IndexOf(reference)" />
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="form-check-input internal-reference"
+                                           data-index="@Model.References.ToList().IndexOf(reference)" @(reference.IsInternal ? "checked" : "") />
+                                    <span>Internal</span>
+                                    <span class="text-danger delete-reference ms-3" style="cursor:pointer;"
+                                          data-index="@Model.References.ToList().IndexOf(reference)">❌</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="[]" />
+                </div>
+
+                <!-- Buttons -->
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Save Changes
+                    </button>
+                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
+                        <i class="bi bi-arrow-left-circle"></i> Back to List
+                    </a>
+                </div>
+            </form>
         </div>
-
-        <!-- Subcategory Table -->
-        <table class="table table-bordered" id="subCategoryTable">
-            <thead>
-                <tr>
-                    <th>Subcategory</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model.SubCategoryNames != null && Model.SubCategoryNames.Any())
-                {
-                    @foreach (var subCategory in Model.SubCategoryNames)
-                    {
-                        <tr>
-                            <td>@subCategory</td>
-                            <td>
-                                <button type="button" class="btn btn-danger btn-sm" onclick="removeSubcategory('@subCategory')">
-                                    <i class="fas fa-trash"></i> Remove
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="2" class="text-center text-muted">No subcategories added yet.</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-
-        <input type="hidden" asp-for="SubCategoryNames" id="subCategoryHidden" />
-
-        <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i> Update Product
-        </button>
-    </form>
+    </div>
 </div>
 
 <script>
     var subcategories = @Html.Raw(Json.Serialize(Model.SubCategoryNames ?? new List<string>()));
 
-    console.log("Loaded Subcategories:", subcategories); // Debugging
-
-    function addSubcategory() {
-        var input = document.getElementById("subCategoryInput");
-        var value = input.value.trim();
-
-        if (value && !subcategories.includes(value)) {
-            subcategories.push(value);
-            updateSubcategoryTable();
-            input.value = "";
-        }
-    }
-
-    function removeSubcategory(sub) {
-        subcategories = subcategories.filter(s => s !== sub);
-        updateSubcategoryTable();
-    }
-
-    function updateSubcategoryTable() {
-        var tableBody = document.querySelector("#subCategoryTable tbody");
-        tableBody.innerHTML = "";
-
-        if (subcategories.length === 0) {
-            tableBody.innerHTML = `<tr>
-                    <td colspan="2" class="text-center text-muted">No subcategories added yet.</td>
-                </tr>`;
-        } else {
-            subcategories.forEach(sub => {
-                var row = `<tr>
-                        <td>${sub}</td>
-                        <td>
-                            <button type="button" class="btn btn-danger btn-sm" onclick="removeSubcategory('${sub}')">
-                                <i class="fas fa-trash"></i> Remove
-                            </button>
-                        </td>
-                    </tr>`;
-                tableBody.innerHTML += row;
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <script src="~/js/tinymce-init.js"></script>
+    <script src="~/js/category-attachments-references.js?v=1.3"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        console.log("Inline script starting");
+        try {
+            jQuery(document).ready(function () {
+                console.log("jQuery is loaded and working!");
             });
+        } catch (e) {
+            console.error("Error initializing jQuery:", e);
         }
-
-        document.getElementById("subCategoryHidden").value = JSON.stringify(subcategories);
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-        console.log("Document Loaded. Subcategories:", subcategories);
-        updateSubcategoryTable();
-    });
-</script>
+        console.log("Inline script complete");
+    </script>
+}

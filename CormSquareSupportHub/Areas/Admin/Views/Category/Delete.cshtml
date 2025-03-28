@@ -1,93 +1,127 @@
-﻿@*@model Category
+﻿@model Category
 
 @{
     ViewData["Title"] = "Delete Category";
 }
 
 <div class="card shadow border-0 mt-4">
-    <div class="card-header bg-danger bg-gradient ml-0 py-3">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
         <div class="row">
             <div class="col-12 text-center">
-                <h2 class="py-2 text-white">Delete Category</h2>
+                <h2 class="py-2">Delete Category</h2>
             </div>
         </div>
     </div>
 
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-            @* <h4 class="text-center text-danger">Are you sure you want to delete this category?</h4>
-            <hr />
+            <form method="post" asp-action="Delete">
+                <input type="hidden" asp-for="Id" />
 
-            <div class="mb-3 row p-1">
-                <label class="fw-bold">Category Name:</label>
-                <input class="form-control" value="@Model.Name" readonly />
-            </div>
-
-            <div class="mb-3 row p-1">
-                <label class="fw-bold">Description:</label>
-                <textarea class="form-control" readonly>@Model.Description</textarea>
-            </div>
-
-            <div class="mb-3 row p-1">
-                <label class="fw-bold">Parent Category:</label>
-                <input class="form-control" value="@(Model.ParentCategory?.Name ?? "None (Parent Category)")" readonly />
-            </div>
-
-            <!-- Template Section -->
-            <div class="mb-3 p-1">
-                <label class="fw-bold">Template:</label>
-                <div class="border p-3 bg-light">
-                    @Html.Raw(Model.HtmlContent) <!-- Display saved template -->
+                <!-- Category Name -->
+                <div class="mb-3 row p-1">
+                    <label asp-for="Name"></label>
+                    <input asp-for="Name" class="form-control" disabled />
                 </div>
-            </div>
 
-            <!-- Attachments Section -->
-            @if (Model.Attachments != null && Model.Attachments.Any())
-            {
+                <!-- Description -->
+                <div class="mb-3 row p-1">
+                    <label>Description</label>
+                    <textarea asp-for="Description" class="form-control" disabled></textarea>
+                </div>
+
+                <!-- Parent Category Dropdown -->
+                <div class="mb-3 row p-1">
+                    <label>Select Parent Category</label>
+                    <select asp-for="ParentCategoryId" class="form-control" disabled>
+                        <option value="0">This is a Parent Category</option>
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        {
+                            <option value="@category.Id" selected="@(Model.ParentCategoryId == category.Id)">
+                                @category.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- Template Section -->
+                <div class="mb-3 p-1">
+                    <label>Template</label>
+                    <textarea id="editor" disabled>@Html.Raw(Model.HtmlContent)</textarea>
+                    <input type="hidden" name="HtmlContent" id="HtmlContent" />
+                </div>
+
+                <!-- Attachments Section -->
                 <div class="mb-3">
-            @*         <label class="fw-bold">Attachments:</label> *@
-@*         <ul class="list-group mt-2"> *@
-@*             @foreach (var attachment in Model.Attachments) *@
-@*             { *@
-@*                 <li class="list-group-item"> *@
-@*                     <a href='' target="_blank">@attachment.FileName</a> *@
-@*                 </li> *@
-@*             } *@
-@*         </ul> *@
-@*     </div> *@
-@* }
+                    <h5>Attachments List</h5>
+                    @if (Model.Attachments.Any(a => !a.IsDeleted))
+                    {
+                        <ul id="attachmentList" class="list-group mt-2">
+                            @foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>@attachment.FileName</strong><br />
+                                        <input type="text" class="form-control mt-1" value="@attachment.Caption" disabled />
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="form-check-input" @(attachment.IsInternal ? "checked" : "") disabled />
+                                        <span>Internal</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p>No Attachments</p>
+                    }
+                </div>
 
-            <!-- References Section -->
-            @* @if (Model.References != null && Model.References.Any()) *@
-@* { *@
-@*     <div class="mb-3"> *@
-@*         <label class="fw-bold">References:</label> *@
-@*         <ul class="list-group mt-2"> *@
-@*             @foreach (var reference in Model.References) *@
-@*             { *@
-@*                 <li class="list-group-item"> *@
-@*                     <a href='' target="_blank">@reference.Url</a> *@
-@*                 </li> *@
-@*             } *@
-@*         </ul>
-            @*     </div>
-             }
+                <!-- References Section -->
+                <div class="mb-3">
+                    <h5>References List</h5>
+                    @if (Model.References.Any(r => !r.IsDeleted))
+                    {
+                        <ul id="referenceList" class="list-group mt-2">
+                            @foreach (var reference in Model.References.Where(r => !r.IsDeleted))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
+                                        <input type="text" class="form-control mt-1" value="@reference.Description" disabled />
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="form-check-input" @(reference.IsInternal ? "checked" : "") disabled />
+                                        <span>Internal</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p>No References</p>
+                    }
+                </div>
 
-            <!-- Buttons -->
-            <div class="text-center mt-4">
-                <form method="post" asp-action="DeleteConfirmed">
-                    <input type="hidden" asp-for="Id" />
-                    <button type="submit" class="btn btn-danger mx-2" style="width:200px">
-                        <i class="bi bi-trash"></i> Delete
+                <!-- Buttons -->
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-trash"></i> Confirm Delete
                     </button>
                     <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
                         <i class="bi bi-arrow-left-circle"></i> Cancel
                     </a>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <div class="mb-5 pb-5"></div>
-*@
+
+@section Scripts {
+    <script src="~/js/tinymce-init.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -7,10 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="wwwroot\uploads\temp\**" />
-    <Content Remove="wwwroot\uploads\temp\**" />
-    <EmbeddedResource Remove="wwwroot\uploads\temp\**" />
-    <None Remove="wwwroot\uploads\temp\**" />
+    <Compile Remove="Areas\Admin\Views\Shared\**" />
+    <Content Remove="Areas\Admin\Views\Shared\**" />
+    <EmbeddedResource Remove="Areas\Admin\Views\Shared\**" />
+    <None Remove="Areas\Admin\Views\Shared\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,13 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Areas\Admin\Views\Shared\" />
     <Folder Include="Areas\KnowledgeBase\Controllers\" />
     <Folder Include="Areas\UserManagement\Controllers\" />
     <Folder Include="Controllers\" />
     <Folder Include="Services\" />
     <Folder Include="wwwroot\images\" />
-    <Folder Include="wwwroot\uploads\categories\" />
   </ItemGroup>
 
   <ItemGroup>
