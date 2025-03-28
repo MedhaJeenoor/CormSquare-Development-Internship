@@ -6,11 +6,11 @@ namespace SupportHub.DataAccess.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "AssignedRole",
-                table: "AspNetUsers",
-                type: "nvarchar(max)",
-                nullable: true);
+            //migrationBuilder.AddColumn<string>(
+            //    name: "AssignedRole",
+            //    table: "AspNetUsers",
+            //    type: "nvarchar(max)",
+            //    nullable: true);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

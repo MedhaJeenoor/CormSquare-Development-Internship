@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +9,10 @@ namespace SupportHub.DataAccess.Data
 {
     public class ApplicationDbContext : IdentityDbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IHttpContextAccessor httpContextAccessor) : base(options)
         {
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public DbSet<Category> Categories { get; set; }
@@ -19,6 +22,9 @@ namespace SupportHub.DataAccess.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<SubCategory> SubCategories { get; set; }
         public DbSet<Issue> Issues { get; set; }
+        public DbSet<Solution> Solutions { get; set; }
+        public DbSet<SolutionAttachment> SolutionAttachments { get; set; }
+        public DbSet<SolutionReference> SolutionReferences { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,10 +56,10 @@ namespace SupportHub.DataAccess.Data
                 }
             );
             modelBuilder.Entity<Product>()
-        .HasMany(p => p.SubCategories)
-        .WithOne(s => s.Product)
-        .HasForeignKey(s => s.ProductId)
-        .OnDelete(DeleteBehavior.Cascade);
+                .HasMany(p => p.SubCategories)
+                .WithOne(s => s.Product)
+                .HasForeignKey(s => s.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
             // Define Relationships for Attachments and References
             modelBuilder.Entity<Category>()
                 .HasMany(c => c.Attachments)
@@ -66,6 +72,18 @@ namespace SupportHub.DataAccess.Data
                 .WithOne(r => r.Category)
                 .HasForeignKey(r => r.CategoryId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Solution>().ToTable("Solutions");
+            modelBuilder.Entity<SolutionAttachment>()
+                .ToTable("SolutionAttachments")
+                .HasOne(sa => sa.Solution)
+                .WithMany(s => s.Attachments)
+                .HasForeignKey(sa => sa.SolutionId);
+            modelBuilder.Entity<SolutionReference>()
+                .ToTable("SolutionReferences")
+                .HasOne(sr => sr.Solution)
+                .WithMany(s => s.References)
+                .HasForeignKey(sr => sr.SolutionId);
 
             /*modelBuilder.Entity<Category>().HasData(
             // Parent Category: Documentation Types
