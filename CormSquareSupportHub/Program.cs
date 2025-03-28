@@ -10,11 +10,17 @@ using SupportHub.Utility;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.HttpsPort = 7295;
+});
+
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection("AttachmentSettings"));
 builder.Services.AddIdentity<ExternalUser, IdentityRole>(options =>
 {
     options.User.RequireUniqueEmail = true;
@@ -119,4 +125,9 @@ async Task SeedAdminUserAsync(UserManager<ExternalUser> userManager, RoleManager
             await userManager.AddToRoleAsync(user, "Admin");
         }
     }
+}
+
+public class AttachmentSettings
+{
+    public string UploadPath { get; set; }
 }

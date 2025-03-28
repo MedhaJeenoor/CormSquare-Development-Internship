@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Diagnostics;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace CormSquareSupportHub.Areas.Admin.Controllers
@@ -16,11 +16,13 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly AttachmentSettings _attachmentSettings;
 
-        public CategoryController(IUnitOfWork unitOfWork, IWebHostEnvironment webHostEnvironment)
+        public CategoryController(IUnitOfWork unitOfWork, IWebHostEnvironment webHostEnvironment, IOptions<AttachmentSettings> attachmentSettings)
         {
             _unitOfWork = unitOfWork;
             _webHostEnvironment = webHostEnvironment;
+            _attachmentSettings = attachmentSettings.Value;
         }
 
         // GET: Index - List Categories
@@ -40,58 +42,56 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         // GET: Create Category Page
         public async Task<IActionResult> Create()
         {
-            var categories = await _unitOfWork.Category.GetAllAsync();
+            var categories = await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted);
             return View(new Category { Categories = categories.ToList() });
         }
 
         // POST: Create Category
         [HttpPost]
-        public async Task<IActionResult> Create(Category obj, List<IFormFile> files, string ReferenceData, string AttachmentData)
+        public async Task<IActionResult> Create(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData)
         {
             if (!ModelState.IsValid)
             {
-                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
                 return View(obj);
             }
 
-            // Start Transaction
-            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
-
+            await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // Handle Parent Category Logic
                 obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
-
-                // Auto-assign Display Order
                 obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
-                    ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId))
+                    ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId && !c.IsDeleted))
                     .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
 
-                // Save Category
+                obj.UpdateAudit(1); // Assuming userId 1
                 _unitOfWork.Category.Add(obj);
                 await _unitOfWork.SaveAsync();
 
-                // Save Attachments
-                await ProcessAttachmentsAsync(obj, files, AttachmentData);
+                // Process attachments if provided
+                if (files?.Count > 0 || !string.IsNullOrEmpty(AttachmentData))
+                {
+                    await ProcessAttachmentsAsync(obj, files, AttachmentData);
+                }
 
-                // Process References
+                // Process references if provided
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
-                    var references = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
+                    var references = JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
                     await SaveReferences(references, obj.Id);
                 }
 
-                // Commit Transaction
                 await _unitOfWork.CommitTransactionAsync();
-
                 TempData["success"] = "Category created successfully!";
                 return RedirectToAction("Index");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                ModelState.AddModelError(string.Empty, "An error occurred while creating the category.");
-                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
+                // Log the exception for debugging
+                Console.WriteLine($"Error in Create: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                ModelState.AddModelError(string.Empty, $"An error occurred while creating the category: {ex.Message}");
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
                 return View(obj);
             }
         }
@@ -99,180 +99,203 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         // GET: Edit Category
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null || id == 0)
-            {
-                return NotFound();
-            }
+            if (id == null || id == 0) return NotFound();
 
-            var categoryFromDb = await _unitOfWork.Category.GetFirstOrDefaultAsync(
-                c => c.Id == id,
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                c => c.Id == id && !c.IsDeleted,
                 includeProperties: "Attachments,References"
             );
-            if (categoryFromDb == null)
-            {
-                return NotFound();
-            }
+            if (category == null) return NotFound();
 
-            // Load Parent Categories
-            categoryFromDb.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
-            ViewData["HtmlContent"] = categoryFromDb.HtmlContent ?? "";
-            return View(categoryFromDb);
+            category.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted && c.Id != id)).ToList();
+            ViewData["HtmlContent"] = category.HtmlContent ?? "";
+            return View(category);
         }
 
-        //POST: Edit Category
+        // POST: Edit Category
         [HttpPost]
-        public async Task<IActionResult> Edit(Category obj, List<IFormFile> files, string referenceData, string attachmentData)
+        public async Task<IActionResult> Edit(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData)
         {
-            Debug.WriteLine($"Attachment Data Received: {referenceData}");
-            Debug.WriteLine($"Reference Data Received: {attachmentData}");
-
             if (!ModelState.IsValid)
             {
-                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
                 return View(obj);
             }
 
-            // Start Transaction
-            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
-
+            await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // Fetch the existing category to keep important values (like DisplayOrder)
-                var existingCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == obj.Id);
-                if (existingCategory == null)
-                {
-                    return NotFound();
-                }
+                var existingCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                    c => c.Id == obj.Id && !c.IsDeleted,
+                    includeProperties: "Attachments,References"
+                );
+                if (existingCategory == null) return NotFound();
 
-                // Retain the DisplayOrder during Edit
-                obj.DisplayOrder = existingCategory.DisplayOrder;
+                // Update all fields from the form
+                existingCategory.Name = obj.Name;
+                existingCategory.Description = obj.Description;
+                existingCategory.HtmlContent = obj.HtmlContent;
+                existingCategory.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
+                existingCategory.DisplayOrder = existingCategory.DisplayOrder;
+                existingCategory.UpdateAudit(1); // Assuming userId 1
 
-                obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
-                obj.UpdatedBy = 1;
-                obj.UpdatedDate = DateTime.Now;
-
-                // Update Category
-                _unitOfWork.Category.Update(obj);
+                _unitOfWork.Category.Update(existingCategory);
                 await _unitOfWork.SaveAsync();
 
-                // Process Attachments (Update or Add New)
-                await ProcessAttachmentsAsync(obj, files, attachmentData);
-
-                // Process References (Update or Add New)
-                if (!string.IsNullOrEmpty(referenceData))
+                // Process attachments
+                if (!string.IsNullOrEmpty(AttachmentData) || (files?.Count > 0))
                 {
-                    var references = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Reference>>(referenceData);
-                    await SaveReferences(references, obj.Id);
+                    Console.WriteLine($"Processing attachments. Files count: {files?.Count}, AttachmentData: {AttachmentData}");
+                    await ProcessAttachmentsAsync(existingCategory, files, AttachmentData);
                 }
 
-                // Commit Transaction
-                await _unitOfWork.CommitTransactionAsync();
+                // Process references
+                if (!string.IsNullOrEmpty(ReferenceData))
+                {
+                    var references = JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
+                    await SaveReferences(references, existingCategory.Id);
+                }
 
+                await _unitOfWork.CommitTransactionAsync();
                 TempData["success"] = "Category updated successfully!";
+                return RedirectToAction("Index");
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                Console.WriteLine($"Error in Edit: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                ModelState.AddModelError(string.Empty, $"An error occurred while updating the category: {ex.Message}");
+                obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
+                return View(obj);
+            }
+        }
+        // GET: Delete Category (Confirmation Page)
+        public async Task<IActionResult> Delete(int? id)
+        {
+            if (id == null || id == 0) return NotFound();
+
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                c => c.Id == id && !c.IsDeleted,
+                includeProperties: "Attachments,References"
+            );
+            if (category == null) return NotFound();
+
+            category.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted && c.Id != id)).ToList();
+            ViewData["HtmlContent"] = category.HtmlContent ?? "";
+            return View(category);
+        }
+
+        // POST: Delete Category (Soft Delete)
+        [HttpPost, ActionName("Delete")]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+            if (category == null) return NotFound();
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                _unitOfWork.Category.SoftDelete(category, 1); // Assuming userId 1
+                var attachments = await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == id && !a.IsDeleted);
+                foreach (var attachment in attachments)
+                {
+                    _unitOfWork.Attachment.SoftDelete(attachment, 1);
+                }
+
+                var references = await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == id && !r.IsDeleted);
+                foreach (var reference in references)
+                {
+                    _unitOfWork.Reference.SoftDelete(reference, 1);
+                }
+
+                await _unitOfWork.SaveAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                TempData["success"] = "Category deleted successfully (Soft Delete)!";
                 return RedirectToAction("Index");
             }
             catch (Exception)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                ModelState.AddModelError(string.Empty, "An error occurred while updating the category.");
-                obj.Categories = (await _unitOfWork.Category.GetAllAsync()).ToList();
-                return View(obj);
+                TempData["error"] = "An error occurred while deleting the category.";
+                return RedirectToAction("Index");
             }
         }
 
-        // Process Attachments (Create and Edit Logic)
-        private async Task ProcessAttachmentsAsync(Category obj, List<IFormFile> files, string attachmentData)
+        // Process Attachments
+        private async Task ProcessAttachmentsAsync(Category obj, List<IFormFile>? files, string? AttachmentData)
         {
-            if (files == null && string.IsNullOrEmpty(attachmentData))
-                return;
-            Debug.WriteLine($"Attachment Data Received: {attachmentData}");
+            if (string.IsNullOrEmpty(AttachmentData) && (files == null || files.Count == 0)) return;
 
-            string wwwRootPath = _webHostEnvironment.WebRootPath;
-            string categoryPath = Path.Combine(wwwRootPath, "uploads", "categories", obj.Id.ToString());
+            string basePath = _attachmentSettings.UploadPath;
+            string categoryPath = Path.Combine(basePath, "categories", obj.Id.ToString());
 
-            // Create directory if it doesn't exist
             if (!Directory.Exists(categoryPath))
             {
                 Directory.CreateDirectory(categoryPath);
             }
 
-            // Deserialize attachmentData to get metadata (Caption, IsInternal, etc.)
-            List<Attachment> attachmentInfos = string.IsNullOrEmpty(attachmentData)
+            var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == obj.Id && !a.IsDeleted)).ToList();
+            var attachmentInfos = string.IsNullOrEmpty(AttachmentData)
                 ? new List<Attachment>()
-                : Newtonsoft.Json.JsonConvert.DeserializeObject<List<Attachment>>(attachmentData);
+                : JsonConvert.DeserializeObject<List<Attachment>>(AttachmentData);
 
-
-            // Get existing attachments from the database
-            var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == obj.Id)).ToList();
-
-            // ✅ Update existing attachments if metadata has changed
-            foreach (var attachmentInfo in attachmentInfos)
+            // Update existing attachments
+            foreach (var attachmentInfo in attachmentInfos.Where(ai => ai.Id > 0))
             {
-                // Match by Id if provided
                 var matchingAttachment = existingAttachments.FirstOrDefault(a => a.Id == attachmentInfo.Id);
-
                 if (matchingAttachment != null)
                 {
-                    // Check if metadata has changed before updating
-                    if (matchingAttachment.IsInternal != attachmentInfo.IsInternal ||
-                        matchingAttachment.Caption != attachmentInfo.Caption)
+                    if (matchingAttachment.Caption != attachmentInfo.Caption || matchingAttachment.IsInternal != attachmentInfo.IsInternal)
                     {
-                        matchingAttachment.IsInternal = attachmentInfo.IsInternal;
                         matchingAttachment.Caption = attachmentInfo.Caption;
-
-                        _unitOfWork.Attachment.Update(matchingAttachment); // ✅ Update the attachment
+                        matchingAttachment.IsInternal = attachmentInfo.IsInternal;
+                        matchingAttachment.UpdateAudit(1);
+                        _unitOfWork.Attachment.Update(matchingAttachment);
                     }
                 }
             }
 
-            // ✅ Save new files with corresponding metadata
+            // Add new attachments
             if (files != null && files.Count > 0)
             {
-                for (int i = 0; i < files.Count; i++)
+                foreach (var file in files)
                 {
-                    var file = files[i];
                     string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
                     string filePath = Path.Combine(categoryPath, fileName);
 
-                    // Save the file to disk
                     using (var fileStream = new FileStream(filePath, FileMode.Create))
                     {
                         await file.CopyToAsync(fileStream);
                     }
 
-                    // Get metadata for the new file if available
-                    var newAttachmentInfo = attachmentInfos.ElementAtOrDefault(i);
-
+                    var newAttachmentInfo = attachmentInfos.FirstOrDefault(ai => ai.Id == 0 && ai.FileName == file.FileName)
+                        ?? new Attachment();
                     var newAttachment = new Attachment
                     {
                         FileName = fileName,
-                        FilePath = Path.Combine("uploads/categories", obj.Id.ToString(), fileName).Replace("\\", "/"),
-                        Caption = newAttachmentInfo?.Caption ?? "",  // ✅ Get correct Caption
-                        IsInternal = newAttachmentInfo?.IsInternal ?? false,  // ✅ Get correct IsInternal
+                        FilePath = Path.Combine("categories", obj.Id.ToString(), fileName).Replace("\\", "/"),
+                        Caption = newAttachmentInfo.Caption ?? "",
+                        IsInternal = newAttachmentInfo.IsInternal,
                         CategoryId = obj.Id
                     };
-
-                    _unitOfWork.Attachment.Add(newAttachment); // ✅ Add new attachment
+                    newAttachment.UpdateAudit(1);
+                    _unitOfWork.Attachment.Add(newAttachment);
                 }
             }
 
-            // ✅ Save changes after adding/updating attachments
             await _unitOfWork.SaveAsync();
         }
 
-
-        // Process References (Create and Edit Logic)
+        // Process References
         private async Task SaveReferences(List<Reference> references, int categoryId)
         {
-            var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == categoryId)).ToList();
+            var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == categoryId && !r.IsDeleted)).ToList();
 
             foreach (var reference in references)
             {
                 var existingReference = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
-
-                if (existingReference != null)
+                if (existingReference != null && reference.Id > 0) // Update existing
                 {
-                    // ✅ Update if the reference exists and has changed
                     if (existingReference.Url != reference.Url ||
                         existingReference.Description != reference.Description ||
                         existingReference.IsInternal != reference.IsInternal ||
@@ -282,13 +305,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         existingReference.Description = reference.Description;
                         existingReference.IsInternal = reference.IsInternal;
                         existingReference.OpenOption = reference.OpenOption;
-
+                        existingReference.UpdateAudit(1); // Assuming userId 1
                         _unitOfWork.Reference.Update(existingReference);
                     }
                 }
-                else
+                else if (reference.Id == 0) // Add new
                 {
-                    // ✅ Add new reference if it does not exist
                     var newReference = new Reference
                     {
                         Url = reference.Url,
@@ -297,38 +319,58 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         OpenOption = reference.OpenOption,
                         CategoryId = categoryId
                     };
-
+                    newReference.UpdateAudit(1); // Assuming userId 1
                     _unitOfWork.Reference.Add(newReference);
                 }
             }
 
-            // ✅ Save changes after adding/updating references
             await _unitOfWork.SaveAsync();
         }
 
-
-        // DELETE Attachment (Called from AJAX)
+        // DELETE Attachment (Soft Delete via AJAX)
         [HttpPost]
         public async Task<IActionResult> RemoveAttachment(int id)
         {
-            var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id);
-            if (attachment == null)
+            try
             {
-                return Json(new { success = false, message = "Error while deleting attachment." });
+                var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+                if (attachment == null)
+                {
+                    return Json(new { success = false, message = "Attachment not found." });
+                }
+
+                _unitOfWork.Attachment.SoftDelete(attachment, 1); // Assuming userId 1
+                await _unitOfWork.SaveAsync();
+                return Json(new { success = true, message = "Attachment deleted successfully." });
             }
-
-            string wwwRootPath = _webHostEnvironment.WebRootPath;
-            string filePath = Path.Combine(wwwRootPath, attachment.FilePath.TrimStart('/'));
-
-            if (System.IO.File.Exists(filePath))
+            catch (Exception ex)
             {
-                System.IO.File.Delete(filePath);
+                Console.WriteLine($"Error in RemoveAttachment: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, message = $"Error deleting attachment: {ex.Message}" });
             }
+        }
 
-            _unitOfWork.Attachment.Remove(attachment);
-            await _unitOfWork.SaveAsync();
+        // DELETE Reference (Soft Delete via AJAX)
+        [HttpPost]
+        public async Task<IActionResult> RemoveReference(int id)
+        {
+            try
+            {
+                var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
+                if (reference == null)
+                {
+                    return Json(new { success = false, message = "Reference not found." });
+                }
 
-            return Json(new { success = true, message = "Attachment deleted successfully." });
+                _unitOfWork.Reference.SoftDelete(reference, 1); // Assuming userId 1
+                await _unitOfWork.SaveAsync();
+                return Json(new { success = true, message = "Reference deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in RemoveReference: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, message = $"Error deleting reference: {ex.Message}" });
+            }
         }
     }
 }
