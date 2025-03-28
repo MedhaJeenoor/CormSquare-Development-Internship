@@ -19,6 +19,12 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax; // Use Lax unless cross-site is required
+});
+
 
 builder.Services.Configure<AttachmentSettings>(builder.Configuration.GetSection("AttachmentSettings"));
 builder.Services.AddIdentity<ExternalUser, IdentityRole>(options =>
@@ -32,6 +38,14 @@ builder.Services.AddIdentity<ExternalUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+// Update the existing ConfigureApplicationCookie
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax; // Change from None to Lax
+    options.Cookie.HttpOnly = true;
+});
+
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
@@ -46,6 +60,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseHsts();  // Ensure HSTS is enabled
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
@@ -84,7 +99,7 @@ app.Run();
 
 async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
 {
-    string[] roleNames = { "Internal User", "KM Creator", "KM Champion" };
+    string[] roleNames = { "Internal User", "KM Creator", "KM Champion","ExternalUser" };
 
     foreach (var role in roleNames)
     {

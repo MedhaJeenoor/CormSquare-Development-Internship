@@ -1,0 +1,147 @@
+﻿@model ProductViewModel
+@{
+    ViewData["Title"] = "Edit Product";
+}
+
+<h2 class="mb-3">Edit Product</h2>
+
+<div class="card shadow-sm p-4">
+    <form asp-action="Edit" method="post">
+        <input type="hidden" asp-for="Id" />
+        <div class="mb-3">
+            <label class="form-label">Product Name:</label>
+            <input asp-for="ProductName" class="form-control" required />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Description:</label>
+            <textarea asp-for="Description" class="form-control"></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Subcategories:</label>
+            <div class="input-group">
+                <input type="text" id="subCategoryInput" class="form-control" placeholder="Enter subcategory">
+                <button type="button" class="btn btn-success" onclick="addSubcategory()">
+                    <i class="fas fa-plus"></i> Add
+                </button>
+            </div>
+        </div>
+
+        <table class="table table-bordered mt-3" id="subCategoryTable" style="display: none;">
+            <thead class="table-dark">
+                <tr>
+                    <th>Subcategory Name</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <input type="hidden" asp-for="SubCategoryNames" id="subCategoryHidden" />
+
+        <button type="submit" class="btn btn-primary mt-3">
+            <i class="fas fa-save"></i> Save Changes
+        </button>
+    </form>
+</div>
+
+<div class="mb-5 pb-5"></div>
+<!-- Spacer to push content above footer -->
+<div style="min-height: 100px;"></div>
+
+<script>
+    var subcategories = @Html.Raw(Json.Serialize(Model.SubCategoryNames ?? new List<string>()));
+
+    function addSubcategory() {
+        var input = document.getElementById("subCategoryInput");
+        var value = input.value.trim();
+
+        if (value && !subcategories.includes(value)) {
+            subcategories.push(value);
+            updateSubcategoryTable();
+            input.value = "";
+        }
+    }
+
+    function removeSubcategory(sub) {
+        subcategories = subcategories.filter(s => s !== sub);
+        updateSubcategoryTable();
+    }
+
+    function editSubcategory(sub) {
+        // Find the row for this subcategory
+        var tbody = document.getElementById("subCategoryTable").querySelector("tbody");
+        var rows = tbody.getElementsByTagName("tr");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var nameCell = row.cells[0];
+            if (nameCell.textContent === sub) {
+                // Replace the name with an input field
+                nameCell.innerHTML = `<input type="text" class="form-control" value="${sub}" id="editInput-${sub}" />`;
+
+                // Replace the action buttons with Save and Cancel
+                var actionCell = row.cells[1];
+                actionCell.innerHTML = `
+                        <button type="button" class="btn btn-success btn-sm" onclick="saveSubcategory('${sub}')">
+                            <i class="fas fa-check"></i> Save
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('${sub}')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>`;
+                break;
+            }
+        }
+    }
+
+    function saveSubcategory(oldName) {
+        // Get the new name from the input field
+        var input = document.getElementById(`editInput-${oldName}`);
+        var newName = input.value.trim();
+
+        if (newName && newName !== oldName && !subcategories.includes(newName)) {
+            // Update the subcategory name in the array
+            var index = subcategories.indexOf(oldName);
+            subcategories[index] = newName;
+            updateSubcategoryTable();
+        } else if (newName === oldName) {
+            // If the name hasn't changed, just revert to display mode
+            updateSubcategoryTable();
+        } else {
+            alert("Subcategory name cannot be empty or already exists!");
+        }
+    }
+
+    function cancelEdit(sub) {
+        // Revert to display mode without saving changes
+        updateSubcategoryTable();
+    }
+
+    function updateSubcategoryTable() {
+        var table = document.getElementById("subCategoryTable");
+        var tbody = table.querySelector("tbody");
+
+        tbody.innerHTML = "";
+        subcategories.forEach(sub => {
+            var row = `<tr>
+                                <td>${sub}</td>
+                                <td>
+                                    <button type="button" class="btn btn-warning btn-sm" onclick="editSubcategory('${sub}')">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeSubcategory('${sub}')">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </td>
+                              </tr>`;
+            tbody.innerHTML += row;
+        });
+
+        document.getElementById("subCategoryHidden").value = JSON.stringify(subcategories);
+        table.style.display = subcategories.length > 0 ? "table" : "none";
+    }
+
+    // Initialize table on page load
+    updateSubcategoryTable();
+</script>

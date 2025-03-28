@@ -54,7 +54,6 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
         public string ReturnUrl { get; set; }
         public IList<AuthenticationScheme> ExternalLogins { get; set; }
 
-        // Country Dropdown List
         public List<SelectListItem> CountryList { get; set; }
 
         public class InputModel
@@ -104,8 +103,6 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
         {
             ReturnUrl = returnUrl;
             ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
-
-            // Populate Country Dropdown
             CountryList = GetCountryList();
         }
 
@@ -131,7 +128,16 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
 
                 if (result.Succeeded)
                 {
-                    _logger.LogInformation("User registered but requires admin approval.");
+                    // Ensure "ExternalUser" role exists
+                    if (!await _roleManager.RoleExistsAsync("ExternalUser"))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole("ExternalUser"));
+                    }
+
+                    // Assign "ExternalUser" role to the newly created user
+                    await _userManager.AddToRoleAsync(user, "ExternalUser");
+
+                    _logger.LogInformation("User registered and assigned ExternalUser role but requires admin approval.");
                     return RedirectToPage("RegisterConfirmation", new { email = Input.Email });
                 }
 
@@ -141,9 +147,7 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account
                 }
             }
 
-            // Repopulate country list in case of an error
             CountryList = GetCountryList();
-
             return Page();
         }
 

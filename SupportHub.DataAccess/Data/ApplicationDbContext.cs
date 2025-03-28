@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using SupportHub.Models;
@@ -15,10 +16,25 @@ namespace SupportHub.DataAccess.Data
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Reference> References { get; set; }
         public DbSet<ExternalUser> ExternalUsers { get; set; }
+        public DbSet<Product> Products { get; set; }
+        public DbSet<SubCategory> SubCategories { get; set; }
+        public DbSet<Issue> Issues { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // Explicitly define ExternalUser as the default type
+            modelBuilder.Entity<ExternalUser>()
+                .HasDiscriminator<string>("Discriminator")
+                .HasValue<ExternalUser>("ExternalUser");
+
+            // Seed roles if necessary
+            modelBuilder.Entity<IdentityRole>().HasData(
+                new IdentityRole { Name = "Admin", NormalizedName = "ADMIN" },
+                new IdentityRole { Name = "Internal User", NormalizedName = "INTERNAL USER" },
+                new IdentityRole { Name = "KM Creator", NormalizedName = "KM CREATOR" },
+                new IdentityRole { Name = "KM Champion", NormalizedName = "KM CHAMPION" }
+            );
             modelBuilder.Ignore<SelectListGroup>();
 
             // Seed Initial Data
@@ -33,7 +49,11 @@ namespace SupportHub.DataAccess.Data
                     HtmlContent = ""
                 }
             );
-
+            modelBuilder.Entity<Product>()
+        .HasMany(p => p.SubCategories)
+        .WithOne(s => s.Product)
+        .HasForeignKey(s => s.ProductId)
+        .OnDelete(DeleteBehavior.Cascade);
             // Define Relationships for Attachments and References
             modelBuilder.Entity<Category>()
                 .HasMany(c => c.Attachments)

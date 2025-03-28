@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250328051359_AssignedRole")]
+    partial class AssignedRole
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "d16b7381-d02e-45de-882a-097678f22270",
+                            Id = "b71b327d-1eec-40f7-95c8-b44d0591aa86",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "2fe3a75b-34ab-4d21-bdd6-347d52a29f00",
+                            Id = "57272824-fcf9-49f8-8a89-3f52cb1e0e87",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "e896d5c7-a7d6-4b93-81d3-b5e8a7cc8818",
+                            Id = "d4b83526-661a-44d9-aa80-bb4ad2c4a65d",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "70b26ac6-61d6-4897-9980-c413dabc9a92",
+                            Id = "1564e10e-51a9-4616-8c5f-28b05144b0c8",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });

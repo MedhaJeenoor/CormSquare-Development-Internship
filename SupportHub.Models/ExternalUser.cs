@@ -30,6 +30,7 @@ namespace SupportHub.Models
         [Required(ErrorMessage = "Employee ID is required")]
         public string EmployeeID { get; set; }
         public bool IsApproved { get; set; } // Default to false
-
+        // New property to store the assigned role
+        public string AssignedRole { get; set; }
     }
 }
