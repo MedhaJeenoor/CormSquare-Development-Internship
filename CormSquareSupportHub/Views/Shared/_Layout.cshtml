@@ -76,12 +76,11 @@
                                     <a class="nav-link" asp-area="Admin" asp-controller="Product" asp-action="Index">Product Management</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
                                 </li>
-
                             }
                             @if (User.IsInRole("KM Creator") || User.IsInRole("KM Champion"))
                             {
@@ -91,12 +90,15 @@
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
+                                </li>
 
                             }
                             @if (User.IsInRole("ExternalUser"))
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
                                 </li>
                             }
                         }

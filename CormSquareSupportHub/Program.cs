@@ -99,7 +99,7 @@ app.Run();
 
 async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
 {
-    string[] roleNames = { "Internal User", "KM Creator", "KM Champion","ExternalUser" };
+    string[] roleNames = { "Internal User", "KM Creator", "KM Champion", "ExternalUser" };
 
     foreach (var role in roleNames)
     {
@@ -134,11 +134,11 @@ async Task SeedAdminUserAsync(UserManager<ExternalUser> userManager, RoleManager
             IsApproved = true
         };
 
-        var result = await userManager.CreateAsync(user, adminPassword);
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(user, "Admin");
-        }
+var result = await userManager.CreateAsync(user, adminPassword);
+if (result.Succeeded)
+{
+    await userManager.AddToRoleAsync(user, "Admin");
+}
     }
 }
 

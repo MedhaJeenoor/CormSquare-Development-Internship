@@ -16,6 +16,9 @@ namespace SupportHub.DataAccess.Repository.IRepository
         ISubCategoryRepository SubCategory { get; }
         IProductRepository Product { get; }
         IIssueRepository Issue { get; }
+        ISolutionRepository Solution { get; }
+        ISolutionAttachmentRepository SolutionAttachment { get; }
+        ISolutionReferenceRepository SolutionReference { get; }
         Task BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted);
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();

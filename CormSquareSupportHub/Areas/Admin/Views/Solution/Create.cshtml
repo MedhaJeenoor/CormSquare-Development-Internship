@@ -1,0 +1,166 @@
+﻿@model SupportHub.Models.SolutionViewModel
+@{
+    ViewData["Title"] = "Create Solution";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <h2 class="text-center py-2">Create Solution</h2>
+    </div>
+    <div class="container mb-5 pb-5">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                <!-- Title -->
+                <div class="mb-3">
+                    <label asp-for="Title"></label>
+                    <input asp-for="Title" class="form-control" />
+                    <span asp-validation-for="Title" class="text-danger"></span>
+                </div>
+
+                <!-- Category Dropdown -->
+                <div class="mb-3">
+                    <label asp-for="CategoryId">Category</label>
+                    <select asp-for="CategoryId" class="form-control" id="categoryDropdown" asp-items="@(new SelectList(Model.Categories, "Id", "Name"))">
+                        <option value="">Select Category</option>
+                    </select>
+                    <span asp-validation-for="CategoryId" class="text-danger"></span>
+                </div>
+
+                <!-- Product Dropdown -->
+                <div class="mb-3">
+                    <label asp-for="ProductId">Product</label>
+                    <select asp-for="ProductId" class="form-control" id="productDropdown" asp-items="@(new SelectList(Model.Products, "Id", "ProductName"))">
+                        <option value="">Select Product</option>
+                    </select>
+                    <span asp-validation-for="ProductId" class="text-danger"></span>
+                </div>
+
+                <!-- SubCategory Dropdown -->
+                <div class="mb-3">
+                    <label asp-for="SubCategoryId">SubCategory</label>
+                    <select asp-for="SubCategoryId" class="form-control" id="subCategoryDropdown">
+                        <option value="">Select SubCategory</option>
+                        @foreach (var sub in Model.SubCategories)
+                        {
+                            <option value="@sub.Id" selected="@(sub.Id == Model.SubCategoryId)">@sub.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <!-- Issue Description -->
+                <div class="mb-3">
+                    <label asp-for="IssueDescription">Related Issue</label>
+                    <textarea asp-for="IssueDescription" class="form-control" readonly="@(!string.IsNullOrEmpty(Model.IssueDescription))"></textarea>
+                </div>
+
+                <!-- Contributors -->
+                <div class="mb-3">
+                    <label asp-for="Contributors">Contributors</label>
+                    <input asp-for="Contributors" class="form-control" placeholder="e.g., John Doe, Jane Smith" />
+                </div>
+
+                <!-- Template -->
+                <div class="mb-3">
+                    <label>Template</label>
+                    <textarea id="editor" name="HtmlContent">@Html.Raw(Model.HtmlContent)</textarea>
+                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
+                </div>
+
+                <!-- Attachments Section -->
+                <div class="mb-3">
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Add Attachment</button>
+                    <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
+                    <ul id="attachmentList" class="list-group mt-2">
+                        @foreach (var attachment in Model.Attachments)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
+                                <div>
+                                    <strong>@attachment.FileName</strong><br />
+                                    <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="@attachment.Caption" data-index="@Model.Attachments.IndexOf(attachment)" />
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="form-check-input internal-attachment" data-index="@Model.Attachments.IndexOf(attachment)" @(attachment.IsInternal ? "checked" : "") />
+                                    <span>Internal</span>
+                                    <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@Model.Attachments.IndexOf(attachment)">❌</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                </div>
+
+                <!-- References Section -->
+                <div class="mb-3">
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add Reference</button>
+                    <ul id="referenceList" class="list-group mt-2">
+                        @foreach (var reference in Model.References)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
+                                <div>
+                                    <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
+                                    <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="@reference.Description" data-index="@Model.References.IndexOf(reference)" />
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="form-check-input internal-reference" data-index="@Model.References.IndexOf(reference)" @(reference.IsInternal ? "checked" : "") />
+                                    <span>Internal</span>
+                                    <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="@Model.References.IndexOf(reference)">❌</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="[]" />
+                </div>
+
+                <!-- Buttons -->
+                <div class="text-center mt-4">
+                    <button type="submit" name="submitAction" value="Save" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-save"></i> Save Draft
+                    </button>
+                    <button type="submit" name="submitAction" value="Submit" class="btn btn-success mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Submit for Review
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="~/js/tinymce-init.js"></script>
+    <script src="~/js/solution-attachments-references.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            $('#productDropdown').change(function () {
+                var productId = $(this).val();
+                if (productId) {
+                    $.get('/Admin/Issue/GetSubCategories', { productId: productId }, function (data) {
+                        var subCatDropdown = $('#subCategoryDropdown');
+                        subCatDropdown.empty().append('<option value="">Select SubCategory</option>');
+                        $.each(data, function (i, item) {
+                            subCatDropdown.append($('<option>').val(item.id).text(item.name));
+                        });
+                    });
+                }
+            });
+
+            $('#categoryDropdown').change(function () {
+                var categoryId = $(this).val();
+                if (categoryId) {
+                    $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
+                        if (data.success) {
+                            tinymce.get('editor').setContent(data.htmlContent);
+                            $('#HtmlContent').val(data.htmlContent);
+                            updateAttachmentsAndReferences(data.attachments, data.references);
+                        }
+                    });
+                }
+            });
+
+            function updateAttachmentsAndReferences(attachments, references) {
+                $(document).trigger('updateAttachmentsReferences', [attachments, references]);
+            }
+        });
+    </script>
+}

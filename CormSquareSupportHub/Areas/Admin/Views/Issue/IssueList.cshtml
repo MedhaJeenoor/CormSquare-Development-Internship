@@ -4,6 +4,16 @@
 }
 <div class="container mt-4">
     <h2 class="text-center mb-4">Issue Management</h2>
+    <div class="row pb-3">
+        <div class="col-6">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search Issues" />
+        </div>
+        <div class="col-6 text-end">
+            <a asp-controller="Issue" asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add New Solution
+            </a>
+        </div>
+    </div>
 
     <table class="table table-bordered table-striped">
         <thead class="table-dark">
@@ -37,9 +47,9 @@
                         </td>
                         <td>@issue.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
                         <td>
-                            <a asp-action="Details" asp-route-id="@issue.Id" class="btn btn-info btn-sm">View</a>
-                            <a asp-action="Edit" asp-route-id="@issue.Id" class="btn btn-warning btn-sm">Edit</a>
-                            <a asp-action="Delete" asp-route-id="@issue.Id" class="btn btn-danger btn-sm">Delete</a>
+                            <a asp-controller="Issue" asp-action="Create" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Create Solution
+                            </a>
                         </td>
                     </tr>
                     count++;
@@ -54,3 +64,4 @@
         </tbody>
     </table>
 </div>
+<div class="mb-5 pb-5"></div> <!-- This will push the footer down -->
