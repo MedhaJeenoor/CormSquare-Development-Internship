@@ -22,6 +22,9 @@ namespace SupportHub.DataAccess.Repository
         public IProductRepository Product { get; private set; }
         public ISubCategoryRepository SubCategory { get; private set; }
         public IIssueRepository Issue { get; private set; }
+        public ISolutionRepository Solution { get; private set; }
+        public ISolutionAttachmentRepository SolutionAttachment { get; private set; }
+        public ISolutionReferenceRepository SolutionReference { get; private set; }
 
 
         public UnitOfWork(ApplicationDbContext db)
