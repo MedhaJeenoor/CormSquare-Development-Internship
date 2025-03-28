@@ -38,5 +38,14 @@ namespace SupportHub.DataAccess.Repository
                 _context.Issues.Update(existingIssue);
             }
         }
+        public async Task<IEnumerable<Issue>> GetIssuesByUserAsync(string userId)
+        {
+            return await _context.Issues
+                .Include(i => i.Product)
+                .Include(i => i.SubCategory)
+                .Include(i => i.User)
+                .Where(i => i.UserId == userId)
+                .ToListAsync();
+        }
     }
 }

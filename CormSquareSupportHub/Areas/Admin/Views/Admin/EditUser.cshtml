@@ -10,7 +10,6 @@
     <div class="card shadow-lg p-4">
         <form asp-action="EditUser" method="post">
             <div asp-validation-summary="All" class="text-danger"></div>
-
             <input type="hidden" asp-for="Id" />
 
             <div class="row">
@@ -23,27 +22,32 @@
 
                     <div class="mb-3">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" asp-for="Email" required />
+                        <input type="email" class="form-control" asp-for="Email" required pattern="^[a-zA-Z0-9._%+-]+[a-zA-Z0-9.-]+\.com$" title="Email must end with .com" />
                         <span class="text-danger" asp-validation-for="Email"></span>
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" required id="roleSelect">
+                            <option value="">-- Select Role --</option>
+                        </select> 
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Company</label>
-                        <input type="text" class="form-control" asp-for="CompanyName" />
+                        <input type="text" class="form-control" asp-for="CompanyName" id="companyName" disabled />
                     </div>
                 </div>
 
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Employee ID</label>
-                        <input type="text" class="form-control" asp-for="EmployeeID" />
+                        <input type="text" class="form-control" asp-for="EmployeeID" id="employeeID" disabled />
                     </div>
-
+                    
                     <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" required>
-                            <option value="">-- Select Role --</option>
-                        </select> 
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" asp-for="Password" />
                     </div>
 
                     <div class="mb-3">
@@ -70,3 +74,26 @@
 <div class="mb-5 pb-5"></div>
 <!-- Spacer to push content above footer -->
 <div style="min-height: 100px;"></div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var roleSelect = document.getElementById("roleSelect");
+            var companyName = document.getElementById("companyName");
+            var employeeID = document.getElementById("employeeID");
+
+            function toggleEmployeeFields() {
+                var isEmployee = roleSelect.value.toLowerCase() === "employee";
+                companyName.disabled = !isEmployee;
+                employeeID.disabled = !isEmployee;
+                if (!isEmployee) {
+                    companyName.value = "";
+                    employeeID.value = "";
+                }
+            }
+
+            roleSelect.addEventListener("change", toggleEmployeeFields);
+            toggleEmployeeFields();
+        });
+    </script>
+}

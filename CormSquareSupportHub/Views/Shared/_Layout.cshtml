@@ -75,10 +75,19 @@
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Product" asp-action="Index">Product Management</a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
+                                </li>
+
                             }
-                            @if (User.IsInRole("Admin") || User.IsInRole("Km Creator") || User.IsInRole("Km Champion"))
+                            @if (User.IsInRole("KM Creator") || User.IsInRole("KM Champion"))
                             {
-                     
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                </li>
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
                                 </li>

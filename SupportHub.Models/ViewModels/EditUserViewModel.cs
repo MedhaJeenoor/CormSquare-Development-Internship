@@ -23,6 +23,8 @@ namespace SupportHub.Models
         public string Country { get; set; }
         [Required(ErrorMessage = "Role selection is required.")]
         public string Role { get; set; }
+        [Required]
+        public string Password { get; set; }
 
         [Required]
         [NotMapped]

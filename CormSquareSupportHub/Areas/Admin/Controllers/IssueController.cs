@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CormSquareSupportHub.Areas.Admin.Controllers
 {
@@ -23,14 +24,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            var issues = await _unitOfWork.Issue.GetAllAsync(includeProperties: "Product,SubCategory,User");
-            return View(issues);
+            var userId = _userManager.GetUserId(User);
+            var userIssues = await _unitOfWork.Issue.GetIssuesByUserAsync(userId);
+            return View(userIssues);
         }
-        [HttpGet]
         public async Task<IActionResult> IssueList()
         {
-            var issues = await _unitOfWork.Issue.GetAllAsync(includeProperties: "Product,SubCategory,User");
-            return View(issues); // This will return Areas/Admin/Views/Issue/ListIssues.cshtml
+            var userId = _userManager.GetUserId(User);
+            var userIssues = await _unitOfWork.Issue.GetIssuesByUserAsync(userId);
+            return View(userIssues);
         }
         [HttpGet]
         public async Task<IActionResult> Create()

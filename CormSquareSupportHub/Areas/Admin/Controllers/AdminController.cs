@@ -147,7 +147,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 EmployeeID = user.EmployeeID,
                 Country = user.Country,
                 Role = user.AssignedRole ?? userRoles.FirstOrDefault() ?? "ExternalUser", // Use AssignedRole if available
-                AvailableRoles = roles
+                AvailableRoles = roles,
+                Password=user.PasswordHash
             };
 
             return View(model);
@@ -178,7 +179,19 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             user.EmployeeID = model.EmployeeID;
             user.Country = model.Country;
             user.AssignedRole = model.Role; // Set AssignedRole here
+                                            // If the admin modifies the password, update it
+            if (model.Password != null)
+            {
+                var passwordResetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var passwordChangeResult = await _userManager.ResetPasswordAsync(user, passwordResetToken, model.Password);
 
+                if (!passwordChangeResult.Succeeded)
+                {
+                    foreach (var error in passwordChangeResult.Errors)
+                        ModelState.AddModelError("", error.Description);
+                    return View(model);
+                }
+            }
             // Update role
             var existingRoles = await _userManager.GetRolesAsync(user);
             if (existingRoles.Any())

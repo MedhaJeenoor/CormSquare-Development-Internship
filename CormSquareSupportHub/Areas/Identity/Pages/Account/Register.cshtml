@@ -37,19 +37,19 @@
                         <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
                     </div>
 
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.CompanyName" class="form-control" placeholder="Company Name (Optional)" />
-                        <label asp-for="Input.CompanyName">Company Name (Optional)</label>
-                        <span asp-validation-for="Input.CompanyName" class="text-danger"></span>
-                    </div>
-
                     <div class="form-check mb-3">
                         <input type="checkbox" class="form-check-input" id="isEmployeeCheckbox" />
                         <label class="form-check-label" for="isEmployeeCheckbox">I am an employee of a company</label>
                     </div>
 
+                    <div class="form-floating mb-3">
+                        <input asp-for="Input.CompanyName" class="form-control" id="companyNameField" placeholder="Company Name" disabled />
+                        <label asp-for="Input.CompanyName">Company Name</label>
+                        <span asp-validation-for="Input.CompanyName" class="text-danger"></span>
+                    </div>
+
                     <div class="form-floating mb-3" id="employeeIdField" style="display: none;">
-                        <input asp-for="Input.EmployeeID" class="form-control" placeholder="Employee ID" />
+                        <input asp-for="Input.EmployeeID" class="form-control" id="employeeIdInput" placeholder="Employee ID" disabled />
                         <label asp-for="Input.EmployeeID">Employee ID</label>
                         <span asp-validation-for="Input.EmployeeID" class="text-danger"></span>
                     </div>
@@ -108,14 +108,24 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             var isEmployeeCheckbox = document.getElementById("isEmployeeCheckbox");
+            var companyNameField = document.getElementById("companyNameField");
             var employeeIdField = document.getElementById("employeeIdField");
+            var employeeIdInput = document.getElementById("employeeIdInput");
 
             isEmployeeCheckbox.addEventListener("change", function () {
-                employeeIdField.style.display = this.checked ? "block" : "none";
+                if (this.checked) {
+                    companyNameField.disabled = false;
+                    employeeIdField.style.display = "block";
+                    employeeIdInput.disabled = false;
+                } else {
+                    companyNameField.disabled = true;
+                    companyNameField.value = "";
+                    employeeIdField.style.display = "none";
+                    employeeIdInput.disabled = true;
+                    employeeIdInput.value = "";
+                }
             });
         });
     </script>
     <partial name="_ValidationScriptsPartial" />
 }
-
-

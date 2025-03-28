@@ -12,5 +12,6 @@ namespace SupportHub.DataAccess.Repository.IRepository
     {
         void Update(Issue issue);
         Task AddAsync(Issue issue);
+        Task<IEnumerable<Issue>> GetIssuesByUserAsync(string userId);
     }
 }
