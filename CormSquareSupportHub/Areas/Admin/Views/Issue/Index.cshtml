@@ -1,0 +1,42 @@
+﻿@model IEnumerable<Issue>
+@{
+    ViewData["Title"] = "All Issues";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>All Issues</h2>
+    <a asp-action="Create" class="btn btn-success">
+        <i class="fas fa-plus"></i> Create Issue
+    </a>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Subcategory</th>
+            <th>Description</th>
+            <th>Status</th>
+@*             <th>Action</th> *@
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var issue in Model)
+        {
+            <tr>
+                <td>@issue.Product.ProductName</td>
+                <td>@issue.SubCategory.Name</td>
+                <td>@issue.Description</td>
+                <td>@issue.Status</td>
+               @*  <td>
+                    @if (issue.Status != "Resolved")
+                    {
+                        <a asp-action="Respond" asp-route-id="@issue.Id" class="btn btn-primary">
+                            <i class="fas fa-reply"></i> Respond
+                        </a>
+                    }
+                </td> *@
+            </tr>
+        }
+    </tbody>
+</table>

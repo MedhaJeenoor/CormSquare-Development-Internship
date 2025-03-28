@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250328045309_ReomoveRole1")]
+    partial class ReomoveRole1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "d16b7381-d02e-45de-882a-097678f22270",
+                            Id = "29477400-076f-4b12-b918-9b196e3f9987",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "2fe3a75b-34ab-4d21-bdd6-347d52a29f00",
+                            Id = "e13c7bef-95df-4eb5-b90d-8324eed40239",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "e896d5c7-a7d6-4b93-81d3-b5e8a7cc8818",
+                            Id = "31fe337d-f612-4076-b6d4-4ef08774c116",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "70b26ac6-61d6-4897-9980-c413dabc9a92",
+                            Id = "299964de-a961-4f27-ae0a-a6ca92c86e2d",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });
@@ -583,10 +586,6 @@ namespace SupportHub.DataAccess.Migrations
             modelBuilder.Entity("SupportHub.Models.ExternalUser", b =>
                 {
                     b.HasBaseType("Microsoft.AspNetCore.Identity.IdentityUser");
-
-                    b.Property<string>("AssignedRole")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CompanyName")
                         .HasColumnType("nvarchar(max)");

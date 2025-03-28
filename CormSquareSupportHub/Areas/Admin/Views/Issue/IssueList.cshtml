@@ -1,0 +1,56 @@
+﻿@model IEnumerable<SupportHub.Models.Issue>
+@{
+    ViewData["Title"] = "All Issues";
+}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">Issue Management</h2>
+
+    <table class="table table-bordered table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Product</th>
+                <th>Subcategory</th>
+                <th>User</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Created On</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model != null && Model.Any())
+            {
+                int count = 1;
+                @foreach (var issue in Model)
+                {
+                    <tr>
+                        <td>@count</td>
+                        <td>@(issue.Product?.ProductName ?? "N/A")</td>
+                        <td>@(issue.SubCategory?.Name ?? "N/A")</td>
+                        <td>@(issue.User?.EmployeeID ?? "N/A")</td>
+                        <td>@issue.Description</td>
+                        <td>
+                            <span class="badge @(issue.Status == "Pending" ? "bg-warning" : "bg-success")">
+                                @issue.Status
+                            </span>
+                        </td>
+                        <td>@issue.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@issue.Id" class="btn btn-info btn-sm">View</a>
+                            <a asp-action="Edit" asp-route-id="@issue.Id" class="btn btn-warning btn-sm">Edit</a>
+                            <a asp-action="Delete" asp-route-id="@issue.Id" class="btn btn-danger btn-sm">Delete</a>
+                        </td>
+                    </tr>
+                    count++;
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted">No issues found.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

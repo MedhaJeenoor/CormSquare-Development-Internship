@@ -1,0 +1,87 @@
+﻿@model IssueViewModel
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0 text-center">Create New Issue</h3>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Create" method="post">
+                        <div class="mb-3">
+                            <label for="ProductId" class="form-label fw-bold">Select Product</label>
+                            <select asp-for="ProductId" class="form-select" id="ProductId">
+                                <option value="">-- Select Product --</option>
+                                @foreach (var product in Model.Products)
+                                {
+                                    <option value="@product.Id">@product.ProductName</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="SubCategoryId" class="form-label fw-bold">Select Subcategory</label>
+                            <select asp-for="SubCategoryId" class="form-select" id="SubCategoryId">
+                                <option value="">-- Select Subcategory --</option>
+                            </select>
+                            <div id="subCategoryLoader" class="text-muted mt-1" style="display: none;">
+                                <small><i class="spinner-border spinner-border-sm"></i> Loading...</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="Description" class="form-label fw-bold">Issue Description</label>
+                            <textarea asp-for="Description" class="form-control" rows="4" placeholder="Describe your issue in detail..."></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">Submit Issue</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="mb-5 pb-5"></div>
+<!-- Spacer to push content above footer -->
+<div style="min-height: 100px;"></div>
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#ProductId').change(function () {
+                var productId = $(this).val();
+                var subCategoryDropdown = $('#SubCategoryId');
+                var loader = $('#subCategoryLoader');
+
+                subCategoryDropdown.empty().append('<option value="">-- Select Subcategory --</option>');
+
+                if (productId) {
+                    loader.show(); // Show the loading indicator
+                    $.ajax({
+                        url: '@Url.Action("GetSubCategories", "Issue", new { area = "Admin" })',
+                        type: 'GET',
+                        data: { productId: productId },
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log("Subcategories received:", data);
+                            $.each(data, function (index, subCategory) {
+                                subCategoryDropdown.append($('<option>', {
+                                    value: subCategory.id,
+                                    text: subCategory.name
+                                }));
+                            });
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("Error loading subcategories:", error);
+                        },
+                        complete: function () {
+                            loader.hide(); // Hide the loading indicator
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+}

@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 using SupportHub.Utility.EmailServices;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Authorization;
+
 namespace CormSquareSupportHub.Areas.Admin.Controllers
 {
     [Area("Admin")]
     [Authorize(Roles = "Admin")]
     public class AdminController : Controller
     {
-
         private readonly UserManager<ExternalUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly EmailService _emailService;
@@ -23,6 +23,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             _emailService = emailService;
             _roleManager = roleManager;
         }
+
         public async Task<IActionResult> CreateUser()
         {
             var model = new CreateUserViewModel
@@ -30,7 +31,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 AvailableRoles = (await _roleManager.Roles.ToListAsync())
                                 .Select(r => new SelectListItem { Value = r.Name, Text = r.Name }).ToList()
             };
-
             return View(model);
         }
 
@@ -39,7 +39,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         {
             if (!ModelState.IsValid)
             {
-                model.AvailableRoles = await GetRoles(); // Fetch roles dynamically
+                model.AvailableRoles = await GetRoles();
                 return View(model);
             }
 
@@ -52,49 +52,79 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 CompanyName = model.CompanyName,
                 EmployeeID = model.EmployeeID,
                 Country = model.Country,
-                IsApproved = false
+                IsApproved = false,
+                AssignedRole = model.Role // Set AssignedRole here
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
             if (result.Succeeded)
             {
-                // Assign role
-                await _userManager.AddToRoleAsync(user, model.Role);
+                // Assign role if selected, otherwise assign a default role (e.g., "ExternalUser")
+                if (!string.IsNullOrEmpty(model.Role))
+                {
+                    var roleExists = await _roleManager.RoleExistsAsync(model.Role);
+                    if (roleExists)
+                    {
+                        var roleAssignResult = await _userManager.AddToRoleAsync(user, model.Role);
+                        if (!roleAssignResult.Succeeded)
+                        {
+                            foreach (var error in roleAssignResult.Errors)
+                            {
+                                ModelState.AddModelError("", $"Failed to assign role: {error.Description}");
+                            }
+                            model.AvailableRoles = await GetRoles();
+                            return View(model);
+                        }
+                    }
+                    else
+                    {
+                        ModelState.AddModelError("", $"Role '{model.Role}' does not exist.");
+                        model.AvailableRoles = await GetRoles();
+                        return View(model);
+                    }
+                }
+                else
+                {
+                    // Optionally assign a default role if no role is selected
+                    user.AssignedRole = "ExternalUser"; // Set default AssignedRole
+                    var defaultRoleResult = await _userManager.AddToRoleAsync(user, "ExternalUser");
+                    if (!defaultRoleResult.Succeeded)
+                    {
+                        foreach (var error in defaultRoleResult.Errors)
+                        {
+                            ModelState.AddModelError("", $"Failed to assign default role: {error.Description}");
+                        }
+                        model.AvailableRoles = await GetRoles();
+                        return View(model);
+                    }
+                }
 
                 TempData["Success"] = "User created successfully!";
-                return RedirectToAction("UserApproval"); // Redirect after success
-            }
-            else
-            {
-                // Display errors if user creation fails
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError("", error.Description);
-                }
+                return RedirectToAction("UserApproval");
             }
 
-            // Reload roles in case of an error
-            model.AvailableRoles = new List<SelectListItem>
-     {
-        new SelectListItem { Value = "Internal User", Text = "Internal User" },
-        new SelectListItem { Value = "KM Creator", Text = "KM Creator" },
-        new SelectListItem { Value = "KM Champion", Text = "KM Champion" }
-    };
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError("", error.Description);
+            }
 
             model.AvailableRoles = await GetRoles();
             return View(model);
         }
+
         // Helper method to fetch available roles
         private async Task<List<SelectListItem>> GetRoles()
         {
             var roles = await _roleManager.Roles.ToListAsync();
-            return roles.ConvertAll(r => new SelectListItem { Value = r.Name, Text = r.Name });
+            return roles.Select(r => new SelectListItem { Value = r.Name, Text = r.Name }).ToList();
         }
+
         public async Task<IActionResult> UserApproval()
         {
             var users = await _userManager.Users.ToListAsync();
             return View(users);
         }
+
         [HttpGet]
         public async Task<IActionResult> EditUser(string id)
         {
@@ -105,7 +135,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             if (user == null)
                 return NotFound();
 
-            var roles = _roleManager.Roles.Select(r => new SelectListItem { Value = r.Name, Text = r.Name }).ToList();
+            var roles = await _roleManager.Roles.Select(r => new SelectListItem { Value = r.Name, Text = r.Name }).ToListAsync();
             var userRoles = await _userManager.GetRolesAsync(user);
 
             var model = new EditUserViewModel
@@ -116,20 +146,21 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 CompanyName = user.CompanyName,
                 EmployeeID = user.EmployeeID,
                 Country = user.Country,
-                Role = userRoles.FirstOrDefault() ?? "",
+                Role = user.AssignedRole ?? userRoles.FirstOrDefault() ?? "ExternalUser", // Use AssignedRole if available
                 AvailableRoles = roles
             };
 
             return View(model);
         }
+
         [HttpPost]
         public async Task<IActionResult> EditUser(EditUserViewModel model)
         {
             if (!ModelState.IsValid)
             {
-                model.AvailableRoles = _roleManager.Roles
+                model.AvailableRoles = await _roleManager.Roles
                     .Select(r => new SelectListItem { Value = r.Name, Text = r.Name })
-                    .ToList();
+                    .ToListAsync();
                 return View(model);
             }
 
@@ -137,24 +168,34 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             if (user == null)
                 return NotFound();
 
-            // Split Name into FirstName and LastName
+            // Update user details
             var nameParts = model.Name.Split(' ');
             user.FirstName = nameParts[0];
             user.LastName = nameParts.Length > 1 ? nameParts[1] : "";
-
             user.Email = model.Email;
+            user.UserName = model.Email; // Ensure UserName stays in sync with Email
             user.CompanyName = model.CompanyName;
             user.EmployeeID = model.EmployeeID;
             user.Country = model.Country;
+            user.AssignedRole = model.Role; // Set AssignedRole here
 
+            // Update role
             var existingRoles = await _userManager.GetRolesAsync(user);
             if (existingRoles.Any())
                 await _userManager.RemoveFromRolesAsync(user, existingRoles);
 
-            await _userManager.AddToRoleAsync(user, model.Role);
+            var roleAssignResult = await _userManager.AddToRoleAsync(user, model.Role);
+            if (!roleAssignResult.Succeeded)
+            {
+                foreach (var error in roleAssignResult.Errors)
+                {
+                    ModelState.AddModelError("", $"Failed to assign role: {error.Description}");
+                }
+                model.AvailableRoles = await GetRoles();
+                return View(model);
+            }
 
             var result = await _userManager.UpdateAsync(user);
-
             if (result.Succeeded)
             {
                 TempData["Success"] = "User details updated successfully!";
@@ -164,9 +205,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             foreach (var error in result.Errors)
                 ModelState.AddModelError("", error.Description);
 
-            model.AvailableRoles = _roleManager.Roles
-                .Select(r => new SelectListItem { Value = r.Name, Text = r.Name })
-                .ToList();
+            model.AvailableRoles = await GetRoles();
             return View(model);
         }
 
@@ -177,18 +216,20 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             if (user != null)
             {
                 user.IsApproved = true;
-                await _userManager.UpdateAsync(user);
+                var result = await _userManager.UpdateAsync(user);
+                if (result.Succeeded)
+                {
+                    string subject = "Your Account Has Been Approved!";
+                    string body = $"<p>Dear {user.FirstName},</p><p>Your account has been approved.</p>";
+                    await _emailService.SendEmailAsync(user.Email, subject, body);
+                    return RedirectToAction("UserApproval");
+                }
 
-                string subject = "Your Account Has Been Approved!";
-                string body = $"<p>Dear {user.FirstName},</p><p>Your account has been approved.</p>";
-
-                Console.WriteLine($"Sending email to {user.Email}..."); // Debugging
-
-                await _emailService.SendEmailAsync(user.Email, subject, body);
-
-                Console.WriteLine("Email function executed."); // Debugging
-
-                return RedirectToAction("UserApproval");
+                foreach (var error in result.Errors)
+                {
+                    ModelState.AddModelError("", error.Description);
+                }
+                return RedirectToAction("UserApproval"); // Return with errors if update fails
             }
             return NotFound();
         }
@@ -199,15 +240,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             var user = await _userManager.FindByIdAsync(Id);
             if (user != null)
             {
-                // Send Rejection Email
                 string subject = "Your Account Registration Has Been Rejected";
                 string body = $"<p>Dear {user.FirstName},</p><p>We regret to inform you that your registration has been rejected.</p>";
-
                 await _emailService.SendEmailAsync(user.Email, subject, body);
 
-                // You may choose to delete the user or keep them for records
                 await _userManager.DeleteAsync(user);
-
                 return RedirectToAction("UserApproval");
             }
             return NotFound();

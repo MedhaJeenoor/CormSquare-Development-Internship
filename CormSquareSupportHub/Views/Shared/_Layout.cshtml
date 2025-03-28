@@ -59,16 +59,35 @@
                             <li class="nav-item">
                                 <a class="nav-link contact-link text-white-50" href="#contact-footer">Contact Us</a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" asp-area="Admin" asp-controller="Category" asp-action="Index">Category</a>
-                            </li>
+
 
                             @if (User.IsInRole("Admin"))
                             {
                                 <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Category" asp-action="Index">Category</a>
+                                </li>
+
+                                <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Admin" asp-action="UserApproval">
                                         <i class="fas fa-users-cog"></i> User Management
                                     </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Product" asp-action="Index">Product Management</a>
+                                </li>
+                            }
+                            @if (User.IsInRole("Admin") || User.IsInRole("Km Creator") || User.IsInRole("Km Champion"))
+                            {
+                     
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
+                                </li>
+
+                            }
+                            @if (User.IsInRole("ExternalUser"))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
                                 </li>
                             }
                         }

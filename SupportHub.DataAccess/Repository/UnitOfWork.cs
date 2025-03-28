@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SupportHub.DataAccess.Data;
 using SupportHub.DataAccess.Repository.IRepository;
+using SupportHub.Models;
 
 namespace SupportHub.DataAccess.Repository
 {
@@ -18,6 +19,10 @@ namespace SupportHub.DataAccess.Repository
         public ICategoryRepository Category { get; private set; }
         public IAttachmentRepository Attachment { get; private set; }
         public IReferenceRepository Reference { get; private set; }
+        public IProductRepository Product { get; private set; }
+        public ISubCategoryRepository SubCategory { get; private set; }
+        public IIssueRepository Issue { get; private set; }
+
 
         public UnitOfWork(ApplicationDbContext db)
         {
@@ -25,6 +30,9 @@ namespace SupportHub.DataAccess.Repository
             Category = new CategoryRepository(_db);
             Attachment = new AttachmentRepository(_db);
             Reference = new ReferenceRepository(_db);
+            Product = new ProductRepository(_db);
+            SubCategory = new SubCategoryRepository(_db);
+            Issue = new IssueRepository(_db);
         }
 
         // Begin Transaction

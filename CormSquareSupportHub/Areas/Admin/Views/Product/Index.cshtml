@@ -1,0 +1,86 @@
+﻿@model List<Product>
+@{
+    ViewData["Title"] = "Products";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Products</h2>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create New Product
+    </a>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Product Name</th>
+            <th>Description</th>
+            <th>Subcategories</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var product in Model)
+        {
+            <tr>
+                <td>@product.ProductName</td>
+                <td>@product.Description</td>
+                <td>
+                    @if (product.SubCategories != null && product.SubCategories.Any())
+                    {
+                        <ul class="list-unstyled">
+                            @foreach (var sub in product.SubCategories)
+                            {
+                                <li>@sub.Name</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <span>No Subcategories</span>
+                    }
+                </td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@product.Id" class="btn btn-warning btn-sm">Edit</a>
+                    <a href="#" class="btn btn-danger btn-sm" onclick="confirmDelete(@product.Id, '@product.ProductName')">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="mb-5 pb-5"></div>
+<div style="min-height: 100px;"></div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the product "<span id="deleteProductName"></span>"?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form asp-action="DeleteConfirmed" asp-controller="Product" asp-area="Admin" method="post" id="deleteForm">
+                    <input type="hidden" name="id" id="deleteProductId" />
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function confirmDelete(productId, productName) {
+        document.getElementById("deleteProductId").value = productId;
+        document.getElementById("deleteProductName").textContent = productName;
+        var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+</script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
