@@ -9,21 +9,20 @@ namespace SupportHub.Models
     {
         public string Id { get; set; }
 
-        [Required]
+
         public string Name { get; set; }
 
-        [Required, EmailAddress]
         public string Email { get; set; }
 
         public string CompanyName { get; set; }
 
         public string EmployeeID { get; set; }
 
-        [Required]
+
         public string Country { get; set; }
         [Required(ErrorMessage = "Role selection is required.")]
         public string Role { get; set; }
-        [Required]
+
         public string Password { get; set; }
 
         [Required]

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250401080150_MakeContributorsNullable")]
+    partial class MakeContributorsNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "f0c1038d-9cf0-46f8-a53e-643b3be490d0",
+                            Id = "2bb5d392-f6f4-4cc4-a09c-6b9bc695f77f",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "5854e741-8c49-476c-9f35-56f1feca4acc",
+                            Id = "cc4e1220-0d44-4e60-8dad-1ea11515f21d",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "a36969d9-afaa-4365-90e1-4c98e10b85de",
+                            Id = "d73f3fea-5a82-456a-8e36-f5710f339018",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "5a8e137d-b22a-46f8-af7d-3cd249ba5dc8",
+                            Id = "bfdb68c9-fe33-497c-93b3-1d3da950f077",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });
@@ -269,15 +272,14 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -298,8 +300,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<bool>("IsInternal")
                         .HasColumnType("bit");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -319,15 +321,14 @@ namespace SupportHub.DataAccess.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -353,8 +354,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int?>("ParentCategoryId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -369,8 +370,8 @@ namespace SupportHub.DataAccess.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedBy = "00000000-0000-0000-0000-000000000001",
-                            CreatedDate = new DateTime(2025, 4, 2, 5, 11, 6, 626, DateTimeKind.Utc).AddTicks(8581),
+                            CreatedBy = 0,
+                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Description = "Different types of documentation for knowledge management.",
                             DisplayOrder = 1,
                             HtmlContent = "",
@@ -393,15 +394,14 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -423,8 +423,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int?>("SubCategoryId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -452,15 +452,14 @@ namespace SupportHub.DataAccess.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -475,8 +474,8 @@ namespace SupportHub.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -497,15 +496,14 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -524,8 +522,8 @@ namespace SupportHub.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -560,15 +558,14 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<string>("Contributors")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -605,8 +602,8 @@ namespace SupportHub.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -636,15 +633,14 @@ namespace SupportHub.DataAccess.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -666,8 +662,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int>("SolutionId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -687,15 +683,14 @@ namespace SupportHub.DataAccess.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -717,8 +712,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int>("SolutionId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -742,15 +737,14 @@ namespace SupportHub.DataAccess.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
@@ -765,8 +759,8 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");

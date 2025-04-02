@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using Microsoft.AspNetCore.Identity;
 
 namespace CormSquareSupportHub.Areas.Admin.Controllers
 {
@@ -17,12 +18,18 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         private readonly IUnitOfWork _unitOfWork;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly AttachmentSettings _attachmentSettings;
+        private readonly UserManager<ExternalUser> _userManager;
 
-        public CategoryController(IUnitOfWork unitOfWork, IWebHostEnvironment webHostEnvironment, IOptions<AttachmentSettings> attachmentSettings)
+        public CategoryController(
+            IUnitOfWork unitOfWork,
+            IWebHostEnvironment webHostEnvironment,
+            IOptions<AttachmentSettings> attachmentSettings,
+            UserManager<ExternalUser> userManager)
         {
             _unitOfWork = unitOfWork;
             _webHostEnvironment = webHostEnvironment;
             _attachmentSettings = attachmentSettings.Value;
+            _userManager = userManager;
         }
 
         // GET: Index - List Categories
@@ -50,8 +57,42 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData)
         {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                Console.WriteLine("User not authenticated");
+                return Unauthorized();
+            }
+
+            Console.WriteLine($"POST Create called. Category Name: {obj.Name}, Files: {files?.Count ?? 0}, ReferenceData: {ReferenceData}, AttachmentData: {AttachmentData}");
+
+            // Set audit fields and other required fields before validation
+            obj.UpdateAudit(user.Id);
+            obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
+            obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
+                ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId && !c.IsDeleted))
+                .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
+
+            // Log ModelState details
+            Console.WriteLine("ModelState details before validation:");
+            foreach (var key in ModelState.Keys)
+            {
+                var value = ModelState[key];
+                Console.WriteLine($"Key: {key}, Value: {value.RawValue ?? "null"}, Errors: {string.Join(", ", value.Errors.Select(e => e.ErrorMessage))}");
+            }
+
+            // Clear ModelState for server-set fields to avoid false positives
+            ModelState.Remove("CreatedBy");
+            ModelState.Remove("CreatedDate");
+            ModelState.Remove("DisplayOrder");
+            ModelState.Remove("IsDeleted");
+
             if (!ModelState.IsValid)
             {
+                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    Console.WriteLine($"Validation Error: {error.ErrorMessage}");
+                }
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
                 return View(obj);
             }
@@ -59,36 +100,29 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                obj.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
-                obj.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder :
-                    ((await _unitOfWork.Category.GetAllAsync(c => c.ParentCategoryId == obj.ParentCategoryId && !c.IsDeleted))
-                    .Max(c => (int?)c.DisplayOrder) ?? 0) + 1;
-
-                obj.UpdateAudit(1); // Assuming userId 1
                 _unitOfWork.Category.Add(obj);
                 await _unitOfWork.SaveAsync();
+                Console.WriteLine($"Category added with ID: {obj.Id}");
 
-                // Process attachments if provided
                 if (files?.Count > 0 || !string.IsNullOrEmpty(AttachmentData))
                 {
-                    await ProcessAttachmentsAsync(obj, files, AttachmentData);
+                    await ProcessAttachmentsAsync(obj, files, AttachmentData, user.Id);
                 }
 
-                // Process references if provided
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
                     var references = JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
-                    await SaveReferences(references, obj.Id);
+                    await SaveReferences(references, obj.Id, user.Id);
                 }
 
                 await _unitOfWork.CommitTransactionAsync();
                 TempData["success"] = "Category created successfully!";
+                Console.WriteLine("Category creation successful, redirecting to Index");
                 return RedirectToAction("Index");
             }
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                // Log the exception for debugging
                 Console.WriteLine($"Error in Create: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 ModelState.AddModelError(string.Empty, $"An error occurred while creating the category: {ex.Message}");
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
@@ -116,9 +150,42 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> Edit(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData)
         {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                Console.WriteLine("User not authenticated in Edit");
+                return Unauthorized();
+            }
+
+            Console.WriteLine($"POST Edit called. Category ID: {obj.Id}, Name: {obj.Name}, Files: {files?.Count ?? 0}, ReferenceData: {ReferenceData}, AttachmentData: {AttachmentData}");
+
+            // Set audit fields before validation
+            obj.UpdateAudit(user.Id);
+
+            // Log ModelState details
+            Console.WriteLine("ModelState details before validation (Edit):");
+            foreach (var key in ModelState.Keys)
+            {
+                var value = ModelState[key];
+                Console.WriteLine($"Key: {key}, Value: {value.RawValue ?? "null"}, Errors: {string.Join(", ", value.Errors.Select(e => e.ErrorMessage))}");
+            }
+
+            // Clear ModelState for server-set fields
+            ModelState.Remove("CreatedBy");
+            ModelState.Remove("CreatedDate");
+            ModelState.Remove("UpdatedBy");
+            ModelState.Remove("UpdatedDate");
+            ModelState.Remove("DisplayOrder");
+            ModelState.Remove("IsDeleted");
+
             if (!ModelState.IsValid)
             {
+                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    Console.WriteLine($"Validation Error in Edit: {error.ErrorMessage}");
+                }
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
+                ViewData["HtmlContent"] = obj.HtmlContent ?? "";
                 return View(obj);
             }
 
@@ -129,35 +196,38 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     c => c.Id == obj.Id && !c.IsDeleted,
                     includeProperties: "Attachments,References"
                 );
-                if (existingCategory == null) return NotFound();
+                if (existingCategory == null)
+                {
+                    Console.WriteLine($"Category with ID {obj.Id} not found or already deleted");
+                    return NotFound();
+                }
 
-                // Update all fields from the form
+                // Update only the fields that should change
                 existingCategory.Name = obj.Name;
                 existingCategory.Description = obj.Description;
                 existingCategory.HtmlContent = obj.HtmlContent;
                 existingCategory.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
-                existingCategory.DisplayOrder = existingCategory.DisplayOrder;
-                existingCategory.UpdateAudit(1); // Assuming userId 1
+                existingCategory.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder : existingCategory.DisplayOrder; // Preserve if not submitted
+                existingCategory.UpdateAudit(user.Id); // Ensure audit fields are updated
 
                 _unitOfWork.Category.Update(existingCategory);
                 await _unitOfWork.SaveAsync();
+                Console.WriteLine($"Category updated with ID: {existingCategory.Id}");
 
-                // Process attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || (files?.Count > 0))
                 {
-                    Console.WriteLine($"Processing attachments. Files count: {files?.Count}, AttachmentData: {AttachmentData}");
-                    await ProcessAttachmentsAsync(existingCategory, files, AttachmentData);
+                    await ProcessAttachmentsAsync(existingCategory, files, AttachmentData, user.Id);
                 }
 
-                // Process references
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
                     var references = JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
-                    await SaveReferences(references, existingCategory.Id);
+                    await SaveReferences(references, existingCategory.Id, user.Id);
                 }
 
                 await _unitOfWork.CommitTransactionAsync();
                 TempData["success"] = "Category updated successfully!";
+                Console.WriteLine("Category update successful, redirecting to Index");
                 return RedirectToAction("Index");
             }
             catch (Exception ex)
@@ -166,9 +236,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 Console.WriteLine($"Error in Edit: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 ModelState.AddModelError(string.Empty, $"An error occurred while updating the category: {ex.Message}");
                 obj.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList();
+                ViewData["HtmlContent"] = obj.HtmlContent ?? "";
                 return View(obj);
             }
         }
+
         // GET: Delete Category (Confirmation Page)
         public async Task<IActionResult> Delete(int? id)
         {
@@ -189,23 +261,26 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpPost, ActionName("Delete")]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return Unauthorized();
+
             var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
             if (category == null) return NotFound();
 
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                _unitOfWork.Category.SoftDelete(category, 1); // Assuming userId 1
+                _unitOfWork.Category.SoftDelete(category, user.Id);
                 var attachments = await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == id && !a.IsDeleted);
                 foreach (var attachment in attachments)
                 {
-                    _unitOfWork.Attachment.SoftDelete(attachment, 1);
+                    _unitOfWork.Attachment.SoftDelete(attachment, user.Id);
                 }
 
                 var references = await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == id && !r.IsDeleted);
                 foreach (var reference in references)
                 {
-                    _unitOfWork.Reference.SoftDelete(reference, 1);
+                    _unitOfWork.Reference.SoftDelete(reference, user.Id);
                 }
 
                 await _unitOfWork.SaveAsync();
@@ -221,8 +296,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
         }
 
-        // Process Attachments
-        private async Task ProcessAttachmentsAsync(Category obj, List<IFormFile>? files, string? AttachmentData)
+        private async Task ProcessAttachmentsAsync(Category obj, List<IFormFile>? files, string? AttachmentData, string userId)
         {
             if (string.IsNullOrEmpty(AttachmentData) && (files == null || files.Count == 0)) return;
 
@@ -239,7 +313,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 ? new List<Attachment>()
                 : JsonConvert.DeserializeObject<List<Attachment>>(AttachmentData);
 
-            // Update existing attachments
             foreach (var attachmentInfo in attachmentInfos.Where(ai => ai.Id > 0))
             {
                 var matchingAttachment = existingAttachments.FirstOrDefault(a => a.Id == attachmentInfo.Id);
@@ -249,13 +322,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     {
                         matchingAttachment.Caption = attachmentInfo.Caption;
                         matchingAttachment.IsInternal = attachmentInfo.IsInternal;
-                        matchingAttachment.UpdateAudit(1);
+                        matchingAttachment.UpdateAudit(userId);
                         _unitOfWork.Attachment.Update(matchingAttachment);
                     }
                 }
             }
 
-            // Add new attachments
             if (files != null && files.Count > 0)
             {
                 foreach (var file in files)
@@ -278,7 +350,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         IsInternal = newAttachmentInfo.IsInternal,
                         CategoryId = obj.Id
                     };
-                    newAttachment.UpdateAudit(1);
+                    newAttachment.UpdateAudit(userId);
                     _unitOfWork.Attachment.Add(newAttachment);
                 }
             }
@@ -286,15 +358,14 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             await _unitOfWork.SaveAsync();
         }
 
-        // Process References
-        private async Task SaveReferences(List<Reference> references, int categoryId)
+        private async Task SaveReferences(List<Reference> references, int categoryId, string userId)
         {
             var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == categoryId && !r.IsDeleted)).ToList();
 
             foreach (var reference in references)
             {
                 var existingReference = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
-                if (existingReference != null && reference.Id > 0) // Update existing
+                if (existingReference != null && reference.Id > 0)
                 {
                     if (existingReference.Url != reference.Url ||
                         existingReference.Description != reference.Description ||
@@ -305,11 +376,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         existingReference.Description = reference.Description;
                         existingReference.IsInternal = reference.IsInternal;
                         existingReference.OpenOption = reference.OpenOption;
-                        existingReference.UpdateAudit(1); // Assuming userId 1
+                        existingReference.UpdateAudit(userId);
                         _unitOfWork.Reference.Update(existingReference);
                     }
                 }
-                else if (reference.Id == 0) // Add new
+                else if (reference.Id == 0)
                 {
                     var newReference = new Reference
                     {
@@ -319,7 +390,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         OpenOption = reference.OpenOption,
                         CategoryId = categoryId
                     };
-                    newReference.UpdateAudit(1); // Assuming userId 1
+                    newReference.UpdateAudit(userId);
                     _unitOfWork.Reference.Add(newReference);
                 }
             }
@@ -327,10 +398,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             await _unitOfWork.SaveAsync();
         }
 
-        // DELETE Attachment (Soft Delete via AJAX)
         [HttpPost]
         public async Task<IActionResult> RemoveAttachment(int id)
         {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return Unauthorized();
+
             try
             {
                 var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
@@ -339,7 +412,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     return Json(new { success = false, message = "Attachment not found." });
                 }
 
-                _unitOfWork.Attachment.SoftDelete(attachment, 1); // Assuming userId 1
+                _unitOfWork.Attachment.SoftDelete(attachment, user.Id);
                 await _unitOfWork.SaveAsync();
                 return Json(new { success = true, message = "Attachment deleted successfully." });
             }
@@ -350,10 +423,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
         }
 
-        // DELETE Reference (Soft Delete via AJAX)
         [HttpPost]
         public async Task<IActionResult> RemoveReference(int id)
         {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return Unauthorized();
+
             try
             {
                 var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
@@ -362,7 +437,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     return Json(new { success = false, message = "Reference not found." });
                 }
 
-                _unitOfWork.Reference.SoftDelete(reference, 1); // Assuming userId 1
+                _unitOfWork.Reference.SoftDelete(reference, user.Id);
                 await _unitOfWork.SaveAsync();
                 return Json(new { success = true, message = "Reference deleted successfully." });
             }

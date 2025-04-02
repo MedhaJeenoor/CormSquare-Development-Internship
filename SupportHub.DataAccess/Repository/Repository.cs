@@ -73,7 +73,7 @@ namespace SupportHub.DataAccess.Repository
             dbSet.RemoveRange(entity);
         }
 
-        public void SoftDelete(T entity, int userId)
+        public void SoftDelete(T entity, string userId)
         {
             entity.SoftDelete(userId); // Calls SoftDelete() from AuditableEntity
             _db.Entry(entity).Property(x => x.UpdatedBy).IsModified = false;  // Prevent updating UpdatedBy

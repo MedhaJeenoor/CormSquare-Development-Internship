@@ -29,11 +29,17 @@
                         <label class="form-label">Employee ID</label>
                         <input type="text" class="form-control" asp-for="EmployeeID" />
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Password</label>
-                        <input type="password" class="form-control" asp-for="Password" required />
+                        <div class="input-group">
+                            <input type="password" class="form-control" asp-for="Password" required id="passwordInput" />
+                            <button type="button" class="btn btn-outline-secondary" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <span class="text-danger" asp-validation-for="Password"></span>
                     </div>
+
 
                 </div>
 
@@ -81,3 +87,21 @@
 <div class="mb-5 pb-5"></div>
 <!-- Spacer to push content above footer -->
 <div style="min-height: 100px;"></div>
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var passwordInput = document.getElementById("passwordInput");
+            var toggleButton = document.getElementById("togglePassword");
+
+            toggleButton.addEventListener("click", function () {
+                if (passwordInput.type === "password") {
+                    passwordInput.type = "text";
+                    toggleButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                } else {
+                    passwordInput.type = "password";
+                    toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+                }
+            });
+        });
+    </script>
+}

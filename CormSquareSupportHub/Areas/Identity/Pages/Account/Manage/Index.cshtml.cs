@@ -52,13 +52,24 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account.Manage
         /// </summary>
         public class InputModel
         {
-            /// <summary>
-            ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-            ///     directly from your code. This API may change or be removed in future releases.
-            /// </summary>
+            [Display(Name = "First Name")]
+            public string FirstName { get; set; }
+
+            [Display(Name = "Last Name")]
+            public string LastName { get; set; }
+
             [Phone]
-            [Display(Name = "Phone number")]
+            [Display(Name = "Phone Number")]
             public string PhoneNumber { get; set; }
+
+            [Display(Name = "Company Name")]
+            public string CompanyName { get; set; }
+
+            [Display(Name = "Employee ID")]
+            public string EmployeeID { get; set; }
+
+            [Display(Name = "Country")]
+            public string Country { get; set; }
         }
 
         private async Task LoadAsync(ExternalUser user)
@@ -70,7 +81,12 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account.Manage
 
             Input = new InputModel
             {
-                PhoneNumber = phoneNumber
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                PhoneNumber = phoneNumber,
+                CompanyName = user.CompanyName,
+                EmployeeID = user.EmployeeID,
+                Country = user.Country
             };
         }
 
@@ -100,8 +116,16 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account.Manage
                 return Page();
             }
 
-            var phoneNumber = await _userManager.GetPhoneNumberAsync(user);
-            if (Input.PhoneNumber != phoneNumber)
+            // Update all fields if they have changed
+            if (Input.FirstName != user.FirstName)
+            {
+                user.FirstName = Input.FirstName;
+            }
+            if (Input.LastName != user.LastName)
+            {
+                user.LastName = Input.LastName;
+            }
+            if (Input.PhoneNumber != await _userManager.GetPhoneNumberAsync(user))
             {
                 var setPhoneResult = await _userManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
                 if (!setPhoneResult.Succeeded)
@@ -109,6 +133,30 @@ namespace CormSquareSupportHub.Areas.Identity.Pages.Account.Manage
                     StatusMessage = "Unexpected error when trying to set phone number.";
                     return RedirectToPage();
                 }
+            }
+            if (Input.CompanyName != user.CompanyName)
+            {
+                user.CompanyName = Input.CompanyName;
+            }
+            if (Input.EmployeeID != user.EmployeeID)
+            {
+                user.EmployeeID = Input.EmployeeID;
+            }
+            if (Input.Country != user.Country)
+            {
+                user.Country = Input.Country;
+            }
+
+            // Save changes to the user
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                foreach (var error in updateResult.Errors)
+                {
+                    ModelState.AddModelError(string.Empty, error.Description);
+                }
+                await LoadAsync(user);
+                return Page();
             }
 
             await _signInManager.RefreshSignInAsync(user);

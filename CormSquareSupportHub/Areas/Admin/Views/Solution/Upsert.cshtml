@@ -1,0 +1,238 @@
+﻿@model SupportHub.Models.SolutionViewModel
+@{
+    ViewData["Title"] = Model.Id > 0 ? "Edit Solution" : "Create Solution";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <h2 class="text-center py-2">@ViewData["Title"]</h2>
+    </div>
+    <div class="container mb-5 pb-5">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data" asp-action="Upsert" id="solutionForm">
+                <input type="hidden" asp-for="Id" />
+                <!-- Title -->
+                <div class="mb-3">
+                    <label asp-for="Title"></label>
+                    <input asp-for="Title" class="form-control" required />
+                    <span asp-validation-for="Title" class="text-danger"></span>
+                </div>
+
+                <!-- Product and Subcategory in the same row -->
+                <div class="mb-3 row">
+                    <div class="col-md-6">
+                        <label asp-for="ProductId">Product</label>
+                        <select asp-for="ProductId" class="form-control" id="productDropdown" required>
+                            <option value="">Select Product</option>
+                            @foreach (var product in Model.Products)
+                            {
+                                <option value="@product.Id">@product.ProductName</option>
+                            }
+                        </select>
+                        <span asp-validation-for="ProductId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="SubCategoryId">Subcategory</label>
+                        <select asp-for="SubCategoryId" class="form-control" id="subCategoryDropdown">
+                            <option value="">Select Subcategory</option>
+                            @if (Model.SubCategories != null)
+                            {
+                                @foreach (var sub in Model.SubCategories)
+                                {
+                                    <option value="@sub.Id" selected="@(sub.Id == Model.SubCategoryId)">@sub.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Issue Description -->
+                <div class="mb-3">
+                    <label asp-for="IssueDescription">Related Issue</label>
+                    <textarea asp-for="IssueDescription" class="form-control" readonly="@(!string.IsNullOrEmpty(Model.IssueDescription))"></textarea>
+                </div>
+
+                <!-- Category and Contributors in the same row -->
+                <div class="mb-3 row">
+                    <div class="col-md-6">
+                        <label asp-for="CategoryId">Category</label>
+                        <select asp-for="CategoryId" class="form-control" id="categoryDropdown" required>
+                            <option value="">Select Category</option>
+                            @foreach (var category in Model.Categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </select>
+                        <span asp-validation-for="CategoryId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Contributors">Contributors</label>
+                        <input asp-for="Contributors" class="form-control" placeholder="e.g., John Doe, Jane Smith" />
+                    </div>
+                </div>
+
+                <!-- Template -->
+                <div class="mb-3">
+                    <label asp-for="HtmlContent">Solution Content</label>
+                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
+                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
+                    <span asp-validation-for="HtmlContent" class="text-danger"></span>
+                </div>
+
+                <!-- Attachments Section -->
+                <div class="mb-3">
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Add Attachment</button>
+                    <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
+                    <ul id="attachmentList" class="list-group mt-2">
+                        @if (Model.Attachments != null)
+                        {
+                            var index = 0;
+                            @foreach (var attachment in Model.Attachments)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
+                                    <div>
+                                        <strong>@attachment.FileName</strong><br />
+                                        <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="@attachment.Caption" data-index="@index" />
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
+                                        <span>Internal</span>
+                                        <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
+                                    </div>
+                                </li>
+                                index++;
+                            }
+                        }
+                    </ul>
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                </div>
+
+                <!-- References Section -->
+                <div class="mb-3">
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add Reference</button>
+                    <ul id="referenceList" class="list-group mt-2">
+                        @if (Model.References != null)
+                        {
+                            var index = 0;
+                            @foreach (var reference in Model.References)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
+                                    <div>
+                                        <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
+                                        <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="@reference.Description" data-index="@index" />
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="form-check-input internal-reference" data-index="@index" @(reference.IsInternal ? "checked" : "") />
+                                        <span>Internal</span>
+                                        <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="@index">❌</span>
+                                    </div>
+                                </li>
+                                index++;
+                            }
+                        }
+                    </ul>
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="[]" />
+                </div>
+
+                <!-- Buttons -->
+                <div class="text-center mt-4">
+                    <button type="submit" name="submitAction" value="Save" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-save"></i> Save Draft
+                    </button>
+                    <button type="submit" name="submitAction" value="Submit" class="btn btn-success mx-2" style="width:200px">
+                        <i class="bi bi-check-circle"></i> Submit for Review
+                    </button>
+                    <a asp-controller="Issue" asp-action="IssueList" class="btn btn-outline-secondary mx-2" style="width:200px">
+                        <i class="bi bi-arrow-left-circle"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="mb-5 pb-5"></div>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="~/js/tinymce-solution.js"></script>
+    <script src="~/js/solution-attachments-references.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            let editorReady = false;
+
+            $(document).on('tinymceInitialized', function () {
+                editorReady = true;
+                var initialCategoryId = $('#categoryDropdown').val();
+                if (initialCategoryId) {
+                    loadCategoryTemplate(initialCategoryId);
+                }
+            });
+
+            $('#productDropdown').change(function () {
+                var productId = $(this).val();
+                if (productId) {
+                    $.get('/Admin/Issue/GetSubCategories', { productId: productId }, function (data) {
+                        var subCatDropdown = $('#subCategoryDropdown');
+                        subCatDropdown.empty().append('<option value="">Select Subcategory</option>');
+                        $.each(data, function (i, item) {
+                            subCatDropdown.append($('<option>').val(item.id).text(item.name));
+                        });
+                    });
+                }
+            });
+
+            $('#categoryDropdown').change(function () {
+                var categoryId = $(this).val();
+                if (categoryId) {
+                    loadCategoryTemplate(categoryId);
+                }
+            });
+
+            function loadCategoryTemplate(categoryId) {
+                $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
+                    console.log('Response data:', data);
+                    if (data.success) {
+                        if (editorReady) {
+                            var editor = tinymce.get('editor');
+                            if (editor) {
+                                editor.setContent(data.htmlContent || '');
+                                $('#HtmlContent').val(editor.getContent());
+                                console.log('Editor content set from template:', editor.getContent());
+                            }
+                        }
+                        updateAttachmentsAndReferences(data.attachments || [], data.references || []);
+                    }
+                });
+            }
+
+            $('#solutionForm').on('submit', function (e) {
+            console.log('Form submit triggered');
+            var editor = tinymce.get('editor');
+            if (!editor) {
+                console.error('TinyMCE editor not initialized!');
+                e.preventDefault();
+                return false;
+            }
+            var editorContent = editor.getContent();
+            $('#HtmlContent').val(editorContent);
+            console.log('Editor content:', editorContent);
+
+            var formData = $(this).serializeArray();
+            console.log('Form Data being submitted:', formData);
+
+            var title = $('#Title').val();
+            var productId = $('#productDropdown').val();
+            var categoryId = $('#categoryDropdown').val();
+
+            if (!title || !productId || productId === "0" || !categoryId || categoryId === "0" || !editorContent) {
+                console.error('Validation failed:', { title, productId, categoryId, editorContent });
+                e.preventDefault();
+                alert('Please fill all required fields.');
+                return false;
+            }
+        });
+
+                });
+    </script>
+}
