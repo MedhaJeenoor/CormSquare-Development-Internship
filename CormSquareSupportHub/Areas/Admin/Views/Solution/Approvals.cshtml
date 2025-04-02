@@ -1,0 +1,54 @@
+﻿@model IEnumerable<SupportHub.Models.Solution>
+
+@{
+    ViewData["Title"] = "Solution Approvals";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <h2 class="text-center py-2">Solution Approvals</h2>
+    </div>
+    <div class="card-body p-4">
+        @if (Model.Any())
+        {
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>SubCategory</th>
+                        <th>Author</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var solution in Model)
+                    {
+                        <tr>
+                            <td>@solution.Title</td>
+                            <td>@solution.Product?.ProductName</td>
+                            <td>@solution.Category?.Name</td>
+                            <td>@solution.SubCategory?.Name</td>
+                            <td>@solution.Author?.UserName</td>
+                            <td>@solution.Status</td>
+                            <td>
+                                <a asp-action="Upsert" asp-route-solutionId="@solution.Id" class="btn btn-primary btn-sm">Review</a>
+                                <!-- Add approval/rejection buttons later -->
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>No solutions submitted for review.</p>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

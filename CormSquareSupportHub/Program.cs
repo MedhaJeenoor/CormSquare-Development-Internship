@@ -14,7 +14,11 @@ builder.Services.AddHttpsRedirection(options =>
 {
     options.HttpsPort = 7295;
 });
-
+builder.Services.AddLogging(logging =>
+{
+    logging.AddConsole();
+    logging.AddDebug();
+});
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

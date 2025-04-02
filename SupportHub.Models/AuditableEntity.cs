@@ -8,25 +8,23 @@ namespace SupportHub.Models
 {
     public class AuditableEntity : BaseEntity
     {
-        public int CreatedBy { get; set; }
+        public string CreatedBy { get; set; } // String GUID for user ID
         public DateTime CreatedDate { get; set; }
-        public int? UpdatedBy { get; set; }
+        public string? UpdatedBy { get; set; } // String GUID, nullable
         public DateTime? UpdatedDate { get; set; }
         public bool IsDeleted { get; set; } = false;
-        public int? DeletedBy { get; set; } // Nullable - because it may not be deleted
-        public DateTime? DeletedDate { get; set; } // Nullable - because it may not be deleted
+        public string? DeletedBy { get; set; } // String GUID, nullable
+        public DateTime? DeletedDate { get; set; }
 
-
-        public void UpdateAudit(int userId)
+        public void UpdateAudit(string userId)
         {
             if (Id > 0)  // Existing entity (Update)
             {
-                if (CreatedBy == 0)  // Ensure CreatedBy is never overwritten
+                if (string.IsNullOrEmpty(CreatedBy))  // Ensure CreatedBy is set only once
                 {
                     CreatedBy = userId;
                     CreatedDate = DateTime.UtcNow;
                 }
-
                 UpdatedBy = userId;
                 UpdatedDate = DateTime.UtcNow;
             }
@@ -37,7 +35,7 @@ namespace SupportHub.Models
             }
         }
 
-        public void SoftDelete(int userId)
+        public void SoftDelete(string userId)
         {
             if (!IsDeleted) // Prevent multiple deletions
             {

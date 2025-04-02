@@ -15,6 +15,6 @@ namespace SupportHub.DataAccess.Repository.IRepository
         void Add(T entity);
         void Remove(T entity);
         void RemoveRange(IEnumerable<T> entity);
-        void SoftDelete(T entity, int userId);
+        void SoftDelete(T entity, string userId);
     }
 }

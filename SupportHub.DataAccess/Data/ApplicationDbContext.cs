@@ -52,7 +52,9 @@ namespace SupportHub.DataAccess.Data
                     Description = "Different types of documentation for knowledge management.",
                     ParentCategoryId = null, // It's a parent category
                     DisplayOrder = 1,
-                    HtmlContent = ""
+                    HtmlContent = "",
+                    CreatedBy = "00000000-0000-0000-0000-000000000001", // Placeholder GUID
+                    CreatedDate = DateTime.UtcNow
                 }
             );
             modelBuilder.Entity<Product>()
@@ -353,15 +355,15 @@ namespace SupportHub.DataAccess.Data
         private void ApplyAuditInfo()
         {
             var entries = ChangeTracker.Entries<AuditableEntity>();
+            var userId = _httpContextAccessor.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? "00000000-0000-0000-0000-000000000001"; // Fallback GUID if no user is authenticated
 
             foreach (var entry in entries)
             {
-                int currentUserId = 1; // Default User ID for now
-
                 if (entry.State == EntityState.Added)
                 {
                     entry.Entity.CreatedDate = DateTime.UtcNow;
-                    entry.Entity.CreatedBy = currentUserId;
+                    entry.Entity.CreatedBy = userId; // String GUID
                 }
 
                 if (entry.State == EntityState.Modified)
@@ -369,7 +371,7 @@ namespace SupportHub.DataAccess.Data
                     if (!entry.Entity.IsDeleted)
                     {
                         entry.Entity.UpdatedDate = DateTime.UtcNow;
-                        entry.Entity.UpdatedBy = currentUserId;
+                        entry.Entity.UpdatedBy = userId; // String GUID
                     }
                 }
             }

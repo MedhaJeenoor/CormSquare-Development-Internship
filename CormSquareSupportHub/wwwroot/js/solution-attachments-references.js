@@ -1,6 +1,8 @@
 ﻿console.log("Script starting: solution-attachments-references.js");
 
 (function () {
+    console.log("Immediate execution - initializing solution-attachments-references.js");
+
     if (typeof jQuery === "undefined") {
         console.error("jQuery is not loaded!");
         return;
@@ -12,6 +14,7 @@
     let references = [];
 
     // Initialize existing attachments and references
+    console.log("Initializing existing attachments...");
     document.querySelectorAll('#attachmentList li').forEach((li, index) => {
         const attachmentId = parseInt(li.dataset.attachmentId);
         if (attachmentId) {
@@ -26,6 +29,7 @@
     });
     console.log("Attachments initialized:", attachments);
 
+    console.log("Initializing existing references...");
     document.querySelectorAll('#referenceList li').forEach((li, index) => {
         const referenceId = parseInt(li.dataset.referenceId);
         if (referenceId) {
@@ -42,17 +46,23 @@
     console.log("References initialized:", references);
 
     // Setup Add Buttons
+    console.log("Setting up uploadAttachmentBtn listener...");
     const uploadBtn = document.getElementById("uploadAttachmentBtn");
     if (uploadBtn) {
         uploadBtn.addEventListener("click", function (e) {
             e.preventDefault();
+            console.log("uploadAttachmentBtn clicked");
             document.getElementById("attachmentInput").click();
         });
+    } else {
+        console.error("uploadAttachmentBtn not found!");
     }
 
+    console.log("Setting up attachmentInput listener...");
     const attachmentInput = document.getElementById("attachmentInput");
     if (attachmentInput) {
         attachmentInput.addEventListener("change", function (event) {
+            console.log("attachmentInput changed");
             const files = event.target.files;
             if (!files || files.length === 0) return;
 
@@ -68,12 +78,16 @@
             }
             updateAttachmentData();
         });
+    } else {
+        console.error("attachmentInput not found!");
     }
 
+    console.log("Setting up addReferenceBtn listener...");
     const addRefBtn = document.getElementById("addReferenceBtn");
     if (addRefBtn) {
         addRefBtn.addEventListener("click", function (e) {
             e.preventDefault();
+            console.log("addReferenceBtn clicked");
             const refUrl = prompt("Enter reference link:");
             if (!refUrl) return;
 
@@ -89,14 +103,21 @@
             addReferenceToList(reference, references.length - 1);
             updateReferenceData();
         });
+    } else {
+        console.error("addReferenceBtn not found!");
     }
 
-    // Event delegation
+    // Event delegation for all elements
+    console.log("Setting up event delegation...");
     document.getElementById("attachmentList").addEventListener("change", function (e) {
         if (e.target.classList.contains("internal-attachment")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= attachments.length) return;
+            if (isNaN(index) || index < 0 || index >= attachments.length) {
+                console.error("Invalid index for internal-attachment:", index);
+                return;
+            }
+            console.log("Attachment IsInternal changed for index", index, "to", e.target.checked);
             attachments[index].isInternal = e.target.checked;
             updateAttachmentData();
         }
@@ -106,10 +127,31 @@
         if (e.target.classList.contains("delete-attachment")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= attachments.length) return;
-            attachments.splice(index, 1);
-            reindexAttachments();
-            updateAttachmentData();
+            if (isNaN(index) || index < 0 || index >= attachments.length) {
+                console.error("Invalid index for delete-attachment:", index);
+                return;
+            }
+            console.log("Delete clicked for attachment at index:", index);
+            const attachmentId = attachments[index].id;
+            if (attachmentId > 0) {
+                jQuery.post('/Admin/Solution/RemoveAttachment', { id: attachmentId }, function (response) {
+                    console.log("RemoveAttachment response:", response);
+                    if (response && response.success) {
+                        attachments.splice(index, 1);
+                        reindexAttachments();
+                        updateAttachmentData();
+                    } else {
+                        alert(response ? response.message : "Failed to delete attachment.");
+                    }
+                }).fail(function (xhr, status, error) {
+                    console.error("Error deleting attachment:", error);
+                    alert("An error occurred while deleting the attachment.");
+                });
+            } else {
+                attachments.splice(index, 1);
+                reindexAttachments();
+                updateAttachmentData();
+            }
         }
     });
 
@@ -117,7 +159,11 @@
         if (e.target.classList.contains("internal-reference")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= references.length) return;
+            if (isNaN(index) || index < 0 || index >= references.length) {
+                console.error("Invalid index for internal-reference:", index);
+                return;
+            }
+            console.log("Reference IsInternal changed for index", index, "to", e.target.checked);
             references[index].isInternal = e.target.checked;
             updateReferenceData();
         }
@@ -127,15 +173,37 @@
         if (e.target.classList.contains("delete-reference")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= references.length) return;
-            references.splice(index, 1);
-            reindexReferences();
-            updateReferenceData();
+            if (isNaN(index) || index < 0 || index >= references.length) {
+                console.error("Invalid index for delete-reference:", index);
+                return;
+            }
+            console.log("Delete clicked for reference at index:", index);
+            const referenceId = references[index].id;
+            if (referenceId > 0) {
+                jQuery.post('/Admin/Solution/RemoveReference', { id: referenceId }, function (response) {
+                    console.log("RemoveReference response:", response);
+                    if (response && response.success) {
+                        references.splice(index, 1);
+                        reindexReferences();
+                        updateReferenceData();
+                    } else {
+                        alert(response ? response.message : "Failed to delete reference.");
+                    }
+                }).fail(function (xhr, status, error) {
+                    console.error("Error deleting reference:", error);
+                    alert("An error occurred while deleting the reference.");
+                });
+            } else {
+                references.splice(index, 1);
+                reindexReferences();
+                updateReferenceData();
+            }
         }
     });
 
     // Add Attachment to List
     function addAttachmentToList(attachment, index) {
+        console.log("Adding attachment to list at index:", index);
         let attachmentList = document.getElementById("attachmentList");
         let li = document.createElement("li");
         li.id = `attachment-${index}`;
@@ -144,7 +212,7 @@
         li.innerHTML = `
             <div>
                 <strong>${attachment.fileName}</strong><br />
-                <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption}" data-index="${index}" />
+                <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption || ''}" data-index="${index}" />
             </div>
             <div>
                 <input type="checkbox" class="form-check-input internal-attachment" data-index="${index}" ${attachment.isInternal ? "checked" : ""} />
@@ -158,6 +226,7 @@
 
     // Add Reference to List
     function addReferenceToList(reference, index) {
+        console.log("Adding reference to list at index:", index);
         let referenceList = document.getElementById("referenceList");
         let li = document.createElement("li");
         li.id = `reference-${index}`;
@@ -166,7 +235,7 @@
         li.innerHTML = `
             <div>
                 <a href="${reference.url}" target="${reference.openOption}">${reference.url}</a><br />
-                <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description}" data-index="${index}" />
+                <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
             </div>
             <div>
                 <input type="checkbox" class="form-check-input internal-reference" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
@@ -178,29 +247,37 @@
         referenceList.appendChild(li);
     }
 
-    // Add Event Listeners
+    // Add Event Listeners for Attachments
     function addAttachmentEventListeners(li, index) {
+        console.log("Adding event listeners for attachment at index:", index);
         li.querySelector(".caption-input").addEventListener("input", function () {
+            console.log("Caption input changed for attachment at index:", index);
             attachments[index].caption = this.value;
             updateAttachmentData();
         });
     }
 
+    // Add Event Listeners for References
     function addReferenceEventListeners(li, index) {
+        console.log("Adding event listeners for reference at index:", index);
         li.querySelector(".description-input").addEventListener("input", function () {
+            console.log("Description input changed for reference at index:", index);
             references[index].description = this.value;
             updateReferenceData();
         });
     }
 
-    // Reindex
+    // Reindex Attachments
     function reindexAttachments() {
+        console.log("Reindexing attachments...");
         let attachmentList = document.getElementById("attachmentList");
         attachmentList.innerHTML = "";
         attachments.forEach((attachment, index) => addAttachmentToList(attachment, index));
     }
 
+    // Reindex References
     function reindexReferences() {
+        console.log("Reindexing references...");
         let referenceList = document.getElementById("referenceList");
         referenceList.innerHTML = "";
         references.forEach((reference, index) => addReferenceToList(reference, index));
@@ -209,45 +286,80 @@
     // Update Hidden Fields
     function updateAttachmentData() {
         document.getElementById("attachmentData").value = JSON.stringify(attachments.length > 0 ? attachments : []);
+        console.log("Updated attachmentData:", document.getElementById("attachmentData").value);
     }
 
     function updateReferenceData() {
         document.getElementById("referenceData").value = JSON.stringify(references.length > 0 ? references : []);
+        console.log("Updated referenceData:", document.getElementById("referenceData").value);
     }
 
-    // Form Submission
-    document.querySelector("form").addEventListener("submit", function (e) {
+    // Form Submission with TinyMCE sync
+    document.querySelector("#solutionForm").addEventListener("submit", function (e) {
+        console.log("Form submitting...");
         if (typeof tinymce !== "undefined") {
             tinymce.triggerSave();
             const editorContent = document.getElementById("editor").value;
             document.getElementById("HtmlContent").value = editorContent;
+            console.log("TinyMCE content saved:", editorContent);
         }
         updateAttachmentData();
         updateReferenceData();
+        console.log("Files to be submitted:", document.getElementById("attachmentInput").files);
     });
 
-    // Handle category template update
-    $(document).on('updateAttachmentsReferences', function (e, templateAttachments, templateReferences) {
-        attachments = templateAttachments.map(a => ({
-            id: 0,
-            fileName: a.fileName,
-            caption: a.caption,
-            isInternal: a.isInternal
-        }));
-        references = templateReferences.map(r => ({
-            id: 0,
-            url: r.url,
-            description: r.description,
-            isInternal: r.isInternal,
-            openOption: r.openOption
-        }));
+    // Expose updateAttachmentsAndReferences globally
+    window.updateAttachmentsAndReferences = function (attachmentsFromCategory, referencesFromCategory) {
+        console.log("Received updateAttachmentsAndReferences call with:", attachmentsFromCategory, referencesFromCategory);
+
+        // Preserve existing solution attachments/references (id > 0)
+        attachments = attachments.filter(att => att.id > 0);
+        references = references.filter(ref => ref.id > 0);
+
+        // Add category attachments
+        attachmentsFromCategory.forEach(att => {
+            if (!attachments.some(a => a.fileName === att.fileName && a.id > 0)) {
+                attachments.push({
+                    id: 0,
+                    fileName: att.fileName,
+                    caption: att.caption || '',
+                    isInternal: att.isInternal || false
+                });
+            }
+        });
+
+        // Add category references
+        referencesFromCategory.forEach(ref => {
+            if (!references.some(r => r.url === ref.url && r.id > 0)) {
+                references.push({
+                    id: 0,
+                    url: ref.url,
+                    description: ref.description || '',
+                    isInternal: ref.isInternal || false,
+                    openOption: ref.openOption || '_self'
+                });
+            }
+        });
+
+        // Re-render the lists
         reindexAttachments();
         reindexReferences();
+
+        // Update hidden fields
         updateAttachmentData();
         updateReferenceData();
+    };
+
+    // Handle Category Template Attachments and References Update via event (optional)
+    $(document).on('updateAttachmentsReferences', function (e, attachmentsFromCategory, referencesFromCategory) {
+        console.log("Received updateAttachmentsReferences event with:", attachmentsFromCategory, referencesFromCategory);
+        window.updateAttachmentsAndReferences(attachmentsFromCategory, referencesFromCategory);
     });
 
     // Initialize hidden fields
+    console.log("Initializing hidden fields...");
     updateAttachmentData();
     updateReferenceData();
+
+    console.log("Script initialization complete!");
 })();

@@ -36,6 +36,9 @@ namespace SupportHub.DataAccess.Repository
             Product = new ProductRepository(_db);
             SubCategory = new SubCategoryRepository(_db);
             Issue = new IssueRepository(_db);
+            Solution = new SolutionRepository(_db);
+            SolutionReference = new SolutionReferenceRepository(_db);
+            SolutionAttachment = new SolutionAttachmentRepository(_db);
         }
 
         // Begin Transaction

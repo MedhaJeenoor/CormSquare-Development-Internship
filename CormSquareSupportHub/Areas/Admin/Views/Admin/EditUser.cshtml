@@ -9,80 +9,95 @@
 
     <div class="card shadow-lg p-4">
         <form asp-action="EditUser" method="post">
-            <div asp-validation-summary="All" class="text-danger"></div>
             <input type="hidden" asp-for="Id" />
 
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Name</label>
-                        <input type="text" class="form-control" asp-for="Name" required />
-                        <span class="text-danger" asp-validation-for="Name"></span>
+                        <input type="text" class="form-control" asp-for="Name" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" asp-for="Email" required pattern="^[a-zA-Z0-9._%+-]+[a-zA-Z0-9.-]+\.com$" title="Email must end with .com" />
-                        <span class="text-danger" asp-validation-for="Email"></span>
+                        <input type="email" class="form-control" asp-for="Email" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Role</label>
-                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" required id="roleSelect">
+                        <select class="form-select" asp-for="Role" asp-items="Model.AvailableRoles" id="roleSelect">
                             <option value="">-- Select Role --</option>
-                        </select> 
+                        </select>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Company</label>
-                        <input type="text" class="form-control" asp-for="CompanyName" id="companyName" disabled />
+                        <input type="text" class="form-control" asp-for="CompanyName" id="companyName" />
                     </div>
                 </div>
 
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Employee ID</label>
-                        <input type="text" class="form-control" asp-for="EmployeeID" id="employeeID" disabled />
+                        <input type="text" class="form-control" asp-for="EmployeeID" id="employeeID" />
                     </div>
-                    
-                    <div class="mb-3">
+
+                    <div class="mb-3 position-relative">
                         <label class="form-label">Password</label>
-                        <input type="password" class="form-control" asp-for="Password" />
+                        <div class="input-group">
+                            <input type="password" class="form-control" asp-for="Password" placeholder="Leave blank to keep current password" id="passwordInput" />
+                            <button type="button" class="btn btn-outline-secondary" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Country</label>
-                        <select class="form-select" asp-for="Country" required>
+                        <select class="form-select" asp-for="Country">
                             <option value="">-- Select Country --</option>
                             <option value="India">India</option>
                             <option value="USA">USA</option>
                             <option value="UK">UK</option>
                             <option value="Canada">Canada</option>
                         </select>
-                        <span class="text-danger" asp-validation-for="Country"></span>
                     </div>
                 </div>
             </div>
 
             <div class="text-center mt-4">
-                <button type="submit" class="btn btn-success px-4">Save Changes</button>
-                <a asp-action="UserApproval" class="btn btn-secondary px-4">Cancel</a>
+                <button type="submit" class="btn btn-primary px-4">Save Changes</button>
+                <a asp-action="UserApproval" class="btn btn-danger px-4">Cancel</a>
+                <a asp-action="UserApproval" class="btn btn-info px-4">Back To List</a>
             </div>
         </form>
     </div>
 </div>
+
 <div class="mb-5 pb-5"></div>
-<!-- Spacer to push content above footer -->
 <div style="min-height: 100px;"></div>
 
 @section Scripts {
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            var passwordInput = document.getElementById("passwordInput");
+            var toggleButton = document.getElementById("togglePassword");
+
+            toggleButton.addEventListener("click", function () {
+                if (passwordInput.type === "password") {
+                    passwordInput.type = "text";
+                    toggleButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                } else {
+                    passwordInput.type = "password";
+                    toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+                }
+            });
+
             var roleSelect = document.getElementById("roleSelect");
             var companyName = document.getElementById("companyName");
             var employeeID = document.getElementById("employeeID");
 
-            function toggleEmployeeFields() {
+            roleSelect.addEventListener("change", function () {
                 var isEmployee = roleSelect.value.toLowerCase() === "employee";
                 companyName.disabled = !isEmployee;
                 employeeID.disabled = !isEmployee;
@@ -90,10 +105,7 @@
                     companyName.value = "";
                     employeeID.value = "";
                 }
-            }
-
-            roleSelect.addEventListener("change", toggleEmployeeFields);
-            toggleEmployeeFields();
+            });
         });
     </script>
 }
