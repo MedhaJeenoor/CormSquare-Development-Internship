@@ -13,7 +13,6 @@
     let attachments = [];
     let references = [];
 
-    // Initialize existing attachments and references
     console.log("Initializing existing attachments...");
     document.querySelectorAll('#attachmentList li').forEach((li, index) => {
         const attachmentId = parseInt(li.dataset.attachmentId);
@@ -45,7 +44,6 @@
     });
     console.log("References initialized:", references);
 
-    // Setup Add Buttons
     console.log("Setting up uploadAttachmentBtn listener...");
     const uploadBtn = document.getElementById("uploadAttachmentBtn");
     if (uploadBtn) {
@@ -107,7 +105,6 @@
         console.error("addReferenceBtn not found!");
     }
 
-    // Event delegation for all elements
     console.log("Setting up event delegation...");
     document.getElementById("attachmentList").addEventListener("change", function (e) {
         if (e.target.classList.contains("internal-attachment")) {
@@ -201,7 +198,6 @@
         }
     });
 
-    // Add Attachment to List
     function addAttachmentToList(attachment, index) {
         console.log("Adding attachment to list at index:", index);
         let attachmentList = document.getElementById("attachmentList");
@@ -222,9 +218,9 @@
         `;
         addAttachmentEventListeners(li, index);
         attachmentList.appendChild(li);
+        updateAttachmentData();
     }
 
-    // Add Reference to List
     function addReferenceToList(reference, index) {
         console.log("Adding reference to list at index:", index);
         let referenceList = document.getElementById("referenceList");
@@ -245,9 +241,9 @@
         `;
         addReferenceEventListeners(li, index);
         referenceList.appendChild(li);
+        updateReferenceData();
     }
 
-    // Add Event Listeners for Attachments
     function addAttachmentEventListeners(li, index) {
         console.log("Adding event listeners for attachment at index:", index);
         li.querySelector(".caption-input").addEventListener("input", function () {
@@ -257,7 +253,6 @@
         });
     }
 
-    // Add Event Listeners for References
     function addReferenceEventListeners(li, index) {
         console.log("Adding event listeners for reference at index:", index);
         li.querySelector(".description-input").addEventListener("input", function () {
@@ -265,9 +260,13 @@
             references[index].description = this.value;
             updateReferenceData();
         });
+        li.querySelector(".internal-reference").addEventListener("change", function () {
+            console.log("Internal changed for reference at index:", index);
+            references[index].isInternal = this.checked;
+            updateReferenceData();
+        });
     }
 
-    // Reindex Attachments
     function reindexAttachments() {
         console.log("Reindexing attachments...");
         let attachmentList = document.getElementById("attachmentList");
@@ -275,7 +274,6 @@
         attachments.forEach((attachment, index) => addAttachmentToList(attachment, index));
     }
 
-    // Reindex References
     function reindexReferences() {
         console.log("Reindexing references...");
         let referenceList = document.getElementById("referenceList");
@@ -283,18 +281,18 @@
         references.forEach((reference, index) => addReferenceToList(reference, index));
     }
 
-    // Update Hidden Fields
     function updateAttachmentData() {
-        document.getElementById("attachmentData").value = JSON.stringify(attachments.length > 0 ? attachments : []);
-        console.log("Updated attachmentData:", document.getElementById("attachmentData").value);
+        var json = JSON.stringify(attachments.length > 0 ? attachments : []);
+        document.getElementById("attachmentData").value = json;
+        console.log("Updated attachmentData:", json);
     }
 
     function updateReferenceData() {
-        document.getElementById("referenceData").value = JSON.stringify(references.length > 0 ? references : []);
-        console.log("Updated referenceData:", document.getElementById("referenceData").value);
+        var json = JSON.stringify(references.length > 0 ? references : []);
+        document.getElementById("referenceData").value = json;
+        console.log("Updated referenceData:", json);
     }
 
-    // Form Submission with TinyMCE sync
     document.querySelector("#solutionForm").addEventListener("submit", function (e) {
         console.log("Form submitting...");
         if (typeof tinymce !== "undefined") {
@@ -308,15 +306,12 @@
         console.log("Files to be submitted:", document.getElementById("attachmentInput").files);
     });
 
-    // Expose updateAttachmentsAndReferences globally
     window.updateAttachmentsAndReferences = function (attachmentsFromCategory, referencesFromCategory) {
         console.log("Received updateAttachmentsAndReferences call with:", attachmentsFromCategory, referencesFromCategory);
 
-        // Preserve existing solution attachments/references (id > 0)
         attachments = attachments.filter(att => att.id > 0);
         references = references.filter(ref => ref.id > 0);
 
-        // Add category attachments
         attachmentsFromCategory.forEach(att => {
             if (!attachments.some(a => a.fileName === att.fileName && a.id > 0)) {
                 attachments.push({
@@ -328,7 +323,6 @@
             }
         });
 
-        // Add category references
         referencesFromCategory.forEach(ref => {
             if (!references.some(r => r.url === ref.url && r.id > 0)) {
                 references.push({
@@ -341,22 +335,17 @@
             }
         });
 
-        // Re-render the lists
         reindexAttachments();
         reindexReferences();
-
-        // Update hidden fields
         updateAttachmentData();
         updateReferenceData();
     };
 
-    // Handle Category Template Attachments and References Update via event (optional)
     $(document).on('updateAttachmentsReferences', function (e, attachmentsFromCategory, referencesFromCategory) {
         console.log("Received updateAttachmentsReferences event with:", attachmentsFromCategory, referencesFromCategory);
         window.updateAttachmentsAndReferences(attachmentsFromCategory, referencesFromCategory);
     });
 
-    // Initialize hidden fields
     console.log("Initializing hidden fields...");
     updateAttachmentData();
     updateReferenceData();

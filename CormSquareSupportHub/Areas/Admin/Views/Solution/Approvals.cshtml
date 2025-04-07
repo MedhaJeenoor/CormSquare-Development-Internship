@@ -34,8 +34,7 @@
                             <td>@solution.Author?.UserName</td>
                             <td>@solution.Status</td>
                             <td>
-                                <a asp-action="Upsert" asp-route-solutionId="@solution.Id" class="btn btn-primary btn-sm">Review</a>
-                                <!-- Add approval/rejection buttons later -->
+                                <a asp-action="Review" asp-route-id="@solution.Id" class="btn btn-primary btn-sm">Review</a>
                             </td>
                         </tr>
                     }
@@ -44,7 +43,7 @@
         }
         else
         {
-            <p>No solutions submitted for review.</p>
+            <p>No solutions submitted or under review.</p>
         }
     </div>
 </div>

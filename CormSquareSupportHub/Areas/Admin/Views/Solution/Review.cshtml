@@ -1,0 +1,146 @@
+﻿@model SupportHub.Models.SolutionViewModel
+
+@{
+    ViewData["Title"] = "Review Solution";
+}
+
+<div class="card shadow border-0 mt-4">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <h2 class="text-center py-2">Review Solution</h2>
+    </div>
+    <div class="card-body p-4">
+        <form method="post" asp-action="Review" id="reviewForm">
+            <input type="hidden" asp-for="Id" />
+
+            <div class="mb-3">
+                <label>Title</label>
+                <p class="form-control-static">@Model.Title</p>
+            </div>
+
+            <div class="mb-3 row">
+                <div class="col-md-6">
+                    <label>Product</label>
+                    <p class="form-control-static">@Model.Products.FirstOrDefault(p => p.Id == Model.ProductId)?.ProductName</p>
+                </div>
+                <div class="col-md-6">
+                    <label>Subcategory</label>
+                    <p class="form-control-static">@Model.SubCategories.FirstOrDefault(s => s.Id == Model.SubCategoryId)?.Name</p>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label>Category</label>
+                <p class="form-control-static">@Model.Categories.FirstOrDefault(c => c.Id == Model.CategoryId)?.Name</p>
+            </div>
+
+            <div class="mb-3">
+                <label>Related Issue</label>
+                <p class="form-control-static">@Model.IssueDescription</p>
+            </div>
+
+            <div class="mb-3">
+                <label>Solution Content</label>
+                <div class="border p-3" readonly>@Html.Raw(Model.HtmlContent)</div>
+            </div>
+
+            <div class="mb-3">
+                <label>Attachments</label>
+                <ul class="list-group">
+                    @foreach (var attachment in Model.Attachments)
+                    {
+                        <li class="list-group-item">
+                            <strong>@attachment.FileName</strong> (@attachment.Caption)
+                            @if (attachment.IsInternal)
+                            {
+                                <span class="badge bg-warning">Internal</span>
+                            }
+                            <a href="/Admin/Solution/DownloadAttachment/@attachment.Id" class="btn btn-sm btn-primary ms-2">Download</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="mb-3">
+                <label>References</label>
+                <ul class="list-group">
+                    @foreach (var reference in Model.References)
+                    {
+                        <li class="list-group-item">
+                            <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a> (@reference.Description)
+                            @if (reference.IsInternal)
+                            {
+                                <span class="badge bg-warning">Internal</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="mb-3">
+                <label>Feedback</label>
+                <textarea id="feedbackEditor" name="feedback">@Html.Raw(Model.Feedback)</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label>Status</label>
+                <select name="status" class="form-control" required>
+                    <option value="UnderReview" selected>Under Review (Save Progress)</option>
+                    <option value="Approved">Approved and Published</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="NeedsRevision">Needs Revision</option>
+                </select>
+            </div>
+
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-success mx-2" style="width:200px">Save Review</button>
+                <a asp-action="Approvals" class="btn btn-outline-secondary mx-2" style="width:200px">Cancel</a>
+                <button type="button" class="btn btn-warning mx-2" style="width:200px" onclick="releaseReview(@Model.Id)">Release Review</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="~/js/tinymce-solution.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        tinymce.init({
+            selector: '#feedbackEditor',
+            plugins: 'lists table wordcount',
+            toolbar: 'undo redo | bold italic | numlist bullist | table',
+            menubar: false,
+            height: 300,
+            setup: function (editor) {
+                editor.on('init', function () {
+                    console.log('Feedback TinyMCE initialized');
+                });
+                editor.on('change', function () {
+                    editor.save();
+                });
+            }
+        });
+
+        $('#reviewForm').on('submit', function (e) {
+            var status = $('select[name="status"]').val();
+            if (!status) {
+                e.preventDefault();
+                alert('Please select a status.');
+            }
+        });
+
+        function releaseReview(solutionId) {
+            if (confirm('Are you sure you want to release this review? It will return to the "Submitted" state for another reviewer.')) {
+                $.post('/Admin/Solution/ReleaseReview', { id: solutionId }, function (response) {
+                    if (response.success) {
+                        window.location.href = '/Admin/Solution/Approvals';
+                    } else {
+                        alert('Error releasing review: ' + (response.error || 'Unknown error'));
+                    }
+                }).fail(function () {
+                    alert('An error occurred while releasing the review.');
+                });
+            }
+        }
+    </script>
+}

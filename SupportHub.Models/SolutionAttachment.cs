@@ -1,4 +1,6 @@
-﻿namespace SupportHub.Models
+﻿using Newtonsoft.Json;
+
+namespace SupportHub.Models
 {
     public class SolutionAttachment : AuditableEntity
     {
@@ -8,5 +10,9 @@
         public bool IsInternal { get; set; }
         public int SolutionId { get; set; }
         public Solution Solution { get; set; }
+        [JsonProperty("source")]
+        public string? Source { get; set; }
+        [JsonProperty("categoryAttachmentId")]
+        public int? CategoryAttachmentId { get; set; }
     }
 }

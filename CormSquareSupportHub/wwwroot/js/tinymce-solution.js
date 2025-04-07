@@ -30,7 +30,9 @@
             $(document).trigger('tinymceInitialized');
         });
         editor.on('change', function () {
-            document.getElementById('HtmlContent').value = editor.getContent();
+            var content = editor.getContent();
+            document.getElementById('HtmlContent').value = content;
+            console.log('Editor content updated on change:', content);
         });
         editor.on('submit', function () {
             document.getElementById('HtmlContent').value = editor.getContent();

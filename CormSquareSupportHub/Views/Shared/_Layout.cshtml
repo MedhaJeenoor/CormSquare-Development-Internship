@@ -85,10 +85,10 @@
                                     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">Approvals</a>
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a>
                                 </li>
                             }
-                            @if (User.IsInRole("KM Creator") || User.IsInRole("KM Champion"))
+                            @if (User.IsInRole("KM Creator"))
                             {
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
@@ -102,8 +102,27 @@
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a>
                                 </li>
+                                @* <li class="nav-item"> *@
+                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a> *@
+                                @* </li> *@
+
+                            }
+                            @if (User.IsInRole("KM Champion"))
+                            {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">Approvals</a>
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                </li>
+                                @* <li class="nav-item"> *@
+                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a> *@
+                                @* </li> *@
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
+                                </li>
+                                @* <li class="nav-item"> *@
+                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a> *@
+                                @* </li> *@
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a>
                                 </li>
 
                             }
@@ -167,19 +186,19 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
 
 
-   @*  <!-- Tiptap Core Dependencies --> *@
-   @*  @* <script src="https://cdnjs.cloudflare.com/ajax/libs/prosemirror-view/1.24.0/index.umd.min.js"></script> *@
-   @*  <script src="https://cdnjs.cloudflare.com/ajax/libs/tiptap/2.0.0-beta.105/tiptap.umd.min.js"></script> *@
-   @*  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script> *@
-   @*  <script src="https://ajax.aspnetcdn.com/ajax/signalr/2.4.1/jquery.signalR.min.js"></script> *@
-   @* @*  <script src="https://cdn.jsdelivr.net/npm/@tiptap/core"></script> *@ 
+    @*  <!-- Tiptap Core Dependencies --> *@
+    @*  @* <script src="https://cdnjs.cloudflare.com/ajax/libs/prosemirror-view/1.24.0/index.umd.min.js"></script> *@
+    @*  <script src="https://cdnjs.cloudflare.com/ajax/libs/tiptap/2.0.0-beta.105/tiptap.umd.min.js"></script> *@
+    @*  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script> *@
+    @*  <script src="https://ajax.aspnetcdn.com/ajax/signalr/2.4.1/jquery.signalR.min.js"></script> *@
+    @* @*  <script src="https://cdn.jsdelivr.net/npm/@tiptap/core"></script> *@ 
 
-   @*  <script type="module" defer src="/js/tiptap-editor.js"></script> *@
+    @*  <script type="module" defer src="/js/tiptap-editor.js"></script> *@
     <script src="https://cdn.tiny.cloud/1/e7h24elw0i2rjxwduha6o559uql7e57avazebhxgugnkxthc/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    
+
 
 
     @await RenderSectionAsync("Scripts", required: false)

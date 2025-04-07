@@ -84,26 +84,31 @@
                     <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Add Attachment</button>
                     <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
                     <ul id="attachmentList" class="list-group mt-2">
-                        @if (Model.Attachments != null)
+                        @if (ViewData["AttachmentLinks"] != null) // For editing mode
                         {
-                            var index = 0;
-                            @foreach (var attachment in Model.Attachments)
+                            var links = ViewData["AttachmentLinks"] as IEnumerable<dynamic>;
+                            if (links != null && links.Any())
                             {
-                                <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
-                                    <div>
-                                        <strong>@attachment.FileName</strong><br />
-                                        <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="@attachment.Caption" data-index="@index" />
-                                    </div>
-                                    <div>
-                                        <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
-                                        <span>Internal</span>
-                                        <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
-                                    </div>
-                                </li>
-                                index++;
+                                var index = 0;
+                                foreach (var link in links)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
+                                        <div>
+                                            <a href="@link.Url" target="_blank">@link.FileName</a><br />
+                                            <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" />
+                                        </div>
+                                        <div>
+                                            <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" />
+                                            <span>Internal</span>
+                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index" onclick="removeAttachment(@link.Id)">❌</span>
+                                        </div>
+                                    </li>
+                                    index++;
+                                }
                             }
                         }
                     </ul>
+                    <div id="categoryAttachmentLinks" class="mt-2"></div> <!-- For category attachments -->
                     <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
                 </div>
 
@@ -142,9 +147,18 @@
                     <button type="submit" name="submitAction" value="Submit" class="btn btn-success mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Submit for Review
                     </button>
-                    <a asp-controller="Issue" asp-action="IssueList" class="btn btn-outline-secondary mx-2" style="width:200px">
-                        <i class="bi bi-arrow-left-circle"></i> Cancel
-                    </a>
+                    @if (Model.Id > 0)
+                    {
+                        <a asp-controller="Solution" asp-action="MySolutions" class="btn btn-outline-secondary mx-2" style="width:200px">
+                            <i class="bi bi-arrow-left-circle"></i> Cancel
+                        </a>
+                    }
+                    else
+                    {
+                        <a asp-controller="Issue" asp-action="IssueList" class="btn btn-outline-secondary mx-2" style="width:200px">
+                            <i class="bi bi-arrow-left-circle"></i> Cancel
+                        </a>
+                    }
                 </div>
             </form>
         </div>
@@ -157,16 +171,25 @@
     <script src="~/js/tinymce-solution.js"></script>
     <script src="~/js/solution-attachments-references.js"></script>
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
+
     <script>
         $(document).ready(function () {
+            let submitActionValue = null;
             let editorReady = false;
 
             $(document).on('tinymceInitialized', function () {
                 editorReady = true;
                 var initialCategoryId = $('#categoryDropdown').val();
-                if (initialCategoryId) {
+                if (initialCategoryId && !tinymce.get('editor').getContent()) {
                     loadCategoryTemplate(initialCategoryId);
                 }
+            });
+
+            $('button[type="submit"]').on('click', function (e) {
+                submitActionValue = $(this).val();
+                console.log('Button clicked, submitAction set to:', submitActionValue);
             });
 
             $('#productDropdown').change(function () {
@@ -178,6 +201,8 @@
                         $.each(data, function (i, item) {
                             subCatDropdown.append($('<option>').val(item.id).text(item.name));
                         });
+                    }).fail(function () {
+                        console.error('Failed to load subcategories');
                     });
                 }
             });
@@ -186,6 +211,8 @@
                 var categoryId = $(this).val();
                 if (categoryId) {
                     loadCategoryTemplate(categoryId);
+                } else {
+                    $('#categoryAttachmentLinks').html('');
                 }
             });
 
@@ -193,46 +220,111 @@
                 $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
                     console.log('Response data:', data);
                     if (data.success) {
-                        if (editorReady) {
-                            var editor = tinymce.get('editor');
-                            if (editor) {
-                                editor.setContent(data.htmlContent || '');
-                                $('#HtmlContent').val(editor.getContent());
-                                console.log('Editor content set from template:', editor.getContent());
-                            }
+                        var editor = tinymce.get('editor');
+                        if (editor) {
+                            editor.setContent(data.htmlContent || '');
+                            $('#HtmlContent').val(editor.getContent());
+                            console.log('Editor content set from template:', editor.getContent());
                         }
+                        updateCategoryAttachments(data.attachments || []);
                         updateAttachmentsAndReferences(data.attachments || [], data.references || []);
                     }
+                }).fail(function () {
+                    console.error('Failed to load category template');
                 });
+            }
+
+            function updateCategoryAttachments(attachments) {
+                var linksHtml = '<h5>Category Attachments:</h5><ul class="list-group">';
+                attachments.forEach(function (attachment) {
+                    linksHtml += '<li class="list-group-item"><a href="' + attachment.url + '" target="_blank">' + attachment.fileName + '</a></li>';
+                });
+                linksHtml += '</ul>';
+                $('#categoryAttachmentLinks').html(linksHtml);
+            }
+
+            function removeAttachment(attachmentId) {
+                if (confirm('Are you sure you want to remove this attachment?')) {
+                    $.post('/Admin/Solution/RemoveAttachment', { id: attachmentId }, function (response) {
+                        if (response.success) {
+                            toastr.success(response.message);
+                            $(`li[data-attachment-id="${attachmentId}"]`).remove();
+                        } else {
+                            toastr.error(response.message);
+                        }
+                    }).fail(function () {
+                        toastr.error('Failed to remove attachment.');
+                    });
+                }
             }
 
             $('#solutionForm').on('submit', function (e) {
-            console.log('Form submit triggered');
-            var editor = tinymce.get('editor');
-            if (!editor) {
-                console.error('TinyMCE editor not initialized!');
                 e.preventDefault();
-                return false;
-            }
-            var editorContent = editor.getContent();
-            $('#HtmlContent').val(editorContent);
-            console.log('Editor content:', editorContent);
+                console.log('Form submit triggered');
 
-            var formData = $(this).serializeArray();
-            console.log('Form Data being submitted:', formData);
+                var editor = tinymce.get('editor');
+                if (!editor) {
+                    console.error('TinyMCE editor not initialized!');
+                    toastr.error('Editor not initialized. Please try again.');
+                    return false;
+                }
 
-            var title = $('#Title').val();
-            var productId = $('#productDropdown').val();
-            var categoryId = $('#categoryDropdown').val();
+                tinymce.triggerSave();
+                var editorContent = editor.getContent();
+                $('#HtmlContent').val(editorContent);
+                console.log('Editor content synced:', editorContent);
 
-            if (!title || !productId || productId === "0" || !categoryId || categoryId === "0" || !editorContent) {
-                console.error('Validation failed:', { title, productId, categoryId, editorContent });
-                e.preventDefault();
-                alert('Please fill all required fields.');
-                return false;
-            }
-        });
+                var title = $('#Title').val();
+                var productId = $('#productDropdown').val();
+                var categoryId = $('#categoryDropdown').val();
+                if (!title || !productId || productId === "" || !categoryId || categoryId === "" || !editorContent) {
+                    console.error('Validation failed:', { title, productId, categoryId, editorContent });
+                    toastr.error('Please fill all required fields.');
+                    return false;
+                }
 
+                var formData = new FormData(this);
+                if (submitActionValue) {
+                    formData.append('submitAction', submitActionValue);
+                } else {
+                    console.error('submitAction not set!');
+                    toastr.error('Please use the Save Draft or Submit for Review button.');
+                    return false;
+                }
+                console.log('Form Data being submitted:', Array.from(formData.entries()));
+
+                $.ajax({
+                    url: '/Admin/Solution/Upsert',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                        console.log('Server response:', response);
+                        if (response.success) {
+                            if (response.redirectTo) {
+                                console.log('Redirecting to:', response.redirectTo);
+                                toastr.success('Submission successful!');
+                                window.location.href = response.redirectTo;
+                            } else {
+                                console.error('Redirect URL missing in successful response');
+                                toastr.error('Submission succeeded, but redirect URL was not provided.');
+                            }
+                        } else {
+                            console.error('Submission failed on server:', response.message);
+                            toastr.error(response.message || 'Submission failed. Please try again.');
+                            if (response.errors) {
+                                console.log('Validation errors:', response.errors);
+                                toastr.error('Validation errors: ' + response.errors.join(', '));
+                            }
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('AJAX error:', status, error, xhr.responseText);
+                        toastr.error('An error occurred while submitting: ' + (xhr.responseText || error));
+                    }
                 });
+            });
+        });
     </script>
 }
