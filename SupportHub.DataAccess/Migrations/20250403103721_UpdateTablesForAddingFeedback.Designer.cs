@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250403103721_UpdateTablesForAddingFeedback")]
+    partial class UpdateTablesForAddingFeedback
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "a661169b-87d1-4df9-984b-6e81bf1b0ec8",
+                            Id = "227f568e-293e-44bb-a5fa-a4d480f41fbb",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "9ad74054-d4e0-4f0d-9650-1566a9e2c4e9",
+                            Id = "792536ad-4ffc-4be0-958f-03d1e8f240ac",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "f783e86a-a073-428f-b737-cd5f65c94f79",
+                            Id = "d6423c72-e52c-4a44-b3ad-6e91eace8761",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "051f3b43-09f7-4c65-a2f8-85a4cc2e8fdd",
+                            Id = "ccae02fd-627d-4310-8bd2-a6bb8629a3dc",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });
@@ -370,7 +373,7 @@ namespace SupportHub.DataAccess.Migrations
                         {
                             Id = 1,
                             CreatedBy = "00000000-0000-0000-0000-000000000001",
-                            CreatedDate = new DateTime(2025, 4, 4, 10, 14, 6, 33, DateTimeKind.Utc).AddTicks(5255),
+                            CreatedDate = new DateTime(2025, 4, 3, 10, 37, 20, 723, DateTimeKind.Utc).AddTicks(4969),
                             Description = "Different types of documentation for knowledge management.",
                             DisplayOrder = 1,
                             HtmlContent = "",
@@ -673,6 +676,7 @@ namespace SupportHub.DataAccess.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Source")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UpdatedBy")
