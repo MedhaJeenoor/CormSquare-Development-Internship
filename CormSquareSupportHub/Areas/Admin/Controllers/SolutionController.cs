@@ -168,7 +168,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.HtmlContent = model.HtmlContent;
                     solution.PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent);
                     solution.IssueDescription = model.IssueDescription;
-                    solution.Status = submitAction == "Save" ? "Draft" : "Submitted"; // Keep "Submitted"
+                    solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
                     solution.UpdateAudit(userId);
                     if (submitAction == "Submit" && solution.DocId == null)
                     {
@@ -191,7 +191,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         HtmlContent = model.HtmlContent,
                         PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent),
                         IssueDescription = model.IssueDescription,
-                        Status = submitAction == "Save" ? "Draft" : "Submitted" // Keep "Submitted"
+                        Status = submitAction == "Save" ? "Draft" : "Submitted"
                     };
                     solution.UpdateAudit(userId);
                     if (submitAction == "Submit")
@@ -204,7 +204,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 }
 
                 // Process Attachments
-                if (!string.IsNullOrEmpty(AttachmentData) || (files?.Count > 0))
+                if (!string.IsNullOrEmpty(AttachmentData))
                 {
                     savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
                     stagedAttachments = new List<(SolutionAttachment, string, string)>();
@@ -214,16 +214,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     {
                         var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
                         var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
-                        var source = (string)item.GetType().GetProperty("source")?.GetValue(item);
-                        var existingAttachment = existingAttachments.FirstOrDefault(a => a.FilePath == filePath); // Check by FilePath
-                        SolutionAttachment entity;
+                        var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
+                        var existingAttachment = existingAttachments.FirstOrDefault(a => a.FilePath == filePath);
 
+                        SolutionAttachment entity;
                         if (existingAttachment != null)
                         {
-                            entity = existingAttachment; // Update existing
+                            entity = existingAttachment;
                             entity.Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
                             entity.IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
-                            entity.Source = source;
                             entity.UpdateAudit(userId);
                             _unitOfWork.SolutionAttachment.Update(entity);
                         }
@@ -235,23 +234,22 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                 FilePath = filePath,
                                 Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item),
                                 IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item),
-                                SolutionId = solution.Id,
-                                Source = source
+                                SolutionId = solution.Id
                             };
                             entity.UpdateAudit(userId);
                             _unitOfWork.SolutionAttachment.Add(entity);
                             existingAttachments.Add(entity);
                         }
 
-                        // Stage for file copying with original filename for category lookup
-                        string originalFileName = source == "CategoryTemplate" && AttachmentData != null
-                            ? Newtonsoft.Json.JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(AttachmentData)
-                                .FirstOrDefault(a => a["fileName"].ToString().EndsWith(Path.GetExtension(guidFileName)))?["fileName"]?.ToString()
-                            : null;
-                        string sourcePath = source == "CategoryTemplate"
-                            ? Path.Combine(_attachmentSettings.UploadPath, (await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted))?.FilePath ?? "")
-                            : null;
+                        // Stage all attachments for disk saving
                         string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
+                        string sourcePath = null;
+                        var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
+                        if (uploadedFile == null) // Category-based file
+                        {
+                            var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted);
+                            sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
+                        }
                         stagedAttachments.Add((entity, sourcePath, destPath));
                     }
                 }
@@ -265,6 +263,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 switch (submitAction)
                 {
                     case "Save":
+                    case "Submit":
                         string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
                         if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
 
@@ -272,14 +271,14 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         {
                             foreach (var (entity, sourcePath, destPath) in stagedAttachments)
                             {
-                                if (entity.Source == "CategoryTemplate" && !string.IsNullOrEmpty(sourcePath) && System.IO.File.Exists(sourcePath))
+                                if (sourcePath != null && System.IO.File.Exists(sourcePath) && !System.IO.File.Exists(destPath)) // Category file
                                 {
                                     System.IO.File.Copy(sourcePath, destPath, overwrite: true);
                                     Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
                                 }
-                                else if (entity.Source == "Upload" && files != null)
+                                else // Uploaded file or missing category file
                                 {
-                                    var file = files.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
+                                    var file = files?.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
                                     if (file != null && !System.IO.File.Exists(destPath))
                                     {
                                         using (var fileStream = new FileStream(destPath, FileMode.Create))
@@ -288,40 +287,9 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                             Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        await _unitOfWork.SaveAsync();
-                        await _unitOfWork.CommitTransactionAsync();
-                        Console.WriteLine($"Committed transaction: Saved solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
-                        TempData["success"] = "Solution saved as draft!";
-                        redirectUrl = Url.Action("MySolutions");
-                        break;
-
-                    case "Submit":
-                        solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
-                        if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
-
-                        if (stagedAttachments != null && stagedAttachments.Any())
-                        {
-                            foreach (var (entity, sourcePath, destPath) in stagedAttachments)
-                            {
-                                if (entity.Source == "CategoryTemplate" && !string.IsNullOrEmpty(sourcePath) && System.IO.File.Exists(sourcePath))
-                                {
-                                    System.IO.File.Copy(sourcePath, destPath, overwrite: true);
-                                    Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
-                                }
-                                else if (entity.Source == "Upload" && files != null)
-                                {
-                                    var file = files.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
-                                    if (file != null && !System.IO.File.Exists(destPath))
+                                    else if (sourcePath == null && !System.IO.File.Exists(destPath))
                                     {
-                                        using (var fileStream = new FileStream(destPath, FileMode.Create))
-                                        {
-                                            await file.CopyToAsync(fileStream);
-                                            Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
-                                        }
+                                        Console.WriteLine($"Warning: No source file found for {entity.FileName} and it’s not uploaded.");
                                     }
                                 }
                             }
@@ -329,9 +297,9 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
                         await _unitOfWork.SaveAsync();
                         await _unitOfWork.CommitTransactionAsync();
-                        Console.WriteLine($"Committed transaction: Submitted solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
-                        TempData["success"] = "Solution submitted for review!";
-                        redirectUrl = Url.Action("Approvals");
+                        Console.WriteLine($"Committed transaction: {submitAction} solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
+                        TempData["success"] = submitAction == "Save" ? "Solution saved as draft!" : "Solution submitted for review!";
+                        redirectUrl = submitAction == "Save" ? Url.Action("MySolutions") : Url.Action("Approvals");
                         break;
 
                     default:
@@ -511,6 +479,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId)
         {
             var attachments = new List<object>();
+            var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
 
             if (!string.IsNullOrEmpty(attachmentData))
             {
@@ -518,34 +487,23 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 foreach (var att in stagedAttachments)
                 {
                     string originalFileName = att["fileName"].ToString();
-                    string guidFileName = $"{Guid.NewGuid()}{Path.GetExtension(originalFileName)}";
+                    string guidFileName = att.ContainsKey("guidFileName") && !string.IsNullOrEmpty(att["guidFileName"]?.ToString())
+                        ? att["guidFileName"].ToString()
+                        : $"{Guid.NewGuid()}{Path.GetExtension(originalFileName)}";
                     string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
-                    attachments.Add(new
-                    {
-                        fileName = guidFileName,
-                        filePath,
-                        caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null,
-                        isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString()),
-                        source = "CategoryTemplate"
-                    });
-                }
-            }
 
-            if (files?.Count > 0)
-            {
-                foreach (var file in files)
-                {
-                    string guidFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-                    string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
-                    if (!attachments.Any(a => a.GetType().GetProperty("filePath").GetValue(a).ToString() == filePath))
+                    if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
                     {
+                        bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
+                        string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
+
                         attachments.Add(new
                         {
                             fileName = guidFileName,
                             filePath,
-                            caption = "",
-                            isInternal = false,
-                            source = "Upload"
+                            caption,
+                            isInternal,
+                            originalFileName
                         });
                     }
                 }
