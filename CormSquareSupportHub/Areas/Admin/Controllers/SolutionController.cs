@@ -59,7 +59,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 References = new List<SolutionReference>()
             };
 
-            if (solutionId.HasValue) // Editing an existing solution
+            if (solutionId.HasValue)
             {
                 var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == solutionId.Value && s.AuthorId == user.Id && !s.IsDeleted,
                     includeProperties: "Attachments,References");
@@ -77,15 +77,16 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 model.Attachments = solution.Attachments.Where(a => !a.IsDeleted).ToList();
                 model.References = solution.References.Where(r => !r.IsDeleted).ToList();
 
-                // Populate attachment download links for existing solution attachments
+                // Set ViewData["AttachmentLinks"] with GUID-based FileName
                 ViewData["AttachmentLinks"] = model.Attachments.Select(a => new
                 {
                     Id = a.Id,
-                    FileName = a.FileName,
-                    Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" })
+                    FileName = a.FileName, // GUID-based (e.g., "c2d13bc7-7b59-4b26-85a9-aad41e728972.png")
+                    Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" }),
+                    IsInternal = a.IsInternal
                 }).ToList();
             }
-            else if (issueId.HasValue) // Creating from an issue
+            else if (issueId.HasValue)
             {
                 var issue = await _unitOfWork.Issue.GetFirstOrDefaultAsync(i => i.Id == issueId.Value,
                     includeProperties: "Product,SubCategory");
@@ -104,12 +105,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-            string? ReferenceData, string? AttachmentData, string submitAction)
+    string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
-
-            Console.WriteLine($"POST Upsert called. Id: {model.Id}, SubmitAction: {submitAction}, AttachmentData: {AttachmentData}, ReferenceData: {ReferenceData}, FilesCount: {files?.Count ?? 0}");
 
             ModelState.Remove("Products");
             ModelState.Remove("Categories");
@@ -126,27 +125,40 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             ModelState.Remove("DocId");
             ModelState.Remove("Status");
 
+            string redirectUrl = null;
+            Solution solution = null;
+            string userId = user.Id;
+            var savedAttachments = new List<object>();
+            var savedReferences = new List<object>();
+            List<(SolutionAttachment Entity, string SourcePath, string DestPath)> stagedAttachments = null;
+
+            if (submitAction == "Cancel")
+            {
+                Console.WriteLine("Cancel button clicked, no changes will be saved.");
+                TempData["info"] = "Action cancelled. All changes were rolled back.";
+                redirectUrl = model.Id > 0 ? Url.Action("MySolutions") : Url.Action("IssueList", "Issue");
+                return Json(new { success = true, redirectTo = redirectUrl });
+            }
+
             if (!ModelState.IsValid)
             {
-                Console.WriteLine("ModelState invalid. Errors:");
-                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                {
-                    Console.WriteLine($" - {error.ErrorMessage}");
-                }
                 await PopulateViewModel(model);
+                Console.WriteLine($"ModelState invalid: {string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))}");
                 return Json(new { success = false, message = "Validation failed", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
             }
 
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                Solution solution;
-                string userId = user.Id;
                 if (model.Id > 0) // Edit
                 {
                     solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == model.Id && !s.IsDeleted,
                         includeProperties: "Attachments,References");
-                    if (solution == null) return Json(new { success = false, message = "Solution not found" });
+                    if (solution == null)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        return Json(new { success = false, message = "Solution not found" });
+                    }
 
                     solution.Title = model.Title;
                     solution.CategoryId = model.CategoryId;
@@ -156,14 +168,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.HtmlContent = model.HtmlContent;
                     solution.PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent);
                     solution.IssueDescription = model.IssueDescription;
-                    solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
+                    solution.Status = submitAction == "Save" ? "Draft" : "Submitted"; // Keep "Submitted"
                     solution.UpdateAudit(userId);
-                    _unitOfWork.Solution.Update(solution);
-
-                    if (submitAction == "Submit" && string.IsNullOrEmpty(solution.DocId))
+                    if (submitAction == "Submit" && solution.DocId == null)
                     {
                         solution.DocId = await GenerateDocId(solution);
                     }
+                    _unitOfWork.Solution.Update(solution);
+                    await _unitOfWork.SaveAsync();
+                    Console.WriteLine($"Updated and saved solution: {solution.Id}");
                 }
                 else // Create
                 {
@@ -178,48 +191,171 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         HtmlContent = model.HtmlContent,
                         PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent),
                         IssueDescription = model.IssueDescription,
-                        Status = submitAction == "Save" ? "Draft" : "Submitted"
+                        Status = submitAction == "Save" ? "Draft" : "Submitted" // Keep "Submitted"
                     };
+                    solution.UpdateAudit(userId);
                     if (submitAction == "Submit")
                     {
                         solution.DocId = await GenerateDocId(solution);
                     }
-                    solution.UpdateAudit(userId);
                     _unitOfWork.Solution.Add(solution);
+                    await _unitOfWork.SaveAsync();
+                    Console.WriteLine($"Created and saved new solution: {solution.Id}");
                 }
 
-                await _unitOfWork.SaveAsync();
-                Console.WriteLine($"Solution {(model.Id > 0 ? "updated" : "added")} with ID: {solution.Id}");
-
+                // Process Attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || (files?.Count > 0))
                 {
-                    await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
-                }
-                if (!string.IsNullOrEmpty(ReferenceData))
-                {
-                    var references = JsonConvert.DeserializeObject<List<SolutionReference>>(ReferenceData);
-                    await SaveReferences(references, solution.Id, userId);
+                    savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
+                    stagedAttachments = new List<(SolutionAttachment, string, string)>();
+                    var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
+
+                    foreach (var item in savedAttachments)
+                    {
+                        var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
+                        var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
+                        var source = (string)item.GetType().GetProperty("source")?.GetValue(item);
+                        var existingAttachment = existingAttachments.FirstOrDefault(a => a.FilePath == filePath); // Check by FilePath
+                        SolutionAttachment entity;
+
+                        if (existingAttachment != null)
+                        {
+                            entity = existingAttachment; // Update existing
+                            entity.Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
+                            entity.IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+                            entity.Source = source;
+                            entity.UpdateAudit(userId);
+                            _unitOfWork.SolutionAttachment.Update(entity);
+                        }
+                        else
+                        {
+                            entity = new SolutionAttachment
+                            {
+                                FileName = guidFileName,
+                                FilePath = filePath,
+                                Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item),
+                                IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item),
+                                SolutionId = solution.Id,
+                                Source = source
+                            };
+                            entity.UpdateAudit(userId);
+                            _unitOfWork.SolutionAttachment.Add(entity);
+                            existingAttachments.Add(entity);
+                        }
+
+                        // Stage for file copying with original filename for category lookup
+                        string originalFileName = source == "CategoryTemplate" && AttachmentData != null
+                            ? Newtonsoft.Json.JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(AttachmentData)
+                                .FirstOrDefault(a => a["fileName"].ToString().EndsWith(Path.GetExtension(guidFileName)))?["fileName"]?.ToString()
+                            : null;
+                        string sourcePath = source == "CategoryTemplate"
+                            ? Path.Combine(_attachmentSettings.UploadPath, (await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted))?.FilePath ?? "")
+                            : null;
+                        string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
+                        stagedAttachments.Add((entity, sourcePath, destPath));
+                    }
                 }
 
-                await _unitOfWork.CommitTransactionAsync();
-                TempData["success"] = submitAction == "Save" ? "Solution saved as draft!" : "Solution submitted for review!";
-                var redirectUrl = submitAction == "Save" ? Url.Action("MySolutions") : Url.Action("Approvals");
-                Console.WriteLine($"Success! Returning redirectTo: {redirectUrl}");
-                return Json(new { success = true, redirectTo = redirectUrl });
+                // Process References
+                if (!string.IsNullOrEmpty(ReferenceData))
+                {
+                    savedReferences = await ProcessReferencesAsync(solution, ReferenceData, userId);
+                }
+
+                switch (submitAction)
+                {
+                    case "Save":
+                        string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
+                        if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
+
+                        if (stagedAttachments != null && stagedAttachments.Any())
+                        {
+                            foreach (var (entity, sourcePath, destPath) in stagedAttachments)
+                            {
+                                if (entity.Source == "CategoryTemplate" && !string.IsNullOrEmpty(sourcePath) && System.IO.File.Exists(sourcePath))
+                                {
+                                    System.IO.File.Copy(sourcePath, destPath, overwrite: true);
+                                    Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
+                                }
+                                else if (entity.Source == "Upload" && files != null)
+                                {
+                                    var file = files.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
+                                    if (file != null && !System.IO.File.Exists(destPath))
+                                    {
+                                        using (var fileStream = new FileStream(destPath, FileMode.Create))
+                                        {
+                                            await file.CopyToAsync(fileStream);
+                                            Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        await _unitOfWork.SaveAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        Console.WriteLine($"Committed transaction: Saved solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
+                        TempData["success"] = "Solution saved as draft!";
+                        redirectUrl = Url.Action("MySolutions");
+                        break;
+
+                    case "Submit":
+                        solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
+                        if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
+
+                        if (stagedAttachments != null && stagedAttachments.Any())
+                        {
+                            foreach (var (entity, sourcePath, destPath) in stagedAttachments)
+                            {
+                                if (entity.Source == "CategoryTemplate" && !string.IsNullOrEmpty(sourcePath) && System.IO.File.Exists(sourcePath))
+                                {
+                                    System.IO.File.Copy(sourcePath, destPath, overwrite: true);
+                                    Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
+                                }
+                                else if (entity.Source == "Upload" && files != null)
+                                {
+                                    var file = files.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
+                                    if (file != null && !System.IO.File.Exists(destPath))
+                                    {
+                                        using (var fileStream = new FileStream(destPath, FileMode.Create))
+                                        {
+                                            await file.CopyToAsync(fileStream);
+                                            Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        await _unitOfWork.SaveAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        Console.WriteLine($"Committed transaction: Submitted solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
+                        TempData["success"] = "Solution submitted for review!";
+                        redirectUrl = Url.Action("Approvals");
+                        break;
+
+                    default:
+                        await _unitOfWork.RollbackTransactionAsync();
+                        Console.WriteLine("Unknown submitAction: " + submitAction);
+                        return Json(new { success = false, message = "Invalid submit action." });
+                }
+
+                return Json(new { success = true, redirectTo = redirectUrl, attachments = savedAttachments, references = savedReferences });
             }
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
                 Console.WriteLine($"Error in Upsert: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error: {ex.Message}" });
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+                return Json(new { success = false, message = $"Error: {ex.Message}", innerException = ex.InnerException?.Message });
             }
         }
-
         [HttpGet]
         public async Task<IActionResult> Approvals()
         {
             var solutions = await _unitOfWork.Solution.GetAllAsync(s => s.Status == "Submitted" && !s.IsDeleted,
-                includeProperties: "Category,Product,SubCategory,Author,Attachments");
+                includeProperties: "Category,Product,SubCategory,Author");
             return View(solutions);
         }
 
@@ -372,115 +508,60 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
         }
 
-        private async Task ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? AttachmentData, string userId)
+        private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId)
         {
-            Console.WriteLine($"Processing attachments for Solution ID: {solution.Id}");
-            if (string.IsNullOrEmpty(AttachmentData) && (files == null || files.Count == 0))
+            var attachments = new List<object>();
+
+            if (!string.IsNullOrEmpty(attachmentData))
             {
-                Console.WriteLine("No attachments to process.");
-                return;
-            }
-
-            string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
-            if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
-
-            var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
-            var attachmentInfos = string.IsNullOrEmpty(AttachmentData)
-                ? new List<SolutionAttachment>()
-                : JsonConvert.DeserializeObject<List<SolutionAttachment>>(AttachmentData);
-            Console.WriteLine($"Attachment Infos: {JsonConvert.SerializeObject(attachmentInfos)}");
-
-            foreach (var attachmentInfo in attachmentInfos)
-            {
-                if (attachmentInfo.Id > 0) // Update existing attachment
+                var stagedAttachments = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                foreach (var att in stagedAttachments)
                 {
-                    var existing = existingAttachments.FirstOrDefault(a => a.Id == attachmentInfo.Id);
-                    if (existing != null)
+                    string originalFileName = att["fileName"].ToString();
+                    string guidFileName = $"{Guid.NewGuid()}{Path.GetExtension(originalFileName)}";
+                    string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
+                    attachments.Add(new
                     {
-                        existing.Caption = attachmentInfo.Caption;
-                        existing.IsInternal = attachmentInfo.IsInternal;
-                        existing.UpdateAudit(userId);
-                        _unitOfWork.SolutionAttachment.Update(existing);
-                        Console.WriteLine($"Updated attachment ID: {existing.Id}");
-                    }
-                }
-                else // New attachment from category template
-                {
-                    var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == attachmentInfo.FileName && a.CategoryId == solution.CategoryId && !a.IsDeleted);
-                    string newFilePath;
-                    if (categoryAttachment != null)
-                    {
-                        string categoryFilePath = Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath);
-                        string newFileName = Guid.NewGuid().ToString() + Path.GetExtension(categoryAttachment.FileName);
-                        newFilePath = Path.Combine("solutions", solution.Id.ToString(), newFileName).Replace("\\", "/");
-
-                        string destinationPath = Path.Combine(solutionPath, newFileName);
-                        if (System.IO.File.Exists(categoryFilePath))
-                        {
-                            System.IO.File.Copy(categoryFilePath, destinationPath, overwrite: true);
-                            Console.WriteLine($"Copied category attachment from {categoryFilePath} to {destinationPath}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"Category attachment file not found: {categoryFilePath}");
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        newFilePath = attachmentInfo.FilePath ?? "";
-                        Console.WriteLine($"No matching category attachment found for {attachmentInfo.FileName}, using provided FilePath");
-                    }
-
-                    var newAttachment = new SolutionAttachment
-                    {
-                        FileName = attachmentInfo.FileName,
-                        FilePath = newFilePath,
-                        Caption = attachmentInfo.Caption,
-                        IsInternal = attachmentInfo.IsInternal,
-                        SolutionId = solution.Id,
-                        Source = categoryAttachment != null ? "CategoryTemplate" : null
-                    };
-                    newAttachment.UpdateAudit(userId);
-                    _unitOfWork.SolutionAttachment.Add(newAttachment);
-                    Console.WriteLine($"Added new attachment: {newAttachment.FileName}");
+                        fileName = guidFileName,
+                        filePath,
+                        caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null,
+                        isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString()),
+                        source = "CategoryTemplate"
+                    });
                 }
             }
 
-            if (files != null && files.Count > 0)
+            if (files?.Count > 0)
             {
                 foreach (var file in files)
                 {
-                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-                    string filePath = Path.Combine(solutionPath, fileName);
-                    using (var fileStream = new FileStream(filePath, FileMode.Create))
+                    string guidFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                    string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
+                    if (!attachments.Any(a => a.GetType().GetProperty("filePath").GetValue(a).ToString() == filePath))
                     {
-                        await file.CopyToAsync(fileStream);
+                        attachments.Add(new
+                        {
+                            fileName = guidFileName,
+                            filePath,
+                            caption = "",
+                            isInternal = false,
+                            source = "Upload"
+                        });
                     }
-                    var attachmentInfo = attachmentInfos.FirstOrDefault(ai => ai.Id == 0 && ai.FileName == file.FileName)
-                        ?? new SolutionAttachment();
-                    var newAttachment = new SolutionAttachment
-                    {
-                        FileName = fileName,
-                        FilePath = Path.Combine("solutions", solution.Id.ToString(), fileName).Replace("\\", "/"),
-                        Caption = attachmentInfo.Caption ?? "",
-                        IsInternal = attachmentInfo.IsInternal,
-                        SolutionId = solution.Id,
-                        Source = "Upload"
-                    };
-                    newAttachment.UpdateAudit(userId);
-                    _unitOfWork.SolutionAttachment.Add(newAttachment);
-                    Console.WriteLine($"Added file attachment: {fileName}");
                 }
             }
 
-            await _unitOfWork.SaveAsync();
-            Console.WriteLine("Attachments saved successfully.");
+            return attachments;
         }
 
-        private async Task SaveReferences(List<SolutionReference> references, int solutionId, string userId)
+        private async Task<List<object>> ProcessReferencesAsync(Solution solution, string? ReferenceData, string userId)
         {
-            var existingReferences = (await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == solutionId && !r.IsDeleted)).ToList();
+            var savedReferences = new List<object>();
+            if (string.IsNullOrEmpty(ReferenceData)) return savedReferences;
+
+            var existingReferences = (await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == solution.Id && !r.IsDeleted)).ToList();
+            var references = JsonConvert.DeserializeObject<List<SolutionReference>>(ReferenceData);
+
             foreach (var reference in references)
             {
                 if (reference.Id > 0)
@@ -494,26 +575,68 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         existing.OpenOption = reference.OpenOption;
                         existing.UpdateAudit(userId);
                         _unitOfWork.SolutionReference.Update(existing);
+                        savedReferences.Add(new { id = existing.Id, url = existing.Url, description = existing.Description, isInternal = existing.IsInternal, openOption = existing.OpenOption });
+                        Console.WriteLine($"Updated reference: {existing.Url}, ID: {existing.Id}");
                     }
                 }
                 else
                 {
-                    reference.SolutionId = solutionId;
-                    reference.UpdateAudit(userId);
-                    _unitOfWork.SolutionReference.Add(reference);
+                    var newReference = new SolutionReference
+                    {
+                        Url = reference.Url,
+                        Description = reference.Description,
+                        IsInternal = reference.IsInternal,
+                        OpenOption = reference.OpenOption,
+                        SolutionId = solution.Id
+                    };
+                    newReference.UpdateAudit(userId);
+                    _unitOfWork.SolutionReference.Add(newReference);
+                    savedReferences.Add(new { id = newReference.Id, url = newReference.Url, description = newReference.Description, isInternal = newReference.IsInternal, openOption = newReference.OpenOption });
+                    Console.WriteLine($"Staged new reference: {newReference.Url}");
                 }
             }
-            await _unitOfWork.SaveAsync();
+
+            return savedReferences;
         }
 
         private async Task<string> GenerateDocId(Solution solution)
         {
-            var product = await _unitOfWork.Product.GetFirstOrDefaultAsync(p => p.Id == solution.ProductId);
-            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == solution.CategoryId);
-            var lastSolution = (await _unitOfWork.Solution.GetAllAsync(s => s.ProductId == solution.ProductId && s.CategoryId == solution.CategoryId && !s.IsDeleted))
-                .OrderByDescending(s => s.Id).FirstOrDefault();
-            int nextNumber = lastSolution != null ? int.Parse(lastSolution.DocId.Split('.')[0].Substring(product.ProductName.Length + category.Name.Length)) + 1 : 1;
-            return $"{product.ProductName}{category.Name}{nextNumber}.1";
+            // Get the current year
+            string year = DateTime.UtcNow.Year.ToString(); // e.g., "2025"
+
+            // Fetch product and its code
+            var product = await _unitOfWork.Product.GetFirstOrDefaultAsync(p => p.Id == solution.ProductId && !p.IsDeleted);
+            if (product == null)
+            {
+                throw new ArgumentException($"ProductId {solution.ProductId} not found.");
+            }
+            string productCode = product.Code; // e.g., "01" for HDFC
+
+            // Fetch subcategory and its code (default to "00" if none)
+            string subCategoryCode = "00";
+            if (solution.SubCategoryId.HasValue)
+            {
+                var subCategory = await _unitOfWork.SubCategory.GetFirstOrDefaultAsync(sc => sc.Id == solution.SubCategoryId.Value && !sc.IsDeleted);
+                if (subCategory == null)
+                {
+                    throw new ArgumentException($"SubCategoryId {solution.SubCategoryId} not found.");
+                }
+                subCategoryCode = subCategory.Code; // e.g., "01" for Sub1
+            }
+
+            // Count existing solutions for this product and subcategory in the current year
+            var existingSolutions = await _unitOfWork.Solution.GetAllAsync(s =>
+                s.ProductId == solution.ProductId &&
+                s.SubCategoryId == solution.SubCategoryId &&
+                s.CreatedDate.Year == DateTime.UtcNow.Year &&
+                s.IsDeleted == false &&
+                s.DocId != null); // Only count submitted solutions with DocId
+
+            int solutionNumber = existingSolutions.Count() + 1; // Next number
+            string solutionNumberStr = solutionNumber.ToString("D2"); // Pads to 2 digits, e.g., "03"
+
+            // Combine: YYYY + PP + SS + .NN
+            return $"{year}{productCode}{subCategoryCode}.{solutionNumberStr}";
         }
 
         private async Task PopulateViewModel(SolutionViewModel model)

@@ -5,7 +5,7 @@ namespace SupportHub.Models
     public class Solution : AuditableEntity
     {
         public string Title { get; set; }
-        public string DocId { get; set; }
+        public string? DocId { get; set; }
         public int CategoryId { get; set; }
         public Category Category { get; set; }
         public int ProductId { get; set; }

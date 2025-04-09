@@ -11,6 +11,13 @@
         <div class="mb-3">
             <label class="form-label">Product Name:</label>
             <input asp-for="ProductName" class="form-control" required />
+            <span asp-validation-for="ProductName" class="text-danger"></span>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Code (2-digit number):</label>
+            <input asp-for="Code" class="form-control" required />
+            <span asp-validation-for="Code" class="text-danger"></span>
         </div>
 
         <div class="mb-3">
@@ -47,7 +54,6 @@
 </div>
 
 <div class="mb-5 pb-5"></div>
-<!-- Spacer to push content above footer -->
 <div style="min-height: 100px;"></div>
 
 <script>
@@ -70,7 +76,6 @@
     }
 
     function editSubcategory(sub) {
-        // Find the row for this subcategory
         var tbody = document.getElementById("subCategoryTable").querySelector("tbody");
         var rows = tbody.getElementsByTagName("tr");
 
@@ -78,35 +83,29 @@
             var row = rows[i];
             var nameCell = row.cells[0];
             if (nameCell.textContent === sub) {
-                // Replace the name with an input field
                 nameCell.innerHTML = `<input type="text" class="form-control" value="${sub}" id="editInput-${sub}" />`;
-
-                // Replace the action buttons with Save and Cancel
                 var actionCell = row.cells[1];
                 actionCell.innerHTML = `
-                        <button type="button" class="btn btn-success btn-sm" onclick="saveSubcategory('${sub}')">
-                            <i class="fas fa-check"></i> Save
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('${sub}')">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>`;
+                    <button type="button" class="btn btn-success btn-sm" onclick="saveSubcategory('${sub}')">
+                        <i class="fas fa-check"></i> Save
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('${sub}')">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>`;
                 break;
             }
         }
     }
 
     function saveSubcategory(oldName) {
-        // Get the new name from the input field
         var input = document.getElementById(`editInput-${oldName}`);
         var newName = input.value.trim();
 
         if (newName && newName !== oldName && !subcategories.includes(newName)) {
-            // Update the subcategory name in the array
             var index = subcategories.indexOf(oldName);
             subcategories[index] = newName;
             updateSubcategoryTable();
         } else if (newName === oldName) {
-            // If the name hasn't changed, just revert to display mode
             updateSubcategoryTable();
         } else {
             alert("Subcategory name cannot be empty or already exists!");
@@ -114,7 +113,6 @@
     }
 
     function cancelEdit(sub) {
-        // Revert to display mode without saving changes
         updateSubcategoryTable();
     }
 
@@ -125,16 +123,16 @@
         tbody.innerHTML = "";
         subcategories.forEach(sub => {
             var row = `<tr>
-                                <td>${sub}</td>
-                                <td>
-                                    <button type="button" class="btn btn-warning btn-sm" onclick="editSubcategory('${sub}')">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeSubcategory('${sub}')">
-                                        <i class="fas fa-trash"></i> Remove
-                                    </button>
-                                </td>
-                              </tr>`;
+                            <td>${sub}</td>
+                            <td>
+                                <button type="button" class="btn btn-warning btn-sm" onclick="editSubcategory('${sub}')">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeSubcategory('${sub}')">
+                                    <i class="fas fa-trash"></i> Remove
+                                </button>
+                            </td>
+                          </tr>`;
             tbody.innerHTML += row;
         });
 
@@ -142,6 +140,5 @@
         table.style.display = subcategories.length > 0 ? "table" : "none";
     }
 
-    // Initialize table on page load
     updateSubcategoryTable();
 </script>

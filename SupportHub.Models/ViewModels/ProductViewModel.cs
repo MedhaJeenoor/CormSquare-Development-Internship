@@ -11,6 +11,7 @@ namespace SupportHub.Models
         public int Id { get; set; }
         public string ProductName { get; set; }
         public string Description { get; set; }
+        public string Code { get; set; }
         public List<string> SubCategoryNames { get; set; } = new List<string>();
     }
 

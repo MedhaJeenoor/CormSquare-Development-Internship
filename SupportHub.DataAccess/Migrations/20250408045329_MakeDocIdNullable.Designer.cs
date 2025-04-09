@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250408045329_MakeDocIdNullable")]
+    partial class MakeDocIdNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "94344321-e486-4636-976a-5233eeadaef4",
+                            Id = "a02947e6-0abc-48ff-9e78-4e2c23d0740f",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "446c9476-db87-4152-8a8e-a54d9ea041cb",
+                            Id = "50a1b25c-89f0-428c-b051-ee930cfaf2ae",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "4701db37-52dd-43d6-9a81-3fe8ee634819",
+                            Id = "f89fc2a3-a1fc-470b-94b2-8a41fafa46ef",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "5e3e3c8e-4d75-42dc-bb63-2df516997fec",
+                            Id = "fc3105e6-0540-4759-8a3e-8a017694d717",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });
@@ -370,7 +373,7 @@ namespace SupportHub.DataAccess.Migrations
                         {
                             Id = 1,
                             CreatedBy = "00000000-0000-0000-0000-000000000001",
-                            CreatedDate = new DateTime(2025, 4, 8, 5, 51, 39, 870, DateTimeKind.Utc).AddTicks(1481),
+                            CreatedDate = new DateTime(2025, 4, 8, 4, 53, 28, 506, DateTimeKind.Utc).AddTicks(1966),
                             Description = "Different types of documentation for knowledge management.",
                             DisplayOrder = 1,
                             HtmlContent = "",
@@ -451,10 +454,6 @@ namespace SupportHub.DataAccess.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -753,10 +752,6 @@ namespace SupportHub.DataAccess.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
