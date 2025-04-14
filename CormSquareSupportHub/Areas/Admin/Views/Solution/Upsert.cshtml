@@ -111,7 +111,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal })))" />
                 </div>
 
                 <!-- References Section -->
@@ -206,11 +206,6 @@
                             editor.setContent(data.htmlContent || '');
                             $('#HtmlContent').val(editor.getContent());
                         }
-                        // Clear existing attachments and references before loading new ones
-                        window.attachments = [];
-                        window.references = [];
-                        $('#attachmentList').empty();
-                        $('#referenceList').empty();
                         window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
                     }
                 }).fail(function () {
@@ -294,7 +289,6 @@
                 });
             });
 
-            // Expose removeAttachment globally for onclick handlers
             window.removeAttachment = removeAttachment;
         });
 

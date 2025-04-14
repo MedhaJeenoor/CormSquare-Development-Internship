@@ -6,16 +6,14 @@
 
     // Initialize existing solution attachments
     document.querySelectorAll('#attachmentList li').forEach((li, index) => {
-        const attachmentId = parseInt(li.dataset.attachmentId);
-        if (attachmentId) {
-            window.attachments.push({
-                id: attachmentId,
-                fileName: li.querySelector('a').textContent,
-                caption: li.querySelector('.caption-input').value,
-                isInternal: li.querySelector('.internal-attachment').checked
-            });
-            addAttachmentEventListeners(li, index);
-        }
+        const attachmentId = parseInt(li.dataset.attachmentId) || 0;
+        window.attachments.push({
+            id: attachmentId,
+            fileName: li.querySelector('a').textContent,
+            caption: li.querySelector('.caption-input').value,
+            isInternal: li.querySelector('.internal-attachment').checked
+        });
+        addAttachmentEventListeners(li, index);
     });
     console.log("Attachments initialized:", window.attachments);
 
@@ -103,7 +101,7 @@
             const index = parseInt(e.target.dataset.index);
             const attachmentId = window.attachments[index].id;
             if (attachmentId > 0) {
-                window.removeAttachment(attachmentId); // Use the global function from Upsert.cshtml
+                window.removeAttachment(attachmentId);
             } else {
                 window.attachments.splice(index, 1);
                 window.reindexAttachments();
@@ -215,7 +213,12 @@
     };
 
     function updateAttachmentData() {
-        document.getElementById("attachmentData").value = JSON.stringify(window.attachments.length > 0 ? window.attachments : []);
+        document.getElementById("attachmentData").value = JSON.stringify(window.attachments.map(a => ({
+            id: a.id,
+            fileName: a.fileName,
+            caption: a.caption,
+            isInternal: a.isInternal
+        })));
     }
 
     function updateReferenceData() {
@@ -233,9 +236,9 @@
 
     window.updateAttachmentsAndReferences = function (attachmentsFromCategory, referencesFromCategory) {
         attachmentsFromCategory.forEach(att => {
-            if (!window.attachments.some(a => a.fileName === att.fileName && a.id > 0)) {
+            if (!window.attachments.some(a => a.fileName === att.fileName && a.id === att.id)) {
                 window.attachments.push({
-                    id: 0,
+                    id: att.id || 0,
                     fileName: att.fileName,
                     caption: att.caption || '',
                     isInternal: att.isInternal || false
@@ -244,9 +247,9 @@
         });
 
         referencesFromCategory.forEach(ref => {
-            if (!window.references.some(r => r.url === ref.url && r.id > 0)) {
+            if (!window.references.some(r => r.url === ref.url && r.id === ref.id)) {
                 window.references.push({
-                    id: 0,
+                    id: ref.id || 0,
                     url: ref.url,
                     description: ref.description || '',
                     isInternal: ref.isInternal || false,
