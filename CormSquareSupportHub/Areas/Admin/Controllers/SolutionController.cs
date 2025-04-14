@@ -77,11 +77,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 model.Attachments = solution.Attachments.Where(a => !a.IsDeleted).ToList();
                 model.References = solution.References.Where(r => !r.IsDeleted).ToList();
 
-                // Set ViewData["AttachmentLinks"] with GUID-based FileName
                 ViewData["AttachmentLinks"] = model.Attachments.Select(a => new
                 {
                     Id = a.Id,
-                    FileName = a.FileName, // GUID-based (e.g., "c2d13bc7-7b59-4b26-85a9-aad41e728972.png")
+                    FileName = a.FileName,
                     Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" }),
                     IsInternal = a.IsInternal
                 }).ToList();
@@ -105,7 +104,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-    string? ReferenceData, string? AttachmentData, string submitAction)
+            string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -212,19 +211,28 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
                     foreach (var item in savedAttachments)
                     {
+                        var id = (int)item.GetType().GetProperty("id").GetValue(item);
                         var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
                         var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
                         var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
-                        var existingAttachment = existingAttachments.FirstOrDefault(a => a.FilePath == filePath);
+                        var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
+                        var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
 
                         SolutionAttachment entity;
-                        if (existingAttachment != null)
+                        if (id > 0)
                         {
-                            entity = existingAttachment;
-                            entity.Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
-                            entity.IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
-                            entity.UpdateAudit(userId);
-                            _unitOfWork.SolutionAttachment.Update(entity);
+                            entity = existingAttachments.FirstOrDefault(a => a.Id == id);
+                            if (entity != null)
+                            {
+                                entity.Caption = caption;
+                                entity.IsInternal = isInternal;
+                                entity.UpdateAudit(userId);
+                                _unitOfWork.SolutionAttachment.Update(entity);
+                            }
+                            else
+                            {
+                                continue; // Skip if ID doesn't match any existing attachment
+                            }
                         }
                         else
                         {
@@ -232,8 +240,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             {
                                 FileName = guidFileName,
                                 FilePath = filePath,
-                                Caption = (string)item.GetType().GetProperty("caption")?.GetValue(item),
-                                IsInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item),
+                                Caption = caption,
+                                IsInternal = isInternal,
                                 SolutionId = solution.Id
                             };
                             entity.UpdateAudit(userId);
@@ -241,7 +249,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             existingAttachments.Add(entity);
                         }
 
-                        // Stage all attachments for disk saving
+                        // Stage attachments for disk saving
                         string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
                         string sourcePath = null;
                         var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
@@ -271,15 +279,21 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         {
                             foreach (var (entity, sourcePath, destPath) in stagedAttachments)
                             {
-                                if (sourcePath != null && System.IO.File.Exists(sourcePath) && !System.IO.File.Exists(destPath)) // Category file
+                                if (System.IO.File.Exists(destPath))
                                 {
-                                    System.IO.File.Copy(sourcePath, destPath, overwrite: true);
+                                    Console.WriteLine($"File already exists: {destPath}, skipping copy.");
+                                    continue;
+                                }
+
+                                if (sourcePath != null && System.IO.File.Exists(sourcePath)) // Category file
+                                {
+                                    System.IO.File.Copy(sourcePath, destPath, overwrite: false);
                                     Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
                                 }
-                                else // Uploaded file or missing category file
+                                else // Uploaded file
                                 {
                                     var file = files?.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
-                                    if (file != null && !System.IO.File.Exists(destPath))
+                                    if (file != null)
                                     {
                                         using (var fileStream = new FileStream(destPath, FileMode.Create))
                                         {
@@ -287,7 +301,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                             Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
                                         }
                                     }
-                                    else if (sourcePath == null && !System.IO.File.Exists(destPath))
+                                    else
                                     {
                                         Console.WriteLine($"Warning: No source file found for {entity.FileName} and it’s not uploaded.");
                                     }
@@ -319,6 +333,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = $"Error: {ex.Message}", innerException = ex.InnerException?.Message });
             }
         }
+
         [HttpGet]
         public async Task<IActionResult> Approvals()
         {
@@ -483,22 +498,37 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             if (!string.IsNullOrEmpty(attachmentData))
             {
-                var stagedAttachments = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                var stagedAttachments = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
                 foreach (var att in stagedAttachments)
                 {
+                    int attachmentId = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
                     string originalFileName = att["fileName"].ToString();
                     string guidFileName = att.ContainsKey("guidFileName") && !string.IsNullOrEmpty(att["guidFileName"]?.ToString())
                         ? att["guidFileName"].ToString()
                         : $"{Guid.NewGuid()}{Path.GetExtension(originalFileName)}";
                     string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
+                    bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
+                    string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
 
-                    if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
+                    var existingAttachment = attachmentId > 0 ? existingAttachments.FirstOrDefault(a => a.Id == attachmentId) : null;
+
+                    if (existingAttachment != null)
                     {
-                        bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
-                        string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
-
                         attachments.Add(new
                         {
+                            id = existingAttachment.Id,
+                            fileName = existingAttachment.FileName,
+                            filePath = existingAttachment.FilePath,
+                            caption,
+                            isInternal,
+                            originalFileName
+                        });
+                    }
+                    else if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
+                    {
+                        attachments.Add(new
+                        {
+                            id = 0,
                             fileName = guidFileName,
                             filePath,
                             caption,
@@ -559,18 +589,14 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         private async Task<string> GenerateDocId(Solution solution)
         {
-            // Get the current year
-            string year = DateTime.UtcNow.Year.ToString(); // e.g., "2025"
-
-            // Fetch product and its code
+            string year = DateTime.UtcNow.Year.ToString();
             var product = await _unitOfWork.Product.GetFirstOrDefaultAsync(p => p.Id == solution.ProductId && !p.IsDeleted);
             if (product == null)
             {
                 throw new ArgumentException($"ProductId {solution.ProductId} not found.");
             }
-            string productCode = product.Code; // e.g., "01" for HDFC
+            string productCode = product.Code;
 
-            // Fetch subcategory and its code (default to "00" if none)
             string subCategoryCode = "00";
             if (solution.SubCategoryId.HasValue)
             {
@@ -579,21 +605,19 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 {
                     throw new ArgumentException($"SubCategoryId {solution.SubCategoryId} not found.");
                 }
-                subCategoryCode = subCategory.Code; // e.g., "01" for Sub1
+                subCategoryCode = subCategory.Code;
             }
 
-            // Count existing solutions for this product and subcategory in the current year
             var existingSolutions = await _unitOfWork.Solution.GetAllAsync(s =>
                 s.ProductId == solution.ProductId &&
                 s.SubCategoryId == solution.SubCategoryId &&
                 s.CreatedDate.Year == DateTime.UtcNow.Year &&
                 s.IsDeleted == false &&
-                s.DocId != null); // Only count submitted solutions with DocId
+                s.DocId != null);
 
-            int solutionNumber = existingSolutions.Count() + 1; // Next number
-            string solutionNumberStr = solutionNumber.ToString("D2"); // Pads to 2 digits, e.g., "03"
+            int solutionNumber = existingSolutions.Count() + 1;
+            string solutionNumberStr = solutionNumber.ToString("D2");
 
-            // Combine: YYYY + PP + SS + .NN
             return $"{year}{productCode}{subCategoryCode}.{solutionNumberStr}";
         }
 
