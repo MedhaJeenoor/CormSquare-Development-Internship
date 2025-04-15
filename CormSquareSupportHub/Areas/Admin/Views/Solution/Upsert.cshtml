@@ -97,7 +97,7 @@
                                     var isInternal = attachment?.IsInternal ?? false;
                                     <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
                                         <div>
-                                            <a href="@link.Url" target="_blank">@link.FileName</a><br />
+                                            <a href="@link.Url" download="@link.FileName">@link.FileName</a><br />
                                             <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@(attachment?.Caption ?? "")" />
                                         </div>
                                         <div>
@@ -169,7 +169,7 @@
 
     <script>
         $(document).ready(function () {
-            console.log("Upsert view script loaded (v2.2)");
+            console.log("Upsert view script loaded (v2.4)");
             const urlParams = new URLSearchParams(window.location.search);
             const isCreateMode = !urlParams.has('id');
             console.log("isCreateMode:", isCreateMode);
@@ -236,6 +236,7 @@
             });
 
             function loadCategoryTemplate(categoryId) {
+                console.log(`Loading template for categoryId=${categoryId}`);
                 $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
                     console.log('GetCategoryTemplate response:', data);
                     if (data.success) {
@@ -247,11 +248,12 @@
                         // Reset attachments and references to clear previous category data
                         window.attachments = [];
                         window.references = [];
-                        console.log('Before updateAttachmentsAndReferences:', window.references);
+                        console.log('Before updateAttachmentsAndReferences:', { attachments: window.attachments, references: window.references });
                         $('#attachmentList').empty();
                         $('#referenceList').empty();
                         window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
                         console.log('After updateAttachmentsAndReferences:', {
+                            attachments: window.attachments,
                             references: window.references,
                             referenceData: $('#referenceData').val()
                         });
@@ -282,6 +284,7 @@
 
             function removeAttachment(attachmentId) {
                 if (confirm('Are you sure you want to remove this attachment?')) {
+                    console.log(`Removing attachment: id=${attachmentId}`);
                     $.post('/Admin/Solution/RemoveAttachment', { id: attachmentId }, function (response) {
                         if (response.success) {
                             toastr.success(response.message);
