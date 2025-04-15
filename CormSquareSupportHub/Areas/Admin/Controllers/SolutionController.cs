@@ -438,28 +438,37 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCategoryTemplate(int categoryId)
         {
-            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == categoryId && !c.IsDeleted,
-                includeProperties: "Attachments,References");
-            if (category == null) return Json(new { success = false });
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == categoryId && !c.IsDeleted);
+            if (category == null) return Json(new { success = false, message = "Category not found." });
 
-            var attachmentLinks = category.Attachments
-                .Where(a => !a.IsDeleted)
-                .Select(a => new
+            var attachments = await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == categoryId && !a.IsDeleted);
+            var references = await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == categoryId && !r.IsDeleted);
+
+            var response = new
+            {
+                success = true,
+                htmlContent = category.HtmlContent,
+                attachments = attachments.Select(a => new
                 {
                     a.Id,
                     a.FileName,
                     a.Caption,
                     a.IsInternal,
-                    Url = Url.Action("DownloadCategoryAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" })
-                });
+                    Url = $"/Admin/Solution/DownloadCategoryAttachment?attachmentId={a.Id}",
+                    a.FilePath // For debugging
+                }),
+                references = references.Select(r => new
+                {
+                    r.Id,
+                    r.Url,
+                    r.Description,
+                    r.IsInternal,
+                    r.OpenOption
+                })
+            };
 
-            return Json(new
-            {
-                success = true,
-                htmlContent = category.HtmlContent,
-                attachments = attachmentLinks,
-                references = category.References.Where(r => !r.IsDeleted).Select(r => new { r.Id, r.Url, r.Description, r.IsInternal, r.OpenOption })
-            });
+            Console.WriteLine($"GetCategoryTemplate for categoryId={categoryId}: {JsonConvert.SerializeObject(response.attachments, Formatting.Indented)}");
+            return Json(response);
         }
 
         [HttpPost]
@@ -683,33 +692,99 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> DownloadAttachment(int attachmentId)
         {
+            Console.WriteLine($"DownloadAttachment called: attachmentId={attachmentId}");
             var user = await _userManager.GetUserAsync(User);
-            if (user == null) return Unauthorized();
+            if (user == null)
+            {
+                Console.WriteLine("Unauthorized: No user found.");
+                return Unauthorized();
+            }
 
             var attachment = await _unitOfWork.SolutionAttachment.GetFirstOrDefaultAsync(a => a.Id == attachmentId && !a.IsDeleted);
-            if (attachment == null) return NotFound();
+            if (attachment == null)
+            {
+                Console.WriteLine($"Attachment not found: Id={attachmentId}");
+                return NotFound();
+            }
 
             string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath);
-            if (!System.IO.File.Exists(fullPath)) return NotFound();
+            if (!System.IO.File.Exists(fullPath))
+            {
+                Console.WriteLine($"File not found: {fullPath}");
+                return NotFound();
+            }
 
-            using var fileStream = System.IO.File.OpenRead(fullPath);
-            return this.File(fileStream, "application/octet-stream", attachment.FileName);
+            try
+            {
+                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes");
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                Console.WriteLine($"Returning File result for {attachment.FileName}");
+                return this.File(fileStream, "application/octet-stream", attachment.FileName);
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"IO Error accessing file {fullPath}: {ex.Message}");
+                return StatusCode(500, "Error reading file.");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"Access denied for file {fullPath}: {ex.Message}");
+                return StatusCode(403, "Access denied.");
+            }
         }
 
         [HttpGet]
         public async Task<IActionResult> DownloadCategoryAttachment(int attachmentId)
         {
+            Console.WriteLine($"DownloadCategoryAttachment called: attachmentId={attachmentId}");
             var user = await _userManager.GetUserAsync(User);
-            if (user == null) return Unauthorized();
+            if (user == null)
+            {
+                Console.WriteLine("Unauthorized: No user found.");
+                return Unauthorized();
+            }
 
             var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == attachmentId && !a.IsDeleted);
-            if (attachment == null) return NotFound();
+            if (attachment == null)
+            {
+                Console.WriteLine($"Attachment not found: Id={attachmentId}");
+                return NotFound();
+            }
 
             string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath);
-            if (!System.IO.File.Exists(fullPath)) return NotFound();
+            Console.WriteLine($"Computed fullPath: {fullPath}");
+            if (!System.IO.File.Exists(fullPath))
+            {
+                Console.WriteLine($"File not found: {fullPath}");
+                return NotFound();
+            }
 
-            using var fileStream = System.IO.File.OpenRead(fullPath);
-            return this.File(fileStream, "application/octet-stream", attachment.FileName);
+            try
+            {
+                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes");
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                // Use specific MIME type if PDF
+                var mimeType = attachment.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                    ? "application/pdf"
+                    : "application/octet-stream";
+                Console.WriteLine($"Returning File result for {attachment.FileName} with MIME {mimeType}");
+                return this.File(fileStream, mimeType, attachment.FileName);
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"IO Error accessing file {fullPath}: {ex.Message}");
+                return StatusCode(500, $"Error reading file: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"Access denied for file {fullPath}: {ex.Message}");
+                return StatusCode(403, $"Access denied: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error for file {fullPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return StatusCode(500, $"Unexpected error: {ex.Message}");
+            }
         }
 
         [HttpGet]
