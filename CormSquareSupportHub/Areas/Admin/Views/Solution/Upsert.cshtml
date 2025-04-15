@@ -168,7 +168,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
-                $(document).ready(function () {
+        $(document).ready(function () {
+            console.log("Upsert view script loaded (v2.2)");
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCreateMode = !urlParams.has('id');
+            console.log("isCreateMode:", isCreateMode);
             let submitActionValue = null;
 
             // Handle Save/Submit buttons
@@ -179,12 +183,12 @@
 
             // Handle Cancel button separately
             $('button[value="Cancel"]').on('click', function (e) {
-                e.preventDefault(); // Prevent form submission
+                e.preventDefault();
                 console.log('Cancel button clicked');
 
                 var formData = new FormData();
                 formData.append('submitAction', 'Cancel');
-                formData.append('Id', $('#Id').val()); // Include solution ID if editing
+                formData.append('Id', $('#Id').val());
 
                 $.ajax({
                     url: '/Admin/Solution/Upsert',
@@ -226,26 +230,53 @@
             $('#categoryDropdown').change(function () {
                 var categoryId = $(this).val();
                 if (categoryId) {
+                    console.log('Category selected:', categoryId);
                     loadCategoryTemplate(categoryId);
                 }
             });
 
             function loadCategoryTemplate(categoryId) {
                 $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
+                    console.log('GetCategoryTemplate response:', data);
                     if (data.success) {
                         var editor = tinymce.get('editor');
                         if (editor) {
                             editor.setContent(data.htmlContent || '');
                             $('#HtmlContent').val(editor.getContent());
                         }
+                        // Reset attachments and references to clear previous category data
                         window.attachments = [];
                         window.references = [];
+                        console.log('Before updateAttachmentsAndReferences:', window.references);
                         $('#attachmentList').empty();
                         $('#referenceList').empty();
                         window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
+                        console.log('After updateAttachmentsAndReferences:', {
+                            references: window.references,
+                            referenceData: $('#referenceData').val()
+                        });
+                        // Force update ReferenceData
+                        const referenceData = window.references.map(r => ({
+                            id: isCreateMode ? 0 : (r.id || 0), // Force id: 0 in create mode
+                            url: r.url,
+                            description: r.description || '',
+                            isInternal: r.isInternal || false,
+                            openOption: r.openOption || '_self'
+                        }));
+                        $('#referenceData').val(JSON.stringify(referenceData));
+                        console.log('Forced ReferenceData after category load:', $('#referenceData').val());
+                        // Call updateReferenceData if available
+                        if (typeof window.updateReferenceData === 'function') {
+                            window.updateReferenceData();
+                            console.log('Called updateReferenceData after category load:', $('#referenceData').val());
+                        } else {
+                            console.warn('window.updateReferenceData not defined during category load.');
+                        }
+                    } else {
+                        console.error('GetCategoryTemplate failed:', data.message);
                     }
-                }).fail(function () {
-                    console.error('Failed to load category template');
+                }).fail(function (xhr, status, error) {
+                    console.error('GetCategoryTemplate AJAX error:', status, error);
                 });
             }
 
@@ -290,12 +321,37 @@
                     return false;
                 }
 
+                // Force update ReferenceData
+                const referenceData = window.references.map(r => ({
+                    id: isCreateMode ? 0 : (r.id || 0), // Force id: 0 in create mode
+                    url: r.url,
+                    description: r.description || '',
+                    isInternal: r.isInternal || false,
+                    openOption: r.openOption || '_self'
+                }));
+                $('#referenceData').val(JSON.stringify(referenceData));
+                console.log('Forced ReferenceData before submission:', $('#referenceData').val());
+
+                // Call updateReferenceData if available
+                if (typeof window.updateReferenceData === 'function') {
+                    window.updateReferenceData();
+                    console.log('Called updateReferenceData before submission:', $('#referenceData').val());
+                } else {
+                    console.warn('window.updateReferenceData is not a function');
+                }
+
                 var formData = new FormData(this);
                 if (submitActionValue) {
                     formData.append('submitAction', submitActionValue);
                 } else {
                     toastr.error('Please use the Save Draft or Submit for Review button.');
                     return false;
+                }
+
+                // Log FormData contents for debugging
+                console.log('FormData contents:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
                 }
 
                 $.ajax({
@@ -329,9 +385,5 @@
 
             window.removeAttachment = removeAttachment;
         });
-
-        function updateAttachmentData() {
-            $('#attachmentData').val(JSON.stringify(window.attachments.length > 0 ? window.attachments : []));
-        }
     </script>
 }

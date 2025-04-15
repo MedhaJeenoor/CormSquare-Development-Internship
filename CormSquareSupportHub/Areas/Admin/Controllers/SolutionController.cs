@@ -104,11 +104,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-            string? ReferenceData, string? AttachmentData, string submitAction)
+    string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
 
+            // Remove unnecessary ModelState entries
             ModelState.Remove("Products");
             ModelState.Remove("Categories");
             ModelState.Remove("SubCategories");
@@ -202,70 +203,90 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     Console.WriteLine($"Created and saved new solution: {solution.Id}");
                 }
 
-                // Process Attachments
-                if (!string.IsNullOrEmpty(AttachmentData))
+                // Process References
+                try
                 {
-                    savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
-                    stagedAttachments = new List<(SolutionAttachment, string, string)>();
-                    var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
-
-                    foreach (var item in savedAttachments)
+                    if (!string.IsNullOrEmpty(ReferenceData))
                     {
-                        var id = (int)item.GetType().GetProperty("id").GetValue(item);
-                        var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
-                        var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
-                        var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
-                        var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
-                        var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+                        savedReferences = await ProcessReferencesAsync(solution, ReferenceData, userId);
+                        await _unitOfWork.SaveAsync();
+                        Console.WriteLine($"Saved {savedReferences.Count} references for solution {solution.Id}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Reference processing error: {ex.Message}");
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Json(new { success = false, message = $"Reference processing failed: {ex.Message}" });
+                }
 
-                        SolutionAttachment entity;
-                        if (id > 0)
+                // Process Attachments
+                try
+                {
+                    if (!string.IsNullOrEmpty(AttachmentData))
+                    {
+                        savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
+                        stagedAttachments = new List<(SolutionAttachment, string, string)>();
+                        var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
+
+                        foreach (var item in savedAttachments)
                         {
-                            entity = existingAttachments.FirstOrDefault(a => a.Id == id);
-                            if (entity != null)
+                            var id = (int)item.GetType().GetProperty("id").GetValue(item);
+                            var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
+                            var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
+                            var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
+                            var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
+                            var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+
+                            SolutionAttachment entity;
+                            if (id > 0)
                             {
-                                entity.Caption = caption;
-                                entity.IsInternal = isInternal;
-                                entity.UpdateAudit(userId);
-                                _unitOfWork.SolutionAttachment.Update(entity);
+                                entity = existingAttachments.FirstOrDefault(a => a.Id == id);
+                                if (entity != null)
+                                {
+                                    entity.Caption = caption;
+                                    entity.IsInternal = isInternal;
+                                    entity.UpdateAudit(userId);
+                                    _unitOfWork.SolutionAttachment.Update(entity);
+                                }
+                                else
+                                {
+                                    continue;
+                                }
                             }
                             else
                             {
-                                continue; // Skip if ID doesn't match any existing attachment
+                                entity = new SolutionAttachment
+                                {
+                                    FileName = guidFileName,
+                                    FilePath = filePath,
+                                    Caption = caption,
+                                    IsInternal = isInternal,
+                                    SolutionId = solution.Id
+                                };
+                                entity.UpdateAudit(userId);
+                                _unitOfWork.SolutionAttachment.Add(entity);
+                                existingAttachments.Add(entity);
                             }
-                        }
-                        else
-                        {
-                            entity = new SolutionAttachment
-                            {
-                                FileName = guidFileName,
-                                FilePath = filePath,
-                                Caption = caption,
-                                IsInternal = isInternal,
-                                SolutionId = solution.Id
-                            };
-                            entity.UpdateAudit(userId);
-                            _unitOfWork.SolutionAttachment.Add(entity);
-                            existingAttachments.Add(entity);
-                        }
 
-                        // Stage attachments for disk saving
-                        string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
-                        string sourcePath = null;
-                        var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
-                        if (uploadedFile == null) // Category-based file
-                        {
-                            var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted);
-                            sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
+                            string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
+                            string sourcePath = null;
+                            var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
+                            if (uploadedFile == null)
+                            {
+                                var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted);
+                                sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
+                            }
+                            stagedAttachments.Add((entity, sourcePath, destPath));
                         }
-                        stagedAttachments.Add((entity, sourcePath, destPath));
+                        await _unitOfWork.SaveAsync();
                     }
                 }
-
-                // Process References
-                if (!string.IsNullOrEmpty(ReferenceData))
+                catch (Exception ex)
                 {
-                    savedReferences = await ProcessReferencesAsync(solution, ReferenceData, userId);
+                    Console.WriteLine($"Attachment processing error: {ex.Message}");
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return Json(new { success = false, message = $"Attachment processing failed: {ex.Message}" });
                 }
 
                 switch (submitAction)
@@ -285,12 +306,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                     continue;
                                 }
 
-                                if (sourcePath != null && System.IO.File.Exists(sourcePath)) // Category file
+                                if (sourcePath != null && System.IO.File.Exists(sourcePath))
                                 {
                                     System.IO.File.Copy(sourcePath, destPath, overwrite: false);
                                     Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
                                 }
-                                else // Uploaded file
+                                else
                                 {
                                     var file = files?.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
                                     if (file != null)
@@ -545,43 +566,61 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         private async Task<List<object>> ProcessReferencesAsync(Solution solution, string? ReferenceData, string userId)
         {
             var savedReferences = new List<object>();
-            if (string.IsNullOrEmpty(ReferenceData)) return savedReferences;
-
-            var existingReferences = (await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == solution.Id && !r.IsDeleted)).ToList();
-            var references = JsonConvert.DeserializeObject<List<SolutionReference>>(ReferenceData);
-
-            foreach (var reference in references)
+            if (string.IsNullOrEmpty(ReferenceData))
             {
-                if (reference.Id > 0)
+                Console.WriteLine("ReferenceData is empty or null");
+                return savedReferences;
+            }
+
+            Console.WriteLine($"Received ReferenceData: {ReferenceData}");
+            try
+            {
+                var existingReferences = (await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == solution.Id && !r.IsDeleted)).ToList();
+                var references = JsonConvert.DeserializeObject<List<SolutionReference>>(ReferenceData);
+                Console.WriteLine($"Deserialized {references.Count} references");
+
+                foreach (var reference in references)
                 {
-                    var existing = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
-                    if (existing != null)
+                    if (reference.Id > 0)
                     {
-                        existing.Url = reference.Url;
-                        existing.Description = reference.Description;
-                        existing.IsInternal = reference.IsInternal;
-                        existing.OpenOption = reference.OpenOption;
-                        existing.UpdateAudit(userId);
-                        _unitOfWork.SolutionReference.Update(existing);
-                        savedReferences.Add(new { id = existing.Id, url = existing.Url, description = existing.Description, isInternal = existing.IsInternal, openOption = existing.OpenOption });
-                        Console.WriteLine($"Updated reference: {existing.Url}, ID: {existing.Id}");
+                        var existing = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
+                        if (existing != null)
+                        {
+                            existing.Url = reference.Url;
+                            existing.Description = reference.Description;
+                            existing.IsInternal = reference.IsInternal;
+                            existing.OpenOption = reference.OpenOption;
+                            existing.UpdateAudit(userId);
+                            _unitOfWork.SolutionReference.Update(existing);
+                            savedReferences.Add(new { id = existing.Id, url = existing.Url, description = existing.Description, isInternal = existing.IsInternal, openOption = existing.OpenOption });
+                            Console.WriteLine($"Updated reference: {existing.Url}, ID: {existing.Id}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Reference ID {reference.Id} not found in existing references");
+                        }
+                    }
+                    else
+                    {
+                        var newReference = new SolutionReference
+                        {
+                            Url = reference.Url,
+                            Description = reference.Description,
+                            IsInternal = reference.IsInternal,
+                            OpenOption = reference.OpenOption,
+                            SolutionId = solution.Id
+                        };
+                        newReference.UpdateAudit(userId);
+                        _unitOfWork.SolutionReference.Add(newReference);
+                        savedReferences.Add(new { id = 0, url = newReference.Url, description = newReference.Description, isInternal = newReference.IsInternal, openOption = newReference.OpenOption });
+                        Console.WriteLine($"Staged new reference: {newReference.Url}");
                     }
                 }
-                else
-                {
-                    var newReference = new SolutionReference
-                    {
-                        Url = reference.Url,
-                        Description = reference.Description,
-                        IsInternal = reference.IsInternal,
-                        OpenOption = reference.OpenOption,
-                        SolutionId = solution.Id
-                    };
-                    newReference.UpdateAudit(userId);
-                    _unitOfWork.SolutionReference.Add(newReference);
-                    savedReferences.Add(new { id = newReference.Id, url = newReference.Url, description = newReference.Description, isInternal = newReference.IsInternal, openOption = newReference.OpenOption });
-                    Console.WriteLine($"Staged new reference: {newReference.Url}");
-                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deserializing or processing references: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                throw;
             }
 
             return savedReferences;
