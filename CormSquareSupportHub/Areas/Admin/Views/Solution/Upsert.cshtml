@@ -103,7 +103,7 @@
                                         <div>
                                             <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(isInternal ? "checked" : "") />
                                             <span>Internal</span>
-                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index" onclick="removeAttachment(@link.Id)">❌</span>
+                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
                                         </div>
                                     </li>
                                     index++;
@@ -149,7 +149,7 @@
                     <button type="submit" name="submitAction" value="Submit" class="btn btn-success mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Submit for Review
                     </button>
-                    <button type="submit" name="submitAction" value="Cancel" class="btn btn-outline-secondary mx-2" style="width:200px">
+                    <button type="button" id="cancelButton" class="btn btn-outline-secondary mx-2" style="width:200px">
                         <i class="bi bi-arrow-left-circle"></i> Cancel
                     </button>
                 </div>
@@ -162,54 +162,56 @@
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="~/js/tinymce-solution.js"></script>
-    <script src="~/js/solution-attachments-references.js"></script>
+    <script src="~/js/solution-attachments-references.js?v=3.2"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
         $(document).ready(function () {
-            console.log("Upsert view script loaded (v2.4)");
+            console.log("Upsert view script loaded (v3.2)");
             const urlParams = new URLSearchParams(window.location.search);
-            const isCreateMode = !urlParams.has('id');
+            const isCreateMode = !urlParams.has('solutionId');
             console.log("isCreateMode:", isCreateMode);
             let submitActionValue = null;
 
+            // Store initial state for rollback
+            const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
+            const initialReferences = JSON.parse(JSON.stringify(window.references || []));
+            console.log('Stored initial state:', { initialAttachments, initialReferences });
+
+            // Force initial state restoration
+            if (typeof window.forceRestoreState === 'function') {
+                window.forceRestoreState();
+            }
+
             // Handle Save/Submit buttons
-            $('button[type="submit"]').not('[value="Cancel"]').on('click', function (e) {
+            $('button[type="submit"]').on('click', function (e) {
                 submitActionValue = $(this).val();
                 console.log('Button clicked, submitAction set to:', submitActionValue);
             });
 
-            // Handle Cancel button separately
-            $('button[value="Cancel"]').on('click', function (e) {
+            // Handle Cancel button
+            $('#cancelButton').on('click', function (e) {
                 e.preventDefault();
                 console.log('Cancel button clicked');
 
-                var formData = new FormData();
-                formData.append('submitAction', 'Cancel');
-                formData.append('Id', $('#Id').val());
+                // Restore initial state
+                window.attachments = JSON.parse(JSON.stringify(initialAttachments));
+                window.references = JSON.parse(JSON.stringify(initialReferences));
+                window.reindexAttachments();
+                window.reindexReferences();
+                window.updateAttachmentData();
+                window.updateReferenceData();
 
-                $.ajax({
-                    url: '/Admin/Solution/Upsert',
-                    type: 'POST',
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    success: function (response) {
-                        console.log('Cancel response:', response);
-                        if (response.success && response.redirectTo) {
-                            toastr.info('Action cancelled.');
-                            window.location.href = response.redirectTo;
-                        } else {
-                            toastr.error(response.message || 'Failed to cancel.');
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('Cancel AJAX error:', status, error);
-                        toastr.error('An error occurred while cancelling.');
-                    }
-                });
+                // Clear sessionStorage
+                window.clearSessionStorage();
+                toastr.info('Changes discarded.');
+
+                // Redirect
+                const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
+                console.log('Redirecting to:', redirectUrl);
+                window.location.href = redirectUrl;
             });
 
             $('#productDropdown').change(function () {
@@ -245,59 +247,13 @@
                             editor.setContent(data.htmlContent || '');
                             $('#HtmlContent').val(editor.getContent());
                         }
-                        // Reset attachments and references to clear previous category data
-                        window.attachments = [];
-                        window.references = [];
-                        console.log('Before updateAttachmentsAndReferences:', { attachments: window.attachments, references: window.references });
-                        $('#attachmentList').empty();
-                        $('#referenceList').empty();
                         window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
-                        console.log('After updateAttachmentsAndReferences:', {
-                            attachments: window.attachments,
-                            references: window.references,
-                            referenceData: $('#referenceData').val()
-                        });
-                        // Force update ReferenceData
-                        const referenceData = window.references.map(r => ({
-                            id: isCreateMode ? 0 : (r.id || 0), // Force id: 0 in create mode
-                            url: r.url,
-                            description: r.description || '',
-                            isInternal: r.isInternal || false,
-                            openOption: r.openOption || '_self'
-                        }));
-                        $('#referenceData').val(JSON.stringify(referenceData));
-                        console.log('Forced ReferenceData after category load:', $('#referenceData').val());
-                        // Call updateReferenceData if available
-                        if (typeof window.updateReferenceData === 'function') {
-                            window.updateReferenceData();
-                            console.log('Called updateReferenceData after category load:', $('#referenceData').val());
-                        } else {
-                            console.warn('window.updateReferenceData not defined during category load.');
-                        }
                     } else {
                         console.error('GetCategoryTemplate failed:', data.message);
                     }
                 }).fail(function (xhr, status, error) {
                     console.error('GetCategoryTemplate AJAX error:', status, error);
                 });
-            }
-
-            function removeAttachment(attachmentId) {
-                if (confirm('Are you sure you want to remove this attachment?')) {
-                    console.log(`Removing attachment: id=${attachmentId}`);
-                    $.post('/Admin/Solution/RemoveAttachment', { id: attachmentId }, function (response) {
-                        if (response.success) {
-                            toastr.success(response.message);
-                            $(`li[data-attachment-id="${attachmentId}"]`).remove();
-                            window.attachments = window.attachments.filter(a => a.id !== attachmentId);
-                            updateAttachmentData();
-                        } else {
-                            toastr.error(response.message);
-                        }
-                    }).fail(function () {
-                        toastr.error('Failed to remove attachment.');
-                    });
-                }
             }
 
             // Form submission for Save/Submit
@@ -315,7 +271,7 @@
                 var editorContent = editor.getContent();
                 $('#HtmlContent').val(editorContent);
 
-                // Validate only for Save/Submit
+                // Validate
                 var title = $('#Title').val();
                 var productId = $('#productDropdown').val();
                 var categoryId = $('#categoryDropdown').val();
@@ -324,24 +280,9 @@
                     return false;
                 }
 
-                // Force update ReferenceData
-                const referenceData = window.references.map(r => ({
-                    id: isCreateMode ? 0 : (r.id || 0), // Force id: 0 in create mode
-                    url: r.url,
-                    description: r.description || '',
-                    isInternal: r.isInternal || false,
-                    openOption: r.openOption || '_self'
-                }));
-                $('#referenceData').val(JSON.stringify(referenceData));
-                console.log('Forced ReferenceData before submission:', $('#referenceData').val());
-
-                // Call updateReferenceData if available
-                if (typeof window.updateReferenceData === 'function') {
-                    window.updateReferenceData();
-                    console.log('Called updateReferenceData before submission:', $('#referenceData').val());
-                } else {
-                    console.warn('window.updateReferenceData is not a function');
-                }
+                // Update ReferenceData
+                window.updateReferenceData();
+                console.log('ReferenceData before submission:', $('#referenceData').val());
 
                 var formData = new FormData(this);
                 if (submitActionValue) {
@@ -351,7 +292,7 @@
                     return false;
                 }
 
-                // Log FormData contents for debugging
+                // Log FormData
                 console.log('FormData contents:');
                 for (let [key, value] of formData.entries()) {
                     console.log(`${key}: ${value}`);
@@ -366,6 +307,7 @@
                     success: function (response) {
                         console.log('Server response:', response);
                         if (response.success) {
+                            window.clearSessionStorage();
                             toastr.success('Action completed successfully!');
                             window.location.href = response.redirectTo;
                         } else {
@@ -385,8 +327,6 @@
                     }
                 });
             });
-
-            window.removeAttachment = removeAttachment;
         });
     </script>
 }

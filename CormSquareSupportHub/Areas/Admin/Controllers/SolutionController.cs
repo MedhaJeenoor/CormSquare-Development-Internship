@@ -47,6 +47,12 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Upsert(int? issueId, int? solutionId)
         {
+            // Disable caching and BFCache
+            Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+            Response.Headers["Vary"] = "Accept-Encoding";
+
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
 
@@ -84,6 +90,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" }),
                     IsInternal = a.IsInternal
                 }).ToList();
+
+                ViewData["ReferenceLinks"] = model.References.Select(r => new
+                {
+                    Id = r.Id,
+                    Url = r.Url,
+                    Description = r.Description,
+                    IsInternal = r.IsInternal,
+                    OpenOption = r.OpenOption
+                }).ToList();
             }
             else if (issueId.HasValue)
             {
@@ -104,7 +119,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-    string? ReferenceData, string? AttachmentData, string submitAction)
+            string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -134,8 +149,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             if (submitAction == "Cancel")
             {
-                Console.WriteLine("Cancel button clicked, no changes will be saved.");
-                TempData["info"] = "Action cancelled. All changes were rolled back.";
+                Console.WriteLine("Cancel button clicked, no server-side changes.");
                 redirectUrl = model.Id > 0 ? Url.Action("MySolutions") : Url.Action("IssueList", "Issue");
                 return Json(new { success = true, redirectTo = redirectUrl });
             }
@@ -418,6 +432,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 var references = await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == id && !r.IsDeleted);
                 foreach (var reference in references)
                 {
+                    _unitOfWork.SolutionReference.Update(reference);
                     _unitOfWork.SolutionReference.SoftDelete(reference, user.Id);
                 }
 
@@ -455,7 +470,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     a.Caption,
                     a.IsInternal,
                     Url = $"/Admin/Solution/DownloadCategoryAttachment?attachmentId={a.Id}",
-                    a.FilePath // For debugging
+                    a.FilePath
                 }),
                 references = references.Select(r => new
                 {
@@ -471,56 +486,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             return Json(response);
         }
 
-        [HttpPost]
-        public async Task<IActionResult> RemoveAttachment(int id)
-        {
-            try
-            {
-                var attachment = await _unitOfWork.SolutionAttachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
-                if (attachment == null)
-                {
-                    return Json(new { success = false, message = "Attachment not found." });
-                }
-
-                var user = await _userManager.GetUserAsync(User);
-                if (user == null) return Unauthorized();
-
-                _unitOfWork.SolutionAttachment.SoftDelete(attachment, user.Id);
-                await _unitOfWork.SaveAsync();
-                return Json(new { success = true, message = "Attachment deleted successfully." });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in RemoveAttachment: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error deleting attachment: {ex.Message}" });
-            }
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> RemoveReference(int id)
-        {
-            try
-            {
-                var reference = await _unitOfWork.SolutionReference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
-                if (reference == null)
-                {
-                    return Json(new { success = false, message = "Reference not found." });
-                }
-
-                var user = await _userManager.GetUserAsync(User);
-                if (user == null) return Unauthorized();
-
-                _unitOfWork.SolutionReference.SoftDelete(reference, user.Id);
-                await _unitOfWork.SaveAsync();
-                return Json(new { success = true, message = "Reference deleted successfully." });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in RemoveReference: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error deleting reference: {ex.Message}" });
-            }
-        }
-
         private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId)
         {
             var attachments = new List<object>();
@@ -533,6 +498,9 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 {
                     int attachmentId = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
                     string originalFileName = att["fileName"].ToString();
+                    bool isDeleted = att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString());
+                    if (isDeleted) continue; // Skip deleted attachments
+
                     string guidFileName = att.ContainsKey("guidFileName") && !string.IsNullOrEmpty(att["guidFileName"]?.ToString())
                         ? att["guidFileName"].ToString()
                         : $"{Guid.NewGuid()}{Path.GetExtension(originalFileName)}";
@@ -567,6 +535,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         });
                     }
                 }
+
+                // Process deletions
+                foreach (var existing in existingAttachments)
+                {
+                    if (!stagedAttachments.Any(att => Convert.ToInt32(att["id"]) == existing.Id))
+                    {
+                        _unitOfWork.SolutionAttachment.SoftDelete(existing, userId);
+                    }
+                }
             }
 
             return attachments;
@@ -590,6 +567,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
                 foreach (var reference in references)
                 {
+                    if (reference.IsDeleted) continue; // Skip deleted references
+
                     if (reference.Id > 0)
                     {
                         var existing = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
@@ -623,6 +602,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         _unitOfWork.SolutionReference.Add(newReference);
                         savedReferences.Add(new { id = 0, url = newReference.Url, description = newReference.Description, isInternal = newReference.IsInternal, openOption = newReference.OpenOption });
                         Console.WriteLine($"Staged new reference: {newReference.Url}");
+                    }
+                }
+
+                // Process deletions
+                foreach (var existing in existingReferences)
+                {
+                    if (!references.Any(r => r.Id == existing.Id))
+                    {
+                        _unitOfWork.SolutionReference.SoftDelete(existing, userId);
                     }
                 }
             }
@@ -763,7 +751,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             {
                 Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes");
                 var fileStream = System.IO.File.OpenRead(fullPath);
-                // Use specific MIME type if PDF
                 var mimeType = attachment.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
                     ? "application/pdf"
                     : "application/octet-stream";
