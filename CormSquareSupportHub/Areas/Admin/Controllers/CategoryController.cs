@@ -447,5 +447,24 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = $"Error deleting reference: {ex.Message}" });
             }
         }
+
+        // GET: Download Attachment
+        public async Task<IActionResult> DownloadAttachment(int id)
+        {
+            var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+            if (attachment == null)
+            {
+                return NotFound();
+            }
+
+            var filePath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath);
+            if (!System.IO.File.Exists(filePath))
+            {
+                return NotFound("File not found on server.");
+            }
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            return File(fileBytes, "application/octet-stream", attachment.FileName);
+        }
     }
 }
