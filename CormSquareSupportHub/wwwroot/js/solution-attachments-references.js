@@ -1,70 +1,165 @@
-﻿console.log("Script starting: solution-attachments-references.js (v2.4)");
+﻿console.log("Script starting: solution-attachments-references.js (v3.2)");
 
 (function () {
     // Determine if in create mode (no solutionId in URL)
     const urlParams = new URLSearchParams(window.location.search);
-    const isCreateMode = !urlParams.has('id'); // Create mode if no 'id' parameter
+    const isCreateMode = !urlParams.has('solutionId');
+    console.log("isCreateMode:", isCreateMode);
 
-    // Define updateReferenceData first to ensure availability
+    // Initialize global arrays
+    window.attachments = [];
+    window.references = [];
+
+    // Function to save state to sessionStorage
+    function saveStateToSessionStorage() {
+        sessionStorage.setItem('solutionAttachments', JSON.stringify(window.attachments));
+        sessionStorage.setItem('solutionReferences', JSON.stringify(window.references));
+        console.log('Saved to sessionStorage:', { attachments: window.attachments, references: window.references });
+    }
+
+    // Function to update hidden inputs
+    function updateAttachmentData() {
+        const attachmentDataInput = document.getElementById("attachmentData");
+        if (attachmentDataInput) {
+            attachmentDataInput.value = JSON.stringify(window.attachments.map(a => ({
+                id: a.id,
+                fileName: a.fileName,
+                caption: a.caption,
+                isInternal: a.isInternal,
+                isDeleted: a.isDeleted || false
+            })));
+            console.log("Updated AttachmentData:", attachmentDataInput.value);
+        }
+        saveStateToSessionStorage();
+    }
+
     function updateReferenceData() {
-        const referenceData = window.references.map(r => ({
-            id: r.id || 0,
-            url: r.url,
-            description: r.description || '',
-            isInternal: r.isInternal || false,
-            openOption: r.openOption || '_self'
-        }));
         const referenceDataInput = document.getElementById("referenceData");
         if (referenceDataInput) {
-            referenceDataInput.value = JSON.stringify(referenceData);
+            referenceDataInput.value = JSON.stringify(window.references.map(r => ({
+                id: r.id || 0,
+                url: r.url,
+                description: r.description || '',
+                isInternal: r.isInternal || false,
+                openOption: r.openOption || '_self',
+                isDeleted: r.isDeleted || false
+            })));
             console.log("Updated ReferenceData:", referenceDataInput.value);
+        }
+        saveStateToSessionStorage();
+    }
+
+    // Expose update functions globally
+    window.updateAttachmentData = updateAttachmentData;
+    window.updateReferenceData = updateReferenceData;
+
+    // Function to restore state and update UI
+    function restoreState() {
+        const savedAttachments = sessionStorage.getItem('solutionAttachments');
+        const savedReferences = sessionStorage.getItem('solutionReferences');
+
+        if (savedAttachments && savedReferences) {
+            window.attachments = JSON.parse(savedAttachments);
+            window.references = JSON.parse(savedReferences);
+            console.log('Restored from sessionStorage:', { attachments: window.attachments, references: window.references });
+
+            // Clear and re-render lists
+            const attachmentList = document.getElementById("attachmentList");
+            const referenceList = document.getElementById("referenceList");
+            if (attachmentList) {
+                attachmentList.innerHTML = "";
+                console.log('Cleared attachmentList');
+            }
+            if (referenceList) {
+                referenceList.innerHTML = "";
+                console.log('Cleared referenceList');
+            }
+
+            window.reindexAttachments();
+            window.reindexReferences();
+            updateAttachmentData();
+            updateReferenceData();
+
+            // Log UI state
+            const attachmentCount = document.querySelectorAll('#attachmentList li').length;
+            const referenceCount = document.querySelectorAll('#referenceList li').length;
+            console.log(`UI sync check: ${attachmentCount} attachments, ${referenceCount} references in UI`);
         } else {
-            console.warn("ReferenceData input not found.");
+            // Initialize from DOM only if no sessionStorage data
+            initializeFromDOM();
         }
     }
 
-    // Expose updateReferenceData globally immediately
-    window.updateReferenceData = updateReferenceData;
+    // Force state restoration
+    function forceRestoreState() {
+        console.log('Forcing state restoration');
+        restoreState();
+    }
 
-    window.attachments = [];
-    window.references = [];
-    console.log("Initialized: window.references =", window.references, "window.attachments =", window.attachments, "isCreateMode =", isCreateMode);
+    // Initialize from DOM elements
+    function initializeFromDOM() {
+        window.attachments = [];
+        window.references = [];
 
-    // Initialize existing solution attachments
-    document.querySelectorAll('#attachmentList li').forEach((li, index) => {
-        const attachmentId = parseInt(li.dataset.attachmentId) || 0;
-        const anchor = li.querySelector('a');
-        const attachment = {
-            id: attachmentId,
-            fileName: anchor.textContent,
-            url: anchor.getAttribute('href'),
-            caption: li.querySelector('.caption-input').value,
-            isInternal: li.querySelector('.internal-attachment').checked
-        };
-        window.attachments.push(attachment);
-        console.log(`Initialized attachment ${index}: fileName=${attachment.fileName}, url=${attachment.url}`);
-        addAttachmentEventListeners(li, index);
+        document.querySelectorAll('#attachmentList li').forEach((li, index) => {
+            const attachmentId = parseInt(li.dataset.attachmentId) || 0;
+            const anchor = li.querySelector('a');
+            const attachment = {
+                id: attachmentId,
+                fileName: anchor ? anchor.textContent : li.querySelector('strong').textContent,
+                url: anchor ? anchor.getAttribute('href') : null,
+                caption: li.querySelector('.caption-input').value,
+                isInternal: li.querySelector('.internal-attachment').checked,
+                isDeleted: false
+            };
+            if (!window.attachments.some(a => a.id === attachment.id && a.fileName === attachment.fileName)) {
+                window.attachments.push(attachment);
+            }
+            console.log(`Initialized attachment ${index}: fileName=${attachment.fileName}, url=${attachment.url}`);
+            addAttachmentEventListeners(li, index);
+        });
+
+        document.querySelectorAll('#referenceList li').forEach((li, index) => {
+            const referenceId = parseInt(li.dataset.referenceId) || 0;
+            const anchor = li.querySelector('a');
+            const openOption = anchor.getAttribute('target') || '_self';
+            const reference = {
+                id: referenceId,
+                url: anchor.textContent,
+                description: li.querySelector('.description-input').value,
+                isInternal: li.querySelector('.internal-reference').checked,
+                openOption: openOption,
+                isDeleted: false
+            };
+            if (!window.references.some(r => r.id === reference.id && r.url === reference.url)) {
+                window.references.push(reference);
+            }
+            console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${openOption}`);
+            addReferenceEventListeners(li, index);
+        });
+
+        console.log("Initialized from DOM:", { attachments: window.attachments, references: window.references });
+        updateAttachmentData();
+        updateReferenceData();
+    }
+
+    // Handle page show and load events
+    window.addEventListener('pageshow', function (event) {
+        console.log('pageshow triggered, persisted:', event.persisted);
+        forceRestoreState();
     });
-    console.log("Attachments initialized:", window.attachments);
 
-    // Initialize existing references
-    document.querySelectorAll('#referenceList li').forEach((li, index) => {
-        const referenceId = parseInt(li.dataset.referenceId) || 0;
-        const anchor = li.querySelector('a');
-        const openOption = anchor.getAttribute('target') || '_self';
-        const reference = {
-            id: referenceId,
-            url: anchor.textContent,
-            description: li.querySelector('.description-input').value,
-            isInternal: li.querySelector('.internal-reference').checked,
-            openOption: openOption
-        };
-        window.references.push(reference);
-        console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${openOption}`);
-        addReferenceEventListeners(li, index);
+    window.addEventListener('DOMContentLoaded', function () {
+        console.log('DOMContentLoaded triggered');
+        forceRestoreState();
     });
-    console.log("References initialized:", window.references);
-    updateReferenceData(); // Initialize ReferenceData
+
+    // Clear sessionStorage on unload
+    window.onunload = function () {
+        console.log('onunload triggered');
+        sessionStorage.removeItem('solutionAttachments');
+        sessionStorage.removeItem('solutionReferences');
+    };
 
     // Upload attachment button
     const uploadBtn = document.getElementById("uploadAttachmentBtn");
@@ -83,13 +178,14 @@
             if (!files || files.length === 0) return;
 
             for (let file of files) {
-                if (!window.attachments.some(a => a.fileName === file.name)) {
+                if (!window.attachments.some(a => a.fileName === file.name && !a.isDeleted)) {
                     const attachment = {
                         id: 0,
                         fileName: file.name,
-                        url: null, // No URL for uploaded files until saved
+                        url: null,
                         caption: "",
-                        isInternal: false
+                        isInternal: false,
+                        isDeleted: false
                     };
                     window.attachments.push(attachment);
                     console.log(`Added uploaded attachment: fileName=${file.name}`);
@@ -110,11 +206,12 @@
             const openInNewWindow = confirm("Should this reference open in a new window?");
             const openOption = openInNewWindow ? "_blank" : "_self";
             const reference = {
-                id: 0, // Always 0 for manual references
+                id: 0,
                 url: refUrl,
                 description: "",
                 isInternal: false,
-                openOption: openOption
+                openOption: openOption,
+                isDeleted: false
             };
             window.references.push(reference);
             console.log(`Added manual reference: url=${refUrl}, openOption=${openOption}`);
@@ -133,22 +230,6 @@
         }
     });
 
-    document.getElementById("attachmentList").addEventListener("click", function (e) {
-        if (e.target.classList.contains("delete-attachment")) {
-            e.preventDefault();
-            const index = parseInt(e.target.dataset.index);
-            const attachmentId = window.attachments[index].id;
-            console.log(`Deleting attachment: index=${index}, id=${attachmentId}`);
-            if (attachmentId > 0) {
-                window.removeAttachment(attachmentId);
-            } else {
-                window.attachments.splice(index, 1);
-                window.reindexAttachments();
-                updateAttachmentData();
-            }
-        }
-    });
-
     // Event delegation for references
     document.getElementById("referenceList").addEventListener("change", function (e) {
         if (e.target.classList.contains("internal-reference")) {
@@ -159,41 +240,14 @@
         }
     });
 
-    document.getElementById("referenceList").addEventListener("click", function (e) {
-        if (e.target.classList.contains("delete-reference")) {
-            e.preventDefault();
-            const index = parseInt(e.target.dataset.index);
-            const referenceId = window.references[index].id;
-            console.log(`Deleting reference: index=${index}, id=${referenceId}`);
-            if (referenceId > 0 && !isCreateMode) {
-                jQuery.post('/Admin/Solution/RemoveReference', { id: referenceId }, function (response) {
-                    if (response && response.success) {
-                        window.references.splice(index, 1);
-                        window.reindexReferences();
-                        console.log("Reference deleted successfully:", window.references);
-                        updateReferenceData();
-                    } else {
-                        alert(response ? response.message : "Failed to delete reference.");
-                    }
-                }).fail(function () {
-                    alert("An error occurred while deleting the reference.");
-                });
-            } else {
-                window.references.splice(index, 1);
-                window.reindexReferences();
-                console.log("Reference deleted locally:", window.references);
-                updateReferenceData();
-            }
-        }
-    });
-
     function addAttachmentToList(attachment, index) {
+        if (attachment.isDeleted) return;
         let attachmentList = document.getElementById("attachmentList");
         let li = document.createElement("li");
         li.id = `attachment-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.attachmentId = attachment.id || 0;
-        const fileName = attachment.fileName || 'Unnamed_Attachment'; // Fallback
+        const fileName = attachment.fileName || 'Unnamed_Attachment';
         const fileNameHtml = attachment.url
             ? `<a href="${attachment.url}" download="${fileName}" onclick="console.log('Downloading: ${attachment.url}')">${fileName}</a>`
             : `<strong>${fileName}</strong>`;
@@ -214,6 +268,7 @@
     }
 
     function addReferenceToList(reference, index) {
+        if (reference.isDeleted) return;
         let referenceList = document.getElementById("referenceList");
         let li = document.createElement("li");
         li.id = `reference-${index}`;
@@ -254,29 +309,26 @@
     window.reindexAttachments = function () {
         let attachmentList = document.getElementById("attachmentList");
         attachmentList.innerHTML = "";
-        window.attachments.forEach((attachment, index) => addAttachmentToList(attachment, index));
+        window.attachments.forEach((attachment, index) => {
+            if (!attachment.isDeleted) {
+                addAttachmentToList(attachment, index);
+            }
+        });
         console.log("Reindexed attachments:", window.attachments);
+        updateAttachmentData();
     };
 
     window.reindexReferences = function () {
         let referenceList = document.getElementById("referenceList");
         referenceList.innerHTML = "";
-        window.references.forEach((reference, index) => addReferenceToList(reference, index));
+        window.references.forEach((reference, index) => {
+            if (!reference.isDeleted) {
+                addReferenceToList(reference, index);
+            }
+        });
         console.log("Reindexed references:", window.references);
+        updateReferenceData();
     };
-
-    function updateAttachmentData() {
-        const attachmentDataInput = document.getElementById("attachmentData");
-        if (attachmentDataInput) {
-            attachmentDataInput.value = JSON.stringify(window.attachments.map(a => ({
-                id: a.id,
-                fileName: a.fileName,
-                caption: a.caption,
-                isInternal: a.isInternal
-            })));
-            console.log("Updated AttachmentData:", attachmentDataInput.value);
-        }
-    }
 
     window.updateAttachmentsAndReferences = function (attachmentsFromCategory, referencesFromCategory) {
         console.log("updateAttachmentsAndReferences called with:", {
@@ -284,20 +336,20 @@
             references: referencesFromCategory
         });
 
-        // Validate referencesFromCategory
         if (!Array.isArray(referencesFromCategory)) {
             console.warn("referencesFromCategory is not an array:", referencesFromCategory);
             referencesFromCategory = [];
         }
 
         attachmentsFromCategory.forEach(att => {
-            if (!window.attachments.some(a => a.fileName === att.fileName && a.id === att.id)) {
+            if (!window.attachments.some(a => a.fileName === att.fileName && a.id === att.id && !a.isDeleted)) {
                 window.attachments.push({
                     id: att.id || 0,
                     fileName: att.fileName,
                     url: att.url || null,
                     caption: att.caption || '',
-                    isInternal: att.isInternal || false
+                    isInternal: att.isInternal || false,
+                    isDeleted: false
                 });
             }
         });
@@ -307,13 +359,14 @@
                 console.warn("Skipping invalid reference (missing url):", ref);
                 return;
             }
-            if (!window.references.some(r => r.url === ref.url && r.id === ref.id)) {
+            if (!window.references.some(r => r.url === ref.url && r.id === ref.id && !r.isDeleted)) {
                 window.references.push({
-                    id: isCreateMode ? 0 : (ref.id || 0), // Force id: 0 in create mode
+                    id: isCreateMode ? 0 : (ref.id || 0),
                     url: ref.url,
                     description: ref.description || '',
                     isInternal: ref.isInternal || false,
-                    openOption: ref.openOption || '_self'
+                    openOption: ref.openOption || '_self',
+                    isDeleted: false
                 });
             }
         });
@@ -325,10 +378,51 @@
 
         window.reindexAttachments();
         window.reindexReferences();
-        updateAttachmentData();
-        updateReferenceData();
     };
 
-    updateAttachmentData();
-    updateReferenceData();
+    // Clear sessionStorage
+    window.clearSessionStorage = function () {
+        sessionStorage.removeItem('solutionAttachments');
+        sessionStorage.removeItem('solutionReferences');
+        console.log('Cleared sessionStorage');
+    };
+
+    // Handle delete-attachment click with unique listener
+    const attachmentList = document.getElementById("attachmentList");
+    if (attachmentList) {
+        // Remove existing listeners to prevent conflicts
+        const newList = attachmentList.cloneNode(true);
+        attachmentList.parentNode.replaceChild(newList, attachmentList);
+        newList.addEventListener("click", function (e) {
+            if (e.target.classList.contains("delete-attachment")) {
+                e.preventDefault();
+                const index = parseInt(e.target.dataset.index);
+                console.log(`Marking attachment for deletion: index=${index}`);
+                if (window.attachments[index]) {
+                    window.attachments[index].isDeleted = true;
+                    window.reindexAttachments();
+                } else {
+                    console.warn(`Attachment at index ${index} not found`);
+                }
+            }
+        }, { once: false });
+    }
+
+    // Handle delete-reference click
+    document.getElementById("referenceList").addEventListener("click", function (e) {
+        if (e.target.classList.contains("delete-reference")) {
+            e.preventDefault();
+            const index = parseInt(e.target.dataset.index);
+            console.log(`Marking reference for deletion: index=${index}`);
+            if (window.references[index]) {
+                window.references[index].isDeleted = true;
+                window.reindexReferences();
+            } else {
+                console.warn(`Reference at index ${index} not found`);
+            }
+        }
+    });
+
+    // Initial state restoration
+    forceRestoreState();
 })();
