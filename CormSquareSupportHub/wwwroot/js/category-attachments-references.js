@@ -20,7 +20,7 @@
         if (attachmentId) {
             attachments.push({
                 id: attachmentId,
-                fileName: li.querySelector('strong').textContent,
+                fileName: li.querySelector('strong a')?.textContent || li.querySelector('strong').textContent,
                 caption: li.querySelector('.caption-input').value,
                 isInternal: li.querySelector('.internal-attachment').checked
             });
@@ -210,9 +210,16 @@
         li.id = `attachment-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.attachmentId = attachment.id || 0;
+
+        // Determine if this is an existing attachment (id > 0) or new (id == 0)
+        const isExisting = attachment.id > 0;
+        const fileNameHtml = isExisting
+            ? `<a href="/Admin/Category/DownloadAttachment?id=${attachment.id}" style="text-decoration: underline;" class="attachment-link">${attachment.fileName}</a>`
+            : `<span>${attachment.fileName}</span>`;
+
         li.innerHTML = `
             <div>
-                <strong>${attachment.fileName}</strong><br />
+                <strong>${fileNameHtml}</strong><br />
                 <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption}" data-index="${index}" />
             </div>
             <div>

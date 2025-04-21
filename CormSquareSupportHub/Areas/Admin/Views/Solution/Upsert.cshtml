@@ -97,13 +97,13 @@
                                     var isInternal = attachment?.IsInternal ?? false;
                                     <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
                                         <div>
-                                            <a href="@link.Url" target="_blank">@link.FileName</a><br />
+                                            <a href="@link.Url" download="@link.FileName">@link.FileName</a><br />
                                             <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@(attachment?.Caption ?? "")" />
                                         </div>
                                         <div>
                                             <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(isInternal ? "checked" : "") />
                                             <span>Internal</span>
-                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index" onclick="removeAttachment(@link.Id)">❌</span>
+                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
                                         </div>
                                     </li>
                                     index++;
@@ -111,7 +111,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal })))" />
                 </div>
 
                 <!-- References Section -->
@@ -149,7 +149,7 @@
                     <button type="submit" name="submitAction" value="Submit" class="btn btn-success mx-2" style="width:200px">
                         <i class="bi bi-check-circle"></i> Submit for Review
                     </button>
-                    <button type="submit" name="submitAction" value="Cancel" class="btn btn-outline-secondary mx-2" style="width:200px">
+                    <button type="button" id="cancelButton" class="btn btn-outline-secondary mx-2" style="width:200px">
                         <i class="bi bi-arrow-left-circle"></i> Cancel
                     </button>
                 </div>
@@ -162,18 +162,56 @@
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="~/js/tinymce-solution.js"></script>
-    <script src="~/js/solution-attachments-references.js"></script>
+    <script src="~/js/solution-attachments-references.js?v=3.2"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
         $(document).ready(function () {
+            console.log("Upsert view script loaded (v3.2)");
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCreateMode = !urlParams.has('solutionId');
+            console.log("isCreateMode:", isCreateMode);
             let submitActionValue = null;
 
+            // Store initial state for rollback
+            const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
+            const initialReferences = JSON.parse(JSON.stringify(window.references || []));
+            console.log('Stored initial state:', { initialAttachments, initialReferences });
+
+            // Force initial state restoration
+            if (typeof window.forceRestoreState === 'function') {
+                window.forceRestoreState();
+            }
+
+            // Handle Save/Submit buttons
             $('button[type="submit"]').on('click', function (e) {
                 submitActionValue = $(this).val();
                 console.log('Button clicked, submitAction set to:', submitActionValue);
+            });
+
+            // Handle Cancel button
+            $('#cancelButton').on('click', function (e) {
+                e.preventDefault();
+                console.log('Cancel button clicked');
+
+                // Restore initial state
+                window.attachments = JSON.parse(JSON.stringify(initialAttachments));
+                window.references = JSON.parse(JSON.stringify(initialReferences));
+                window.reindexAttachments();
+                window.reindexReferences();
+                window.updateAttachmentData();
+                window.updateReferenceData();
+
+                // Clear sessionStorage
+                window.clearSessionStorage();
+                toastr.info('Changes discarded.');
+
+                // Redirect
+                const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
+                console.log('Redirecting to:', redirectUrl);
+                window.location.href = redirectUrl;
             });
 
             $('#productDropdown').change(function () {
@@ -194,47 +232,31 @@
             $('#categoryDropdown').change(function () {
                 var categoryId = $(this).val();
                 if (categoryId) {
+                    console.log('Category selected:', categoryId);
                     loadCategoryTemplate(categoryId);
                 }
             });
 
             function loadCategoryTemplate(categoryId) {
+                console.log(`Loading template for categoryId=${categoryId}`);
                 $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
+                    console.log('GetCategoryTemplate response:', data);
                     if (data.success) {
                         var editor = tinymce.get('editor');
                         if (editor) {
                             editor.setContent(data.htmlContent || '');
                             $('#HtmlContent').val(editor.getContent());
                         }
-                        // Clear existing attachments and references before loading new ones
-                        window.attachments = [];
-                        window.references = [];
-                        $('#attachmentList').empty();
-                        $('#referenceList').empty();
                         window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
+                    } else {
+                        console.error('GetCategoryTemplate failed:', data.message);
                     }
-                }).fail(function () {
-                    console.error('Failed to load category template');
+                }).fail(function (xhr, status, error) {
+                    console.error('GetCategoryTemplate AJAX error:', status, error);
                 });
             }
 
-            function removeAttachment(attachmentId) {
-                if (confirm('Are you sure you want to remove this attachment?')) {
-                    $.post('/Admin/Solution/RemoveAttachment', { id: attachmentId }, function (response) {
-                        if (response.success) {
-                            toastr.success(response.message);
-                            $(`li[data-attachment-id="${attachmentId}"]`).remove();
-                            window.attachments = window.attachments.filter(a => a.id !== attachmentId);
-                            updateAttachmentData();
-                        } else {
-                            toastr.error(response.message);
-                        }
-                    }).fail(function () {
-                        toastr.error('Failed to remove attachment.');
-                    });
-                }
-            }
-
+            // Form submission for Save/Submit
             $('#solutionForm').on('submit', function (e) {
                 e.preventDefault();
                 console.log('Form submit triggered');
@@ -249,6 +271,7 @@
                 var editorContent = editor.getContent();
                 $('#HtmlContent').val(editorContent);
 
+                // Validate
                 var title = $('#Title').val();
                 var productId = $('#productDropdown').val();
                 var categoryId = $('#categoryDropdown').val();
@@ -257,12 +280,22 @@
                     return false;
                 }
 
+                // Update ReferenceData
+                window.updateReferenceData();
+                console.log('ReferenceData before submission:', $('#referenceData').val());
+
                 var formData = new FormData(this);
                 if (submitActionValue) {
                     formData.append('submitAction', submitActionValue);
                 } else {
-                    toastr.error('Please use the Save Draft, Submit for Review, or Cancel button.');
+                    toastr.error('Please use the Save Draft or Submit for Review button.');
                     return false;
+                }
+
+                // Log FormData
+                console.log('FormData contents:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
                 }
 
                 $.ajax({
@@ -274,6 +307,7 @@
                     success: function (response) {
                         console.log('Server response:', response);
                         if (response.success) {
+                            window.clearSessionStorage();
                             toastr.success('Action completed successfully!');
                             window.location.href = response.redirectTo;
                         } else {
@@ -293,13 +327,6 @@
                     }
                 });
             });
-
-            // Expose removeAttachment globally for onclick handlers
-            window.removeAttachment = removeAttachment;
         });
-
-        function updateAttachmentData() {
-            $('#attachmentData').val(JSON.stringify(window.attachments.length > 0 ? window.attachments : []));
-        }
     </script>
 }

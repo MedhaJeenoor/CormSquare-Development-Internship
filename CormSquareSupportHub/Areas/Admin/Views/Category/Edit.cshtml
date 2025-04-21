@@ -56,14 +56,16 @@
 
                 <!-- Attachments Section -->
                 <div class="mb-3">
-                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload New Attachments</button>
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload Attachments</button>
                     <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
                     <ul id="attachmentList" class="list-group mt-2">
                         @foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
                         {
                             <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
                                 <div>
-                                    <strong>@attachment.FileName</strong><br />
+                                    <strong>
+                                        <a href="/Admin/Category/DownloadAttachment?id=@attachment.Id" style="text-decoration: underline;" class="attachment-link">@attachment.FileName</a>
+                                    </strong><br />
                                     <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption"
                                            value="@attachment.Caption" data-index="@Model.Attachments.ToList().IndexOf(attachment)" />
                                 </div>
