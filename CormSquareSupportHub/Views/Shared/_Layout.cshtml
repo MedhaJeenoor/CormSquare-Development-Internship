@@ -1,8 +1,4 @@
 ﻿@{
-    var isLoginPage = Context.Request.Path.Value?.Contains("Account/Login") == true ||
-                      Context.Request.Path.Value?.Contains("Account/ForgotPassword") == true ||
-                      Context.Request.Path.Value?.Contains("Account/ForgotPasswordConfirmation") == true ||
-                      Context.Request.Path.Value?.Contains("Account/Register") == true;
 }
 
 <!DOCTYPE html>
@@ -24,22 +20,188 @@
     <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <style>
-
-
-        /* Style adjustments */
-        .contact-details a {
-            text-decoration: none;
+        /* Navbar adjustments */
+        .navbar {
+            background: #000000;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+            padding: 0.8rem 0;
+            position: relative; /* Establish a new stacking context */
+            z-index: 2000; /* Ensure navbar stays above content */
         }
 
         .navbar-brand img {
             height: 40px;
+            margin-right: 0.5rem;
         }
+
+        .nav-link {
+            color: #d1d5db !important;
+            font-weight: 500;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            transition: color 0.3s ease, background-color 0.3s ease;
+        }
+
+            .nav-link:hover,
+            .nav-link:focus {
+                color: #ffffff !important;
+                background-color: rgba(255, 255, 255, 0.1);
+                border-radius: 4px;
+            }
+
+        /* Center navbar menu items */
+        .navbar-nav {
+            flex-grow: 0;
+        }
+
+        .navbar-collapse {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .navbar-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Align login partial to exact right corner */
+        .login-partial {
+            margin-left: auto;
+            padding: 0;
+        }
+
+            .login-partial .navbar-nav {
+                flex-direction: row;
+                margin: 0;
+            }
+
+            .login-partial .nav-link {
+                padding: 0.5rem 0.75rem;
+                color: #d1d5db !important;
+            }
+
+                .login-partial .nav-link:hover,
+                .login-partial .nav-link:focus {
+                    color: #ffffff !important;
+                    background-color: rgba(255, 255, 255, 0.1);
+                }
+
+        /* Dropdown styling */
+        .nav-item.dropdown {
+            position: relative;
+        }
+
+        .dropdown-menu {
+            background: #000000;
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin-top: 0;
+            text-align: center;
+            z-index: 2050; /* Increased from 1050 to ensure it stays above all content */
+            min-width: 200px;
+            display: none; /* Bootstrap toggles this to block */
+        }
+
+            .dropdown-menu.show {
+                display: block;
+            }
+
+        .dropdown-item {
+            color: #d1d5db;
+            font-weight: 400;
+            padding: 0.5rem 1.5rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+            .dropdown-item:hover,
+            .dropdown-item:focus {
+                background-color: rgba(255, 255, 255, 0.15);
+                color: #ffffff;
+            }
+
+        .dropdown-toggle::after {
+            border-top-color: #d1d5db;
+            vertical-align: middle;
+        }
+
+        .dropdown-toggle:hover::after,
+        .dropdown-toggle:focus::after {
+            border-top-color: #ffffff;
+        }
+
+        /* Toggler */
+        .navbar-toggler {
+            border: none;
+        }
+
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.9)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        .navbar-toggler:focus {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+
+        /* Collapsed menu */
+        .navbar-collapse.show,
+        .navbar-collapse.collapsing {
+            background: #000000;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        @@media (max-width: 576px) {
+            .navbar-center {
+                position: static;
+                transform: none;
+                width: 100%;
+            }
+
+            .login-partial {
+                margin-left: 0;
+                width: 100%;
+                text-align: center;
+            }
+
+                .login-partial .navbar-nav {
+                    flex-direction: column;
+                }
+
+            .dropdown-menu {
+                position: static;
+                width: 100%;
+                box-shadow: none;
+            }
+        }
+
+        /* Footer */
+        .contact-details a {
+            text-decoration: none;
+        }
+
+        .footer {
+            padding-bottom: 2rem !important;
+        }
+
+            /* Center align footer content */
+            .footer .address,
+            .footer .contact-details {
+                text-align: center;
+            }
     </style>
 </head>
 
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-dark bg-primary border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-sm navbar-dark border-bottom box-shadow mb-3">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="Public" asp-controller="Home" asp-action="Index">
                     <img src="~/images/logo.png" alt="CormSquareSupportHub Logo" />
@@ -49,92 +211,131 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav me-auto">
-                        @if (!isLoginPage)  // Hide these links on login/register pages
+                <div class="navbar-collapse collapse">
+                    <ul class="navbar-nav navbar-center">
+
+
+                        @if (User.Identity.IsAuthenticated)
                         {
-                            <li class="nav-item">
-                                <a class="nav-link" asp-area="Public" asp-controller="Home" asp-action="Index">Home</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link contact-link text-white-50" href="#contact-footer">Contact Us</a>
-                            </li>
-
-
                             @if (User.IsInRole("Admin"))
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Category" asp-action="Index">Category</a>
+                                    <a class="nav-link" asp-area="Public" asp-controller="Home" asp-action="Index"><i class="fas fa-home"></i> Home</a>
                                 </li>
-
+                                <!-- Debug: User is in Admin role -->
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Admin" asp-action="UserApproval">
-                                        <i class="fas fa-users-cog"></i> User Management
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Category" asp-action="Index"><i class="fas fa-list"></i> Category</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Admin" asp-action="UserApproval"><i class="fas fa-users-cog"></i> User</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Product" asp-action="Index"><i class="fas fa-box"></i> Product</a>
+                                </li>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="issuesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-exclamation-circle"></i> Issues
                                     </a>
+                                    <ul class="dropdown-menu" aria-labelledby="issuesDropdown">
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="Index"><i class="fas fa-exclamation-circle"></i> My Issues</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="IssueList"><i class="fas fa-tasks"></i> Manage Issues</a>
+                                        </li>
+                                    </ul>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Product" asp-action="Index">Product Management</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="solutionsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-lightbulb"></i> Solutions
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="solutionsDropdown">
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions"><i class="fas fa-lightbulb"></i> My Solutions</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="Approvals"><i class="fas fa-check-circle"></i> All Approvals</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="MyApprovals"><i class="fas fa-user-check"></i> My Approvals</a>
+                                        </li>
+                                    </ul>
                                 </li>
                             }
                             @if (User.IsInRole("KM Creator"))
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                    <a class="nav-link" asp-area="Public" asp-controller="Home" asp-action="Index"><i class="fas fa-home"></i> Home</a>
+                                </li>
+                                <!-- Debug: User is in KM Creator role -->
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="issuesDropdownKM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-exclamation-circle"></i> Issues
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="issuesDropdownKM">
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="Index"><i class="fas fa-exclamation-circle"></i> My Issues</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="IssueList"><i class="fas fa-tasks"></i> Manage Issues</a>
+                                        </li>
+                                    </ul>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a>
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions"><i class="fas fa-lightbulb"></i> My Solutions</a>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a>
-                                </li>
-                                @* <li class="nav-item"> *@
-                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a> *@
-                                @* </li> *@
-
                             }
                             @if (User.IsInRole("KM Champion"))
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">MyIssues</a>
+                                    <a class="nav-link" asp-area="Public" asp-controller="Home" asp-action="Index"><i class="fas fa-home"></i> Home</a>
                                 </li>
-                                @* <li class="nav-item"> *@
-                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="IssueList">Manage Issues</a> *@
-                                @* </li> *@
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
+                                <!-- Debug: User is in KM Champion role -->
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="issuesDropdownChampion" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-exclamation-circle"></i> Issues
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="issuesDropdownChampion">
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="Index"><i class="fas fa-exclamation-circle"></i> My Issues</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Issue" asp-action="IssueList"><i class="fas fa-tasks"></i> Manage Issues</a>
+                                        </li>
+                                    </ul>
                                 </li>
-                                @* <li class="nav-item"> *@
-                                @*     <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions">My Solutions</a> *@
-                                @* </li> *@
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Solution" asp-action="Approvals">All Approvals</a>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="solutionsDropdownChampion" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-lightbulb"></i> Solutions
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="solutionsDropdownChampion">
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="MySolutions"><i class="fas fa-lightbulb"></i> My Solutions</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="Approvals"><i class="fas fa-check-circle"></i> All Approvals</a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-area="Admin" asp-controller="Solution" asp-action="MyApprovals"><i class="fas fa-user-check"></i> My Approvals</a>
+                                        </li>
+                                    </ul>
                                 </li>
-
                             }
                             @if (User.IsInRole("ExternalUser"))
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index">My Issues</a>
+                                    <a class="nav-link" asp-area="Public" asp-controller="Home" asp-action="Index"><i class="fas fa-home"></i> Home</a>
+                                </li>
+                                <!-- Debug: User is in ExternalUser role -->
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="Admin" asp-controller="Issue" asp-action="Index"><i class="fas fa-exclamation-circle"></i> My Issues</a>
                                 </li>
                             }
                         }
                     </ul>
-                    <partial name="_LoginPartial"></partial>
+                    <div class="login-partial">
+                        <partial name="_LoginPartial"></partial>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -160,7 +361,7 @@
 
             <!-- Contact Details -->
             <div class="row justify-content-center mt-3">
-                <div class="col-md-5 text-end address">
+                <div class="col-md-5 address">
                     <p>
                         No. 683/A, 2nd Floor,<br>
                         100 Ft Ring Road, 15th Cross,<br>
@@ -168,7 +369,7 @@
                         Bengaluru 560 078
                     </p>
                 </div>
-                <div class="col-md-5 text-start contact-details">
+                <div class="col-md-5 contact-details">
                     <p><strong>P:</strong> (080) 4165 5407 ; 4204 9707</p>
                     <p>
                         <strong>Support:</strong>
@@ -181,25 +382,27 @@
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="https://cdn.tiny.cloud/1/va71qjjfnk13w6l1jzbwaocco4pacxz41q6d5g2fo2hdbljq/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
+    <!-- Fallback for dropdown toggle -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            $('.dropdown-toggle').on('click', function (e) {
+                e.preventDefault();
+                var $dropdown = $(this).next('.dropdown-menu');
+                $('.dropdown-menu').not($dropdown).removeClass('show');
+                $dropdown.toggleClass('show');
+            });
 
-
-    @*  <!-- Tiptap Core Dependencies --> *@
-    @*  @* <script src="https://cdnjs.cloudflare.com/ajax/libs/prosemirror-view/1.24.0/index.umd.min.js"></script> *@
-    @*  <script src="https://cdnjs.cloudflare.com/ajax/libs/tiptap/2.0.0-beta.105/tiptap.umd.min.js"></script> *@
-    @*  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script> *@
-    @*  <script src="https://ajax.aspnetcdn.com/ajax/signalr/2.4.1/jquery.signalR.min.js"></script> *@
-    @* @*  <script src="https://cdn.jsdelivr.net/npm/@tiptap/core"></script> *@ 
-
-    @*  <script type="module" defer src="/js/tiptap-editor.js"></script> *@
-    <script src="https://cdn.tiny.cloud/1/e7h24elw0i2rjxwduha6o559uql7e57avazebhxgugnkxthc/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
-
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-
-
+            // Close dropdown when clicking outside
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.dropdown').length) {
+                    $('.dropdown-menu').removeClass('show');
+                }
+            });
+        });
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>
