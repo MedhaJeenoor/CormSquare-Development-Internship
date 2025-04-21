@@ -40,7 +40,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             if (user == null) return Unauthorized();
 
             var solutions = await _unitOfWork.Solution.GetAllAsync(s => s.AuthorId == user.Id && !s.IsDeleted,
-                includeProperties: "Category,Product,SubCategory,Attachments");
+                includeProperties: "Category,Product,SubCategory,Author");
             return View(solutions);
         }
 
@@ -372,11 +372,19 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Approvals()
         {
-            var solutions = await _unitOfWork.Solution.GetAllAsync(s => s.Status == "Submitted" && !s.IsDeleted,
-                includeProperties: "Category,Product,SubCategory,Author");
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            var solutions = await _unitOfWork.Solution.GetAllAsync(
+                s => !s.IsDeleted && (s.Status == "Submitted" || s.Status == "UnderReview" || s.Status == "Approved" || s.Status == "Rejected" || s.Status == "NeedsRevision"),
+                includeProperties: "Category,Product,SubCategory,Author"
+            );
+
             return View(solutions);
         }
-
         [HttpGet]
         public async Task<IActionResult> Delete(int? id)
         {
@@ -779,5 +787,245 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         {
             return this.File(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("Test")), "text/plain", "test.txt");
         }
+        [HttpGet]
+        public async Task<IActionResult> Review(int id)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted,
+                includeProperties: "Attachments,References,Category,Product,SubCategory");
+            if (solution == null)
+            {
+                TempData["error"] = "Solution not found.";
+                return RedirectToAction("Approvals");
+            }
+
+            var model = new SolutionViewModel
+            {
+                Id = solution.Id,
+                Title = solution.Title,
+                ProductId = solution.ProductId,
+                SubCategoryId = solution.SubCategoryId,
+                CategoryId = solution.CategoryId,
+                IssueDescription = solution.IssueDescription,
+                HtmlContent = solution.HtmlContent,
+                Feedback = solution.Feedback,
+                Attachments = solution.Attachments?.Where(a => !a.IsDeleted).ToList(),
+                References = solution.References?.Where(r => !r.IsDeleted).ToList(),
+                Products = (await _unitOfWork.Product.GetAllAsync()).ToList(),
+                Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList(),
+                SubCategories = (await _unitOfWork.SubCategory.GetAllAsync(s => s.ProductId == solution.ProductId)).ToList()
+            };
+
+            return View(model);
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Review(int id, string feedback, string status)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                TempData["error"] = "Unauthorized access.";
+                return RedirectToAction("Login", "Account", new { area = "Identity" });
+            }
+
+            if (string.IsNullOrEmpty(status))
+            {
+                TempData["error"] = "Please select a status.";
+                return await ReloadReviewView(id, feedback);
+            }
+
+            var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
+            if (solution == null)
+            {
+                TempData["error"] = "Solution not found.";
+                return RedirectToAction("Approvals", "Solution", new { area = "Admin" });
+            }
+
+            solution.Status = status;
+            solution.Feedback = feedback;
+            solution.UpdateAudit(user.Id);
+
+            if (status == "Approved")
+            {
+                solution.ApprovedById = user.Id;
+            }
+            else
+            {
+                solution.ApprovedById = null;
+            }
+
+            try
+            {
+                await _unitOfWork.SaveAsync();
+                TempData["success"] = "Review saved successfully!";
+                return RedirectToAction(status == "Approved" ? "MyApprovals" : "Approvals", "Solution", new { area = "Admin" });
+            }
+            catch (Exception ex)
+            {
+                TempData["error"] = "An error occurred while saving the review: " + ex.Message;
+                Console.WriteLine($"Error saving review: {ex}");
+                return await ReloadReviewView(id, feedback);
+            }
+        }
+        // Helper method to reload the Review view
+        private async Task<IActionResult> ReloadReviewView(int id, string feedback)
+        {
+            var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted,
+                includeProperties: "Attachments,References,Category,Product,SubCategory");
+            if (solution == null)
+            {
+                TempData["error"] = "Solution not found.";
+                return RedirectToAction("Approvals", "Solution", new { area = "Admin" });
+            }
+
+            var model = new SolutionViewModel
+            {
+                Id = solution.Id,
+                Title = solution.Title,
+                ProductId = solution.ProductId,
+                SubCategoryId = solution.SubCategoryId,
+                CategoryId = solution.CategoryId,
+                IssueDescription = solution.IssueDescription,
+                HtmlContent = solution.HtmlContent,
+                Feedback = feedback,
+                Attachments = solution.Attachments?.Where(a => !a.IsDeleted).ToList(),
+                References = solution.References?.Where(r => !r.IsDeleted).ToList(),
+                Products = (await _unitOfWork.Product.GetAllAsync()).ToList(),
+                Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList(),
+                SubCategories = (await _unitOfWork.SubCategory.GetAllAsync(s => s.ProductId == solution.ProductId)).ToList()
+            };
+
+            return View(model);
+        }
+
+
+        [HttpGet]
+        public async Task<IActionResult> MyApprovals()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return RedirectToAction("Login", "Account", new { area = "Identity" });
+            }
+
+            var solutions = await _unitOfWork.Solution.GetAllAsync(
+                s => !s.IsDeleted && s.Status == "Approved" && s.ApprovedById == user.Id,
+                includeProperties: "Category,Product,SubCategory,Author"
+            );
+
+            return View(solutions);
+        }
+        [HttpPost]
+        [Route("/Admin/Solution/ReleaseReview")]
+        public async Task<IActionResult> ReleaseReview(int id, string status, string feedback)
+        {
+            try
+            {
+                var user = await _userManager.GetUserAsync(User);
+                if (user == null)
+                {
+                    return Json(new { success = false, error = "Unauthorized access. Please log in." });
+                }
+
+                var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == id && !s.IsDeleted);
+                if (solution == null)
+                {
+                    return Json(new { success = false, error = "Solution not found." });
+                }
+
+                // Ensure status is "Submitted"
+                if (status != "Submitted")
+                {
+                    return Json(new { success = false, error = "Invalid status. Status must be 'Submitted' for release." });
+                }
+
+                solution.Status = status;
+                solution.Feedback = feedback;
+                solution.UpdateAudit(user.Id);
+
+                await _unitOfWork.SaveAsync();
+
+                return Json(new { success = true, message = "Review released successfully." });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReleaseReview: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, error = $"Error releasing review: {ex.Message}" });
+            }
+        }
+        [HttpGet]
+        [Route("Admin/Solution/DownloadAttachment/{id?}")]
+        public async Task<IActionResult> DownloadAttachmentaftercreate(int id)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                TempData["error"] = "Please log in to download attachments.";
+                Console.WriteLine("DownloadAttachment: Unauthorized access attempt.");
+                return RedirectToAction("Login", "Account", new { area = "Identity" });
+            }
+
+            if (id <= 0)
+            {
+                TempData["error"] = "Invalid attachment ID.";
+                Console.WriteLine($"DownloadAttachment: Invalid ID {id}.");
+                return NotFound();
+            }
+
+            var attachment = await _unitOfWork.SolutionAttachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+            if (attachment == null)
+            {
+                TempData["error"] = $"Attachment with ID {id} not found.";
+                Console.WriteLine($"DownloadAttachment: Attachment ID {id} not found or deleted.");
+                return NotFound();
+            }
+
+            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath).Replace('/', Path.DirectorySeparatorChar);
+            Console.WriteLine($"DownloadAttachment: Attempting to access file at {fullPath} for ID {id}");
+
+            if (!System.IO.File.Exists(fullPath))
+            {
+                TempData["error"] = $"Attachment file is missing on the server (ID: {id}). Please re-upload the file.";
+                Console.WriteLine($"DownloadAttachment: File not found at {fullPath} for ID {id}");
+                return NotFound();
+            }
+
+            // Determine MIME type
+            string mimeType = "application/octet-stream";
+            string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
+            if (ext != null)
+            {
+                mimeType = ext switch
+                {
+                    ".pdf" => "application/pdf",
+                    ".png" => "image/png",
+                    ".jpg" => "image/jpeg",
+                    ".jpeg" => "image/jpeg",
+                    ".txt" => "text/plain",
+                    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    _ => "application/octet-stream"
+                };
+            }
+
+            try
+            {
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                Console.WriteLine($"DownloadAttachment: Serving file {attachment.FileName} (ID: {id})");
+                return File(fileStream, mimeType, attachment.FileName);
+            }
+            catch (Exception ex)
+            {
+                TempData["error"] = "Error accessing the attachment file.";
+                Console.WriteLine($"DownloadAttachment: Error opening file {fullPath} for ID {id}: {ex.Message}");
+                return StatusCode(500, "Error accessing the file.");
+            }
+        }
     }
+
 }

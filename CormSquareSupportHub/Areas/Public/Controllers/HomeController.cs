@@ -41,27 +41,28 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
                 includeProperties: "Category,Product,SubCategory,Attachments,References"
             );
 
+
             if (solution == null)
                 return NotFound();
+                var viewModel = new SolutionViewModel
+                {
+                    Id = solution.Id,
+                    Title = solution.Title,
+                    CategoryId = solution.CategoryId,
+                    ProductId = solution.ProductId,
+                    SubCategoryId = solution.SubCategoryId,
+                    Contributors = solution.Contributors,
+                    HtmlContent = solution.HtmlContent,
+                    IssueDescription = solution.IssueDescription,
+                    Feedback = solution.Feedback,
+                    Status = solution.Status,
+                    Attachments = solution.Attachments?.ToList() ?? new List<SolutionAttachment>(),
+                    References = solution.References?.ToList() ?? new List<SolutionReference>(),
+                    Categories = new List<Category>(),
+                    Products = new List<Product>(),
+                    SubCategories = new List<SubCategory>()
+                };
 
-            var viewModel = new SolutionViewModel
-            {
-                Id = solution.Id,
-                Title = solution.Title,
-                CategoryId = solution.CategoryId,
-                ProductId = solution.ProductId,
-                SubCategoryId = solution.SubCategoryId,
-                Contributors = solution.Contributors,
-                HtmlContent = solution.HtmlContent,
-                IssueDescription = solution.IssueDescription,
-                Feedback = solution.Feedback,
-                Status = solution.Status,
-                Attachments = solution.Attachments?.ToList() ?? new List<SolutionAttachment>(),
-                References = solution.References?.ToList() ?? new List<SolutionReference>(),
-                Categories = new List<Category>(),
-                Products = new List<Product>(),
-                SubCategories = new List<SubCategory>()
-            };
 
             // Filter out internal attachments and references for ExternalUser role
             if (User.IsInRole("ExternalUser"))
