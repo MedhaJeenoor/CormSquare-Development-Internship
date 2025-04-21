@@ -4,106 +4,329 @@
     ViewData["Title"] = "Review Solution";
 }
 
-<div class="card shadow border-0 mt-4">
-    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
-        <h2 class="text-center py-2">Review Solution</h2>
-    </div>
-    <div class="card-body p-4">
-        <form method="post" asp-action="Review" id="reviewForm">
-            <input type="hidden" asp-for="Id" />
+<style>
+    body {
+        background-color: #f4f6f9;
+        font-family: 'Inter', sans-serif;
+    }
 
-            <div class="mb-3">
-                <label>Title</label>
-                <p class="form-control-static">@Model.Title</p>
-            </div>
+    .review-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
 
-            <div class="mb-3 row">
-                <div class="col-md-6">
-                    <label>Product</label>
-                    <p class="form-control-static">@Model.Products.FirstOrDefault(p => p.Id == Model.ProductId)?.ProductName</p>
+    .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .card-header {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+        padding: 1.5rem;
+        border-bottom: none;
+    }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+
+    .card-body {
+        padding: 2rem;
+        background-color: #fff;
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: #343a40;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control-static {
+        background-color: #f8f9fa;
+        padding: 0.75rem;
+        border-radius: 6px;
+        color: #495057;
+    }
+
+    .content-preview {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+        min-height: 100px;
+    }
+
+    .list-group-item {
+        border: none;
+        border-bottom: 1px solid #e9ecef;
+        padding: 1rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+        .list-group-item:last-child {
+            border-bottom: none;
+        }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 12px;
+    }
+
+    .form-select,
+    textarea {
+        border-radius: 6px;
+        border: 1px solid #ced4da;
+        transition: border-color 0.2s;
+    }
+
+        .form-select:focus,
+        textarea:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 1rem;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+        opacity: 1 !important;
+        flex: 1;
+        max-width: 180px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: white;
+    }
+
+        .btn-success:hover,
+        .btn-success:focus {
+            background-color: #1e7e34;
+            border-color: #1c7430;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+    .btn-outline-secondary {
+        background-color: transparent;
+        border-color: #6c757d;
+        color: #6c757d;
+    }
+
+        .btn-outline-secondary:hover,
+        .btn-outline-secondary:focus {
+            background-color: #5c636a;
+            border-color: #5c636a;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+    .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+
+        .btn-warning:hover,
+        .btn-warning:focus {
+            background-color: #d39e00;
+            border-color: #c69500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+</style>
+
+<div class="review-container">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="text-center">Review Solution</h2>
+        </div>
+        <div class="card-body">
+            @if (TempData["error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["error"]</div>
+            }
+            @if (TempData["success"] != null)
+            {
+                <div class="alert alert-success">@TempData["success"]</div>
+            }
+
+            <form method="post" asp-action="Review" id="reviewForm">
+                <input type="hidden" asp-for="Id" />
+
+                <div class="mb-4">
+                    <label class="form-label">Title</label>
+                    <p class="form-control-static">@Model.Title</p>
                 </div>
-                <div class="col-md-6">
-                    <label>Subcategory</label>
-                    <p class="form-control-static">@Model.SubCategories.FirstOrDefault(s => s.Id == Model.SubCategoryId)?.Name</p>
+
+                <div class="mb-4 row">
+                    <div class="col-md-6">
+                        <label class="form-label">Product</label>
+                        <p class="form-control-static">@Model.Products.FirstOrDefault(p => p.Id == Model.ProductId)?.ProductName</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Subcategory</label>
+                        <p class="form-control-static">@Model.SubCategories.FirstOrDefault(s => s.Id == Model.SubCategoryId)?.Name</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="mb-3">
-                <label>Category</label>
-                <p class="form-control-static">@Model.Categories.FirstOrDefault(c => c.Id == Model.CategoryId)?.Name</p>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Category</label>
+                    <p class="form-control-static">@Model.Categories.FirstOrDefault(c => c.Id == Model.CategoryId)?.Name</p>
+                </div>
 
-            <div class="mb-3">
-                <label>Related Issue</label>
-                <p class="form-control-static">@Model.IssueDescription</p>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Related Issue</label>
+                    <p class="form-control-static">@Model.IssueDescription</p>
+                </div>
 
-            <div class="mb-3">
-                <label>Solution Content</label>
-                <div class="border p-3" readonly>@Html.Raw(Model.HtmlContent)</div>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Solution Content</label>
+                    <div class="content-preview">@Html.Raw(Model.HtmlContent)</div>
+                </div>
 
-            <div class="mb-3">
-                <label>Attachments</label>
-                <ul class="list-group">
-                    @foreach (var attachment in Model.Attachments)
-                    {
-                        <li class="list-group-item">
-                            <strong>@attachment.FileName</strong> (@attachment.Caption)
-                            @if (attachment.IsInternal)
+                <div class="mb-4">
+                    <label class="form-label">Attachments</label>
+                    <ul class="list-group">
+                        @if (Model.Attachments != null && Model.Attachments.Any())
+                        {
+                            @foreach (var attachment in Model.Attachments)
                             {
-                                <span class="badge bg-warning">Internal</span>
+                                <li class="list-group-item">
+                                    <div>
+                                        <strong>@(string.IsNullOrEmpty(attachment.FileName) ? "Unnamed File" : attachment.FileName)</strong>
+                                        <span>(@(string.IsNullOrEmpty(attachment.Caption) ? "No caption" : attachment.Caption))</span>
+                                        @if (attachment.IsInternal)
+                                        {
+                                            <span class="badge bg-warning text-dark">Internal</span>
+                                        }
+                                    </div>
+                                    @if (attachment.Id > 0)
+                                    {
+                                        <a href="@Url.Action("DownloadAttachment", "Solution", new { area = "Admin", id = attachment.Id })"
+                                           class="btn btn-sm btn-outline-primary download-attachment"
+                                           data-attachment-id="@attachment.Id">View</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Download unavailable</span>
+                                    }
+                                </li>
                             }
-                            <a href="/Admin/Solution/DownloadAttachment/@attachment.Id" class="btn btn-sm btn-primary ms-2">Download</a>
-                        </li>
-                    }
-                </ul>
-            </div>
+                        }
+                        else
+                        {
+                            <li class="list-group-item">No attachments available.</li>
+                        }
+                    </ul>
+                </div>
 
-            <div class="mb-3">
-                <label>References</label>
-                <ul class="list-group">
-                    @foreach (var reference in Model.References)
-                    {
-                        <li class="list-group-item">
-                            <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a> (@reference.Description)
-                            @if (reference.IsInternal)
+                <div class="mb-4">
+                    <label class="form-label">References</label>
+                    <ul class="list-group">
+                        @if (Model.References != null && Model.References.Any())
+                        {
+                            @foreach (var reference in Model.References)
                             {
-                                <span class="badge bg-warning">Internal</span>
+                                string displayUrl = reference.Url;
+                                string hrefUrl = reference.Url;
+
+                                if (!hrefUrl.StartsWith("http://") && !hrefUrl.StartsWith("https://"))
+                                {
+                                    hrefUrl = "https://" + hrefUrl;
+                                }
+                                displayUrl = displayUrl.Replace("https://", "").Replace("http://", "").TrimEnd('/');
+
+                                <li class="list-group-item">
+                                    <div>
+                                        <a href="@hrefUrl" target="@reference.OpenOption">@displayUrl</a>
+                                        @if (!string.IsNullOrEmpty(reference.Description))
+                                        {
+                                            <span>(@reference.Description)</span>
+                                        }
+                                        @if (reference.IsInternal)
+                                        {
+                                            <span class="badge bg-warning text-dark">Internal</span>
+                                        }
+                                    </div>
+                                </li>
                             }
-                        </li>
-                    }
-                </ul>
-            </div>
+                        }
+                        else
+                        {
+                            <li class="list-group-item">No references available.</li>
+                        }
+                    </ul>
+                </div>
 
-            <div class="mb-3">
-                <label>Feedback</label>
-                <textarea id="feedbackEditor" name="feedback">@Html.Raw(Model.Feedback)</textarea>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Feedback</label>
+                    <textarea id="feedbackEditor" name="feedback">@Html.Raw(Model.Feedback)</textarea>
+                </div>
 
-            <div class="mb-3">
-                <label>Status</label>
-                <select name="status" class="form-control" required>
-                    <option value="UnderReview" selected>Under Review (Save Progress)</option>
-                    <option value="Approved">Approved and Published</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="NeedsRevision">Needs Revision</option>
-                </select>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select" required>
+                        <option value="" disabled selected>Select a status</option>
+                        <option value="UnderReview">Under Review (Save Progress)</option>
+                        <option value="Approved">Approved and Published</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="NeedsRevision">Needs Revision</option>
+                        <option value="Submitted">Submitted</option>
+                    </select>
+                </div>
 
-            <div class="text-center mt-4">
-                <button type="submit" class="btn btn-success mx-2" style="width:200px">Save Review</button>
-                <a asp-action="Approvals" class="btn btn-outline-secondary mx-2" style="width:200px">Cancel</a>
-                <button type="button" class="btn btn-warning mx-2" style="width:200px" onclick="releaseReview(@Model.Id)">Release Review</button>
-            </div>
-        </form>
+                <div class="action-buttons mt-4">
+                    <button type="submit" class="btn btn-success" aria-label="Save review">Save Review</button>
+                    <a asp-action="Approvals" class="btn btn-outline-secondary" aria-label="Cancel review">Cancel</a>
+                    <button type="button" class="btn btn-warning" onclick="releaseReview(@Model.Id)" aria-label="Release review and set status to Submitted">Release Review</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
+
+<div class="mb-5 pb-5"></div>
+<div style="min-height: 100px;"></div>
 
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="~/js/tinymce-solution.js"></script>
     <partial name="_ValidationScriptsPartial" />
+
     <script>
         tinymce.init({
             selector: '#feedbackEditor',
@@ -122,16 +345,22 @@
         });
 
         $('#reviewForm').on('submit', function (e) {
+            tinymce.get('feedbackEditor').save();
             var status = $('select[name="status"]').val();
             if (!status) {
                 e.preventDefault();
                 alert('Please select a status.');
+                return false;
             }
         });
 
         function releaseReview(solutionId) {
-            if (confirm('Are you sure you want to release this review? It will return to the "Submitted" state for another reviewer.')) {
-                $.post('/Admin/Solution/ReleaseReview', { id: solutionId }, function (response) {
+            if (confirm('Are you sure you want to release this review?')) {
+                tinymce.get('feedbackEditor').save();
+                $('select[name="status"]').val('Submitted');
+                var formData = $('#reviewForm').serialize() + '&id=' + solutionId;
+
+                $.post('/Admin/Solution/ReleaseReview', formData, function (response) {
                     if (response.success) {
                         window.location.href = '/Admin/Solution/Approvals';
                     } else {
@@ -142,5 +371,9 @@
                 });
             }
         }
+
+        $('.download-attachment').on('click', function () {
+            console.log('Download clicked for attachment ID: ' + $(this).data('attachment-id'));
+        });
     </script>
 }

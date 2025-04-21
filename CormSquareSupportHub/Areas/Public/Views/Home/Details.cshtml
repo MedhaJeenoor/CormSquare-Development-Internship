@@ -1,0 +1,139 @@
+﻿@model SupportHub.Models.SolutionViewModel
+
+@{
+    ViewData["Title"] = "Solution Details";
+    Layout = "~/Views/Shared/_Layout.cshtml"; // Use the layout file
+}
+
+<style>
+    .details-container {
+        max-width: 1000px;
+        margin: 40px auto;
+        padding: 30px;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        font-family: 'Inter', sans-serif;
+    }
+
+    h2 {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #343a40;
+    }
+
+    .section {
+        margin-bottom: 25px;
+    }
+
+    .section-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #495057;
+        margin-bottom: 10px;
+    }
+
+    .section-content {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .attachment-list, .reference-list {
+        list-style: none;
+        padding-left: 0;
+    }
+
+        .attachment-list li, .reference-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+            .attachment-list li:last-child, .reference-list li:last-child {
+                border-bottom: none;
+            }
+
+    .btn-view {
+        padding: 6px 12px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        text-decoration: none;
+    }
+
+    .feedback-content {
+        white-space: pre-wrap;
+    }
+</style>
+
+<div class="details-container">
+    <h2>Solution Details</h2>
+
+    <div class="section">
+        <div class="section-title">Related Issue</div>
+        <div class="section-content">@Model.IssueDescription</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Solution Content</div>
+        <div class="section-content">@Html.Raw(Model.HtmlContent)</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Attachments</div>
+        <div class="section-content">
+            @if (Model.Attachments != null && Model.Attachments.Any())
+            {
+                <ul class="attachment-list">
+                    @foreach (var attachment in Model.Attachments)
+                    {
+                        <li>
+                            <span>@attachment.FileName</span>
+                            <a class="btn-view" href="@Url.Action("DownloadAttachment", "Solution", new { area = "Admin", id = attachment.Id })" target="_blank">View</a>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>No attachments available.</p>
+            }
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">References</div>
+        <div class="section-content">
+            @if (Model.References != null && Model.References.Any())
+            {
+                <ul class="reference-list">
+                    @foreach (var reference in Model.References)
+                    {
+                        <li>
+                            <span>@(string.IsNullOrEmpty(reference.Description) ? reference.Url : reference.Description)</span>
+                            <a class="btn-view" href="@reference.Url" target="@reference.OpenOption">View</a>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>No references available.</p>
+            }
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Feedback</div>
+        <div class="section-content feedback-content">
+            @Html.Raw(Model.Feedback)
+        </div>
+    </div>
+</div>
+<div class="mb-5 pb-5"></div>
+<div style="min-height: 100px;"></div>

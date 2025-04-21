@@ -28,12 +28,31 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             var userIssues = await _unitOfWork.Issue.GetIssuesByUserAsync(userId);
             return View(userIssues);
         }
+
         public async Task<IActionResult> IssueList()
         {
-            var userId = _userManager.GetUserId(User);
-            var userIssues = await _unitOfWork.Issue.GetIssuesByUserAsync(userId);
-            return View(userIssues);
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return Unauthorized();
+            }
+
+            var isAdminOrManager = await _userManager.IsInRoleAsync(user, "Admin") ||
+                                   await _userManager.IsInRoleAsync(user, "KMCreator") ||
+                                   await _userManager.IsInRoleAsync(user, "KMChampion");
+
+            if (isAdminOrManager)
+            {
+                var allIssues = await _unitOfWork.Issue.GetAllAsync(includeProperties: "Product,SubCategory,User");
+                return View(allIssues);
+            }
+            else
+            {
+                var userIssues = await _unitOfWork.Issue.GetIssuesByUserAsync(user.Id);
+                return View(userIssues);
+            }
         }
+
         [HttpGet]
         public async Task<IActionResult> Create()
         {

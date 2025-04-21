@@ -76,6 +76,18 @@ namespace SupportHub.DataAccess.Repository
                 _db.Entry(existingSolution).Property(c => c.CreatedDate).IsModified = false;
             }
         }
+        public List<Solution> GetApprovedSolutions()
+        {
+            return _db.Solutions
+                .Where(s => s.Status == "Approved" )
+                .Include(s => s.Product)
+                .Include(s => s.SubCategory)
+                .Include(s => s.Category)
+                .Include(s => s.Author)
+                .ToList();
+        }
+
+
 
     }
 }

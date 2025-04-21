@@ -4,64 +4,88 @@
     ViewData["Title"] = "Register";
 }
 
-<div class="container-fluid mt-5">
-    <h1 class="text-center">@ViewData["Title"]</h1>
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow p-4">
-                <h2 class="text-center mb-3">Create a new account</h2>
-                <hr />
-                <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post">
-                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<main role="main" class="pb-3">
+    <div class="row" style="min-height: calc(100vh - 200px);">
+        <!-- Left Section: Quote (Top Half) -->
+        <div class="col-md-6 d-flex align-items-center justify-content-center" style="height: 50%;">
+            <div class="text-center p-4">
+                <blockquote class="blockquote">
+                    <p class="display-4 fw-bold mb-2" style="font-family: 'Arial', sans-serif; line-height: 1.1; color: #333; text-transform: uppercase;">
+                        "The solution often turns out more beautiful than the puzzle."
+                    </p>
+                    <footer class="blockquote-footer" style="font-family: 'Arial', sans-serif; color: #666; font-size: 1rem;">
+                        Richard Dawkins
+                        <cite title="Source">
+                            <a href="https://www.brainyquote.com/topics/solution-quotes" target="_blank" class="text-primary text-decoration-none">
+                                Read more
+                            </a>
+                        </cite>
+                    </footer>
+                </blockquote>
+            </div>
+        </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-floating mb-3">
-                                <input asp-for="Input.FirstName" class="form-control" placeholder="John" />
-                                <label asp-for="Input.FirstName">First Name</label>
+        <!-- Right Section: Registration Form (Bottom Half) -->
+        <div class="col-md-6 d-flex align-items-center justify-content-center" style="height: 50%;">
+            <div class="card shadow-lg p-4 border-0" style="max-width: 450px; width: 100%; border-radius: 15px; background: #ffffff; min-height: 80%;">
+                <!-- Logo or Branding -->
+                <div class="text-center mb-3">
+                    <img src="~/images/logo.png" alt="CormSquareSupportHub Logo" style="max-height: 60px; width: auto;" class="mb-2" />
+                    <h3 class="fw-bold text-dark mb-0">Register</h3>
+                    <p class="text-muted small mb-0">Create a new account</p>
+                </div>
+
+                <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger text-center mb-2" style="font-size: 0.85rem;"></div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="form-floating mb-2">
+                                <input asp-for="Input.FirstName" class="form-control" placeholder="John" required style="border-radius: 8px;" />
+                                <label asp-for="Input.FirstName" class="text-muted">First Name</label>
                                 <span asp-validation-for="Input.FirstName" class="text-danger"></span>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="form-floating mb-3">
-                                <input asp-for="Input.LastName" class="form-control" placeholder="Doe" />
-                                <label asp-for="Input.LastName">Last Name</label>
+                        <div class="col-6">
+                            <div class="form-floating mb-2">
+                                <input asp-for="Input.LastName" class="form-control" placeholder="Doe" required style="border-radius: 8px;" />
+                                <label asp-for="Input.LastName" class="text-muted">Last Name</label>
                                 <span asp-validation-for="Input.LastName" class="text-danger"></span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.PhoneNumber" class="form-control" placeholder="123-456-7890" />
-                        <label asp-for="Input.PhoneNumber">Phone Number</label>
+                    <div class="form-floating mb-2">
+                        <input asp-for="Input.PhoneNumber" class="form-control" placeholder="123-456-7890" required style="border-radius: 8px;" />
+                        <label asp-for="Input.PhoneNumber" class="text-muted">Phone Number</label>
                         <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
                     </div>
 
-                    <div class="form-check mb-3">
+                    <div class="form-check mb-2">
                         <input type="checkbox" class="form-check-input" id="isEmployeeCheckbox" />
-                        <label class="form-check-label" for="isEmployeeCheckbox">I am an employee of a company</label>
+                        <label class="form-check-label" for="isEmployeeCheckbox">I am an employee</label>
                     </div>
 
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.CompanyName" class="form-control" id="companyNameField" placeholder="Company Name" disabled />
-                        <label asp-for="Input.CompanyName">Company Name</label>
+                    <div class="form-floating mb-2">
+                        <input asp-for="Input.CompanyName" class="form-control" id="companyNameField" placeholder="Company Name" disabled style="border-radius: 8px;" />
+                        <label asp-for="Input.CompanyName" class="text-muted">Company Name</label>
                         <span asp-validation-for="Input.CompanyName" class="text-danger"></span>
                     </div>
 
-                    <div class="form-floating mb-3" id="employeeIdField" style="display: none;">
-                        <input asp-for="Input.EmployeeID" class="form-control" id="employeeIdInput" placeholder="Employee ID" disabled />
-                        <label asp-for="Input.EmployeeID">Employee ID</label>
+                    <div class="form-floating mb-2" id="employeeIdField" style="display: none;">
+                        <input asp-for="Input.EmployeeID" class="form-control" id="employeeIdInput" placeholder="Employee ID" disabled style="border-radius: 8px;" />
+                        <label asp-for="Input.EmployeeID" class="text-muted">Employee ID</label>
                         <span asp-validation-for="Input.EmployeeID" class="text-danger"></span>
                     </div>
 
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.Email" class="form-control" placeholder="name@example.com" />
-                        <label asp-for="Input.Email">Email</label>
+                    <div class="form-floating mb-2">
+                        <input asp-for="Input.Email" class="form-control" placeholder="name@example.com" required style="border-radius: 8px;" />
+                        <label asp-for="Input.Email" class="text-muted">Email</label>
                         <span asp-validation-for="Input.Email" class="text-danger"></span>
                     </div>
 
-                    <div class="form-floating mb-3">
-                        <select asp-for="Input.Country" class="form-control">
+                    <div class="form-floating mb-2">
+                        <select asp-for="Input.Country" class="form-control" required style="border-radius: 8px;">
                             <option value="">Select Country</option>
                             <option value="USA">United States</option>
                             <option value="Canada">Canada</option>
@@ -74,58 +98,129 @@
                             <option value="Brazil">Brazil</option>
                             <option value="Australia">Australia</option>
                         </select>
-                        <label asp-for="Input.Country">Country</label>
+                        <label asp-for="Input.Country" class="text-muted">Country</label>
                         <span asp-validation-for="Input.Country" class="text-danger"></span>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-floating mb-3">
-                                <input asp-for="Input.Password" type="password" class="form-control" placeholder="Password" />
-                                <label asp-for="Input.Password">Password</label>
-                                <span asp-validation-for="Input.Password" class="text-danger"></span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-floating mb-3">
-                                <input asp-for="Input.ConfirmPassword" type="password" class="form-control" placeholder="Confirm Password" />
-                                <label asp-for="Input.ConfirmPassword">Confirm Password</label>
-                                <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
-                            </div>
-                        </div>
+                    <div class="form-floating mb-2 position-relative">
+                        <input asp-for="Input.Password" type="password" class="form-control" id="Input_Password" placeholder="Password" required style="border-radius: 8px; padding-right: 40px;" />
+                        <label asp-for="Input.Password" class="text-muted">Password</label>
+                        <button type="button" id="togglePassword" class="btn position-absolute top-50 end-0 translate-middle-y me-2" style="background: none; border: none; padding: 0;">
+                            <i class="fas fa-eye text-muted"></i>
+                        </button>
+                        <span asp-validation-for="Input.Password" class="text-danger"></span>
                     </div>
 
-                    <button id="registerSubmit" type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
+                    <div class="form-floating mb-2 position-relative">
+                        <input asp-for="Input.ConfirmPassword" type="password" class="form-control" id="Input_ConfirmPassword" placeholder="Confirm Password" required style="border-radius: 8px; padding-right: 40px;" />
+                        <label asp-for="Input.ConfirmPassword" class="text-muted">Confirm Password</label>
+                        <button type="button" id="toggleConfirmPassword" class="btn position-absolute top-50 end-0 translate-middle-y me-2" style="background: none; border: none; padding: 0;">
+                            <i class="fas fa-eye text-muted"></i>
+                        </button>
+                        <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
+                    </div>
+
+                    <button id="registerSubmit" type="submit" class="w-100 btn btn-primary" style="border-radius: 8px; padding: 10px; transition: background 0.3s ease;">Register</button>
                 </form>
             </div>
         </div>
     </div>
-</div>
+</main>
 <div class="mb-5 pb-5"></div>
 <!-- Spacer to push content above footer -->
 <div style="min-height: 100px;"></div>
+
+<style>
+    /* Hover effect for buttons */
+    button:hover {
+        background: #0056b3 !important;
+    }
+
+    /* Form input focus styling */
+    .form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    /* Validation error styling */
+    .text-danger {
+        font-size: 0.85rem;
+    }
+
+    /* Card shadow enhancement */
+    .card {
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Eye icon styling */
+    #togglePassword, #toggleConfirmPassword {
+        cursor: pointer;
+    }
+
+        #togglePassword .fas, #toggleConfirmPassword .fas {
+            font-size: 1rem;
+        }
+
+        #togglePassword:hover .fas, #toggleConfirmPassword:hover .fas {
+            color: #007bff;
+        }
+</style>
+
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            var isEmployeeCheckbox = document.getElementById("isEmployeeCheckbox");
-            var companyNameField = document.getElementById("companyNameField");
-            var employeeIdField = document.getElementById("employeeIdField");
-            var employeeIdInput = document.getElementById("employeeIdInput");
+            // Employee checkbox logic
+            const isEmployeeCheckbox = document.getElementById("isEmployeeCheckbox");
+            const companyNameField = document.getElementById("companyNameField");
+            const employeeIdField = document.getElementById("employeeIdField");
+            const employeeIdInput = document.getElementById("employeeIdInput");
 
-            isEmployeeCheckbox.addEventListener("change", function () {
-                if (this.checked) {
-                    companyNameField.disabled = false;
-                    employeeIdField.style.display = "block";
-                    employeeIdInput.disabled = false;
-                } else {
-                    companyNameField.disabled = true;
-                    companyNameField.value = "";
-                    employeeIdField.style.display = "none";
-                    employeeIdInput.disabled = true;
-                    employeeIdInput.value = "";
-                }
-            });
+            if (isEmployeeCheckbox && companyNameField && employeeIdField && employeeIdInput) {
+                isEmployeeCheckbox.addEventListener("change", function () {
+                    if (this.checked) {
+                        companyNameField.disabled = false;
+                        employeeIdField.style.display = "block";
+                        employeeIdInput.disabled = false;
+                    } else {
+                        companyNameField.disabled = true;
+                        companyNameField.value = "";
+                        employeeIdField.style.display = "none";
+                        employeeIdInput.disabled = true;
+                        employeeIdInput.value = "";
+                    }
+                });
+            }
+
+            // Password visibility toggle
+            const togglePassword = document.getElementById("togglePassword");
+            const passwordInput = document.getElementById("Input_Password");
+            if (togglePassword && passwordInput) {
+                togglePassword.addEventListener("click", function () {
+                    const type = passwordInput.getAttribute("type") === "password" ? "text" : "password";
+                    passwordInput.setAttribute("type", type);
+                    const icon = this.querySelector("i");
+                    if (icon) {
+                        icon.classList.toggle("fa-eye");
+                        icon.classList.toggle("fa-eye-slash");
+                    }
+                });
+            }
+
+            // Confirm Password visibility toggle
+            const toggleConfirmPassword = document.getElementById("toggleConfirmPassword");
+            const confirmPasswordInput = document.getElementById("Input_ConfirmPassword");
+            if (toggleConfirmPassword && confirmPasswordInput) {
+                toggleConfirmPassword.addEventListener("click", function () {
+                    const type = confirmPasswordInput.getAttribute("type") === "password" ? "text" : "password";
+                    confirmPasswordInput.setAttribute("type", type);
+                    const icon = this.querySelector("i");
+                    if (icon) {
+                        icon.classList.toggle("fa-eye");
+                        icon.classList.toggle("fa-eye-slash");
+                    }
+                });
+            }
         });
     </script>
-    <partial name="_ValidationScriptsPartial" />
 }

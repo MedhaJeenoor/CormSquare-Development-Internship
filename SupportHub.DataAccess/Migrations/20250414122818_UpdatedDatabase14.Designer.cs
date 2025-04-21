@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SupportHub.DataAccess.Data;
 
@@ -11,9 +12,11 @@ using SupportHub.DataAccess.Data;
 namespace SupportHub.DataAccess.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250414122818_UpdatedDatabase14")]
+    partial class UpdatedDatabase14
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,25 +54,25 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "5fe12320-80c4-4cbc-b0e5-685914ded7cb",
+                            Id = "6c1a882c-72a4-4473-b03a-8dab957920a6",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = "2fb0bd71-7e17-4075-af0c-935067b15472",
+                            Id = "cd959e79-8f47-48e8-a57c-84a6b5a3b65e",
                             Name = "Internal User",
                             NormalizedName = "INTERNAL USER"
                         },
                         new
                         {
-                            Id = "9e588880-45da-465b-b6df-429341250144",
+                            Id = "05659fd1-2ab7-4202-89b3-f8f4cdc50f36",
                             Name = "KM Creator",
                             NormalizedName = "KM CREATOR"
                         },
                         new
                         {
-                            Id = "7741d863-2383-4fc2-a26a-7846641a673c",
+                            Id = "9353f3a5-0f98-4e34-a63e-5addcbc620d9",
                             Name = "KM Champion",
                             NormalizedName = "KM CHAMPION"
                         });
@@ -370,7 +373,7 @@ namespace SupportHub.DataAccess.Migrations
                         {
                             Id = 1,
                             CreatedBy = "00000000-0000-0000-0000-000000000001",
-                            CreatedDate = new DateTime(2025, 4, 17, 11, 56, 3, 862, DateTimeKind.Utc).AddTicks(8261),
+                            CreatedDate = new DateTime(2025, 4, 14, 12, 28, 18, 257, DateTimeKind.Utc).AddTicks(638),
                             Description = "Different types of documentation for knowledge management.",
                             DisplayOrder = 1,
                             HtmlContent = "",
@@ -586,9 +589,6 @@ namespace SupportHub.DataAccess.Migrations
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("FirstNameId")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("HtmlContent")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -628,8 +628,6 @@ namespace SupportHub.DataAccess.Migrations
                     b.HasIndex("AuthorId");
 
                     b.HasIndex("CategoryId");
-
-                    b.HasIndex("FirstNameId");
 
                     b.HasIndex("ProductId");
 
@@ -956,10 +954,6 @@ namespace SupportHub.DataAccess.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SupportHub.Models.ExternalUser", "FirstName")
-                        .WithMany()
-                        .HasForeignKey("FirstNameId");
-
                     b.HasOne("SupportHub.Models.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -973,8 +967,6 @@ namespace SupportHub.DataAccess.Migrations
                     b.Navigation("Author");
 
                     b.Navigation("Category");
-
-                    b.Navigation("FirstName");
 
                     b.Navigation("Product");
 
