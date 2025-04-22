@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SupportHub.DataAccess.Repository.IRepository;
 using SupportHub.Models;
 using System.Diagnostics;
+using System.Linq;
 
 namespace CormSquareSupportHub.Areas.Public.Controllers
 {
@@ -17,10 +18,31 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
             _logger = logger;
         }
 
-        public IActionResult Index()
+        public IActionResult Index(string? searchString)
         {
-            var approvedSolutions = _unitOfWork.Solution.GetApprovedSolutions();
-            return View(approvedSolutions);
+            // Persist search term in ViewData for the view
+            ViewData["searchString"] = searchString;
+
+            // Get approved solutions with related data
+            var solutions = _unitOfWork.Solution.GetApprovedSolutions(
+                includeProperties: "Category,Product,SubCategory,Author"
+            );
+
+            if (!string.IsNullOrWhiteSpace(searchString))
+            {
+                searchString = searchString.ToLower();
+                solutions = solutions.Where(s =>
+                    (!string.IsNullOrEmpty(s.Title) && s.Title.ToLower().Contains(searchString)) ||
+                    (s.Category != null && !string.IsNullOrEmpty(s.Category.Name) && s.Category.Name.ToLower().Contains(searchString)) ||
+                    (s.Product != null && !string.IsNullOrEmpty(s.Product.ProductName) && s.Product.ProductName.ToLower().Contains(searchString)) ||
+                    (s.SubCategory != null && !string.IsNullOrEmpty(s.SubCategory.Name) && s.SubCategory.Name.ToLower().Contains(searchString)) ||
+                    (s.Author != null && !string.IsNullOrEmpty(s.Author.FirstName) && s.Author.FirstName.ToLower().Contains(searchString))
+                ).ToList();
+            }
+
+            _logger.LogInformation("Retrieved {Count} approved solutions with search term: {Search}", solutions.Count, searchString ?? "none");
+
+            return View(solutions);
         }
 
         public IActionResult Privacy()
@@ -38,31 +60,33 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
         {
             var solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(
                 s => s.Id == id,
-                includeProperties: "Category,Product,SubCategory,Attachments,References"
+                includeProperties: "Category,Product,SubCategory,Attachments,References,Author"
             );
 
-
             if (solution == null)
+            {
+                _logger.LogWarning("Solution with ID {Id} not found", id);
                 return NotFound();
-                var viewModel = new SolutionViewModel
-                {
-                    Id = solution.Id,
-                    Title = solution.Title,
-                    CategoryId = solution.CategoryId,
-                    ProductId = solution.ProductId,
-                    SubCategoryId = solution.SubCategoryId,
-                    Contributors = solution.Contributors,
-                    HtmlContent = solution.HtmlContent,
-                    IssueDescription = solution.IssueDescription,
-                    Feedback = solution.Feedback,
-                    Status = solution.Status,
-                    Attachments = solution.Attachments?.ToList() ?? new List<SolutionAttachment>(),
-                    References = solution.References?.ToList() ?? new List<SolutionReference>(),
-                    Categories = new List<Category>(),
-                    Products = new List<Product>(),
-                    SubCategories = new List<SubCategory>()
-                };
+            }
 
+            var viewModel = new SolutionViewModel
+            {
+                Id = solution.Id,
+                Title = solution.Title,
+                CategoryId = solution.CategoryId,
+                ProductId = solution.ProductId,
+                SubCategoryId = solution.SubCategoryId,
+                Contributors = solution.Author?.FirstName, // Map Author to Contributors for consistency
+                HtmlContent = solution.HtmlContent,
+                IssueDescription = solution.IssueDescription,
+                Feedback = solution.Feedback,
+                Status = solution.Status,
+                Attachments = solution.Attachments?.ToList() ?? new List<SolutionAttachment>(),
+                References = solution.References?.ToList() ?? new List<SolutionReference>(),
+                Categories = new List<Category>(),
+                Products = new List<Product>(),
+                SubCategories = new List<SubCategory>()
+            };
 
             // Filter out internal attachments and references for ExternalUser role
             if (User.IsInRole("ExternalUser"))

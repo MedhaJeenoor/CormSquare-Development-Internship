@@ -16,7 +16,7 @@ namespace SupportHub.DataAccess.Repository.IRepository
             Expression<Func<Solution, bool>>? filter = null,
             string? includeProperties = null
         );
-        List<Solution> GetApprovedSolutions();
+        List<Solution> GetApprovedSolutions(string includeProperties);
 
     }
 }
