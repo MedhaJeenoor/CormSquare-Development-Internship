@@ -118,7 +118,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 await _unitOfWork.CommitTransactionAsync();
                 TempData["success"] = "Category created successfully!";
                 Console.WriteLine("Category creation successful, redirecting to Index");
-                return RedirectToAction("Index");
+                return Json(new { success = true, redirectUrl = Url.Action("Index") }); // Return JSON to trigger client-side redirect
             }
             catch (Exception ex)
             {
@@ -148,7 +148,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         // POST: Edit Category
         [HttpPost]
-        public async Task<IActionResult> Edit(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData)
+        public async Task<IActionResult> Edit(Category obj, List<IFormFile>? files, string? ReferenceData, string? AttachmentData, [FromForm] List<int> deletedAttachmentIds, [FromForm] List<int> deletedReferenceIds)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
@@ -157,7 +157,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 return Unauthorized();
             }
 
-            Console.WriteLine($"POST Edit called. Category ID: {obj.Id}, Name: {obj.Name}, Files: {files?.Count ?? 0}, ReferenceData: {ReferenceData}, AttachmentData: {AttachmentData}");
+            Console.WriteLine($"POST Edit called. Category ID: {obj.Id}, Name: {obj.Name}, Files: {files?.Count ?? 0}, ReferenceData: {ReferenceData}, AttachmentData: {AttachmentData}, DeletedAttachmentIds: {string.Join(",", deletedAttachmentIds)}, DeletedReferenceIds: {string.Join(",", deletedReferenceIds)}");
 
             // Set audit fields before validation
             obj.UpdateAudit(user.Id);
@@ -202,29 +202,51 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     return NotFound();
                 }
 
-                // Update only the fields that should change
+                // Update category fields
                 existingCategory.Name = obj.Name;
                 existingCategory.Description = obj.Description;
                 existingCategory.HtmlContent = obj.HtmlContent;
                 existingCategory.ParentCategoryId = obj.ParentCategoryId == 0 ? null : obj.ParentCategoryId;
-                existingCategory.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder : existingCategory.DisplayOrder; // Preserve if not submitted
-                existingCategory.UpdateAudit(user.Id); // Ensure audit fields are updated
+                existingCategory.DisplayOrder = obj.DisplayOrder > 0 ? obj.DisplayOrder : existingCategory.DisplayOrder;
+                existingCategory.UpdateAudit(user.Id);
 
                 _unitOfWork.Category.Update(existingCategory);
                 await _unitOfWork.SaveAsync();
                 Console.WriteLine($"Category updated with ID: {existingCategory.Id}");
 
+                // Process attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || (files?.Count > 0))
                 {
                     await ProcessAttachmentsAsync(existingCategory, files, AttachmentData, user.Id);
                 }
 
+                // Process references
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
                     var references = JsonConvert.DeserializeObject<List<Reference>>(ReferenceData);
                     await SaveReferences(references, existingCategory.Id, user.Id);
                 }
 
+                // Process staged deletions
+                foreach (var attachmentId in deletedAttachmentIds)
+                {
+                    var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == attachmentId && !a.IsDeleted);
+                    if (attachment != null)
+                    {
+                        _unitOfWork.Attachment.SoftDelete(attachment, user.Id);
+                    }
+                }
+
+                foreach (var referenceId in deletedReferenceIds)
+                {
+                    var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == referenceId && !r.IsDeleted);
+                    if (reference != null)
+                    {
+                        _unitOfWork.Reference.SoftDelete(reference, user.Id);
+                    }
+                }
+
+                await _unitOfWork.SaveAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 TempData["success"] = "Category updated successfully!";
                 Console.WriteLine("Category update successful, redirecting to Index");
@@ -404,23 +426,14 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
 
-            try
+            var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+            if (attachment == null)
             {
-                var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
-                if (attachment == null)
-                {
-                    return Json(new { success = false, message = "Attachment not found." });
-                }
+                return Json(new { success = false, message = "Attachment not found." });
+            }
 
-                _unitOfWork.Attachment.SoftDelete(attachment, user.Id);
-                await _unitOfWork.SaveAsync();
-                return Json(new { success = true, message = "Attachment deleted successfully." });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in RemoveAttachment: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error deleting attachment: {ex.Message}" });
-            }
+            // Just confirm the intent to delete; actual deletion happens on form submission
+            return Json(new { success = true, message = "Attachment marked for deletion." });
         }
 
         [HttpPost]
@@ -429,23 +442,14 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
 
-            try
+            var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
+            if (reference == null)
             {
-                var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
-                if (reference == null)
-                {
-                    return Json(new { success = false, message = "Reference not found." });
-                }
+                return Json(new { success = false, message = "Reference not found." });
+            }
 
-                _unitOfWork.Reference.SoftDelete(reference, user.Id);
-                await _unitOfWork.SaveAsync();
-                return Json(new { success = true, message = "Reference deleted successfully." });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in RemoveReference: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error deleting reference: {ex.Message}" });
-            }
+            // Just confirm the intent to delete; actual deletion happens on form submission
+            return Json(new { success = true, message = "Reference marked for deletion." });
         }
 
         // GET: Download Attachment
