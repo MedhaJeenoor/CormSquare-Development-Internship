@@ -1,107 +1,108 @@
-﻿@model Category
-
+﻿@model SupportHub.Models.Category
 @{
     ViewData["Title"] = "Edit Category";
 }
 
 <div class="card shadow border-0 mt-4">
     <div class="card-header bg-secondary bg-gradient ml-0 py-3">
-        <div class="row">
-            <div class="col-12 text-center">
-                <h2 class="py-2">Edit Category</h2>
-            </div>
-        </div>
+        <h2 class="text-center py-2">@ViewData["Title"]</h2>
     </div>
-
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-            <form method="post" enctype="multipart/form-data">
-                <!-- Hidden ID Field -->
+            <form method="post" enctype="multipart/form-data" asp-action="Edit" id="categoryForm">
                 <input type="hidden" asp-for="Id" />
 
-                <!-- Category Name -->
-                <div class="mb-3 row p-1">
+                <!-- Name -->
+                <div class="mb-3">
                     <label asp-for="Name"></label>
-                    <input asp-for="Name" class="form-control" />
+                    <input asp-for="Name" class="form-control" required />
                     <span asp-validation-for="Name" class="text-danger"></span>
                 </div>
 
                 <!-- Description -->
-                <div class="mb-3 row p-1">
-                    <label>Description</label>
-                    <textarea asp-for="Description" class="form-control"></textarea>
+                <div class="mb-3">
+                    <label asp-for="Description"></label>
+                    <textarea asp-for="Description" class="form-control">@Model.Description</textarea>
                     <span asp-validation-for="Description" class="text-danger"></span>
                 </div>
 
-                <!-- Parent Category Dropdown -->
+                <!-- Parent Category -->
                 <div class="mb-3 row p-1">
-                    <label>Select Parent Category</label>
+                    <label asp-for="ParentCategoryId">Select Parent Category</label>
                     <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null && c.Id != Model.Id))
                         {
-                            <option value="@category.Id" selected="@(Model.ParentCategoryId == category.Id)">
-                                @category.Name
-                            </option>
+                            <option value="@category.Id">@category.Name</option>
                         }
                     </select>
                 </div>
 
-                <!-- Template Section -->
-                <div class="mb-3 p-1">
-                    <label>Template</label>
-                    <textarea id="editor" name="HtmlContent">@Html.Raw(Model.HtmlContent)</textarea>
+                <!-- Template -->
+                <div class="mb-3">
+                    <label asp-for="HtmlContent">Category Content</label>
+                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
                     <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
+                    <span asp-validation-for="HtmlContent" class="text-danger"></span>
                 </div>
 
                 <!-- Attachments Section -->
                 <div class="mb-3">
-                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Upload Attachments</button>
+                    <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Add Attachment</button>
                     <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
                     <ul id="attachmentList" class="list-group mt-2">
-                        @foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
+                        @if (ViewData["AttachmentLinks"] != null)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
-                                <div>
-                                    <strong>
-                                        <a href="/Admin/Category/DownloadAttachment?id=@attachment.Id" style="text-decoration: underline;" class="attachment-link">@attachment.FileName</a>
-                                    </strong><br />
-                                    <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption"
-                                           value="@attachment.Caption" data-index="@Model.Attachments.ToList().IndexOf(attachment)" />
-                                </div>
-                                <div>
-                                    <input type="checkbox" class="form-check-input internal-attachment"
-                                           data-index="@Model.Attachments.ToList().IndexOf(attachment)" @(attachment.IsInternal ? "checked" : "") />
-                                    <span>Internal</span>
-                                    <span class="text-danger delete-attachment ms-3" style="cursor:pointer;"
-                                          data-index="@Model.Attachments.ToList().IndexOf(attachment)">❌</span>
-                                </div>
-                            </li>
+                            var links = ViewData["AttachmentLinks"] as IEnumerable<dynamic>;
+                            var categoryAttachments = Model.Attachments;
+                            if (links != null && links.Any())
+                            {
+                                var index = 0;
+                                foreach (var link in links)
+                                {
+                                    var attachment = categoryAttachments.FirstOrDefault(a => a.Id == (int)link.Id);
+                                    var isInternal = attachment?.IsInternal ?? false;
+                                    <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
+                                        <div>
+                                            <a href='' download="@link.FileName">@link.FileName</a><br />
+                                            <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@(attachment?.Caption ?? "")" />
+                                        </div>
+                                        <div>
+                                            <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(isInternal ? "checked" : "") />
+                                            <span>Internal</span>
+                                            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
+                                        </div>
+                                    </li>
+                                    index++;
+                                }
+                            }
                         }
                     </ul>
-                    <input type="hidden" id="attachmentData" name="AttachmentData" value="[]" />
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal })))" />
                 </div>
 
                 <!-- References Section -->
                 <div class="mb-3">
-                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add New Reference</button>
+                    <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add Reference</button>
                     <ul id="referenceList" class="list-group mt-2">
-                        @foreach (var reference in Model.References.Where(r => !r.IsDeleted))
+                        @if (Model.References != null)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
-                                <div>
-                                    <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
-                                    <input type="text" class="form-control mt-1 description-input" placeholder="Enter description"
-                                           value="@reference.Description" data-index="@Model.References.ToList().IndexOf(reference)" />
-                                </div>
-                                <div>
-                                    <input type="checkbox" class="form-check-input internal-reference"
-                                           data-index="@Model.References.ToList().IndexOf(reference)" @(reference.IsInternal ? "checked" : "") />
-                                    <span>Internal</span>
-                                    <span class="text-danger delete-reference ms-3" style="cursor:pointer;"
-                                          data-index="@Model.References.ToList().IndexOf(reference)">❌</span>
-                                </div>
-                            </li>
+                            var index = 0;
+                            foreach (var reference in Model.References)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
+                                    <div>
+                                        <a href='' target="@reference.OpenOption">@reference.Url</a><br />
+                                        <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="@reference.Description" data-index="@index" />
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="form-check-input internal-reference" data-index="@index" @(reference.IsInternal ? "checked" : "") />
+                                        <span>Internal</span>
+                                        <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="@index">❌</span>
+                                    </div>
+                                </li>
+                                index++;
+                            }
                         }
                     </ul>
                     <input type="hidden" id="referenceData" name="ReferenceData" value="[]" />
@@ -109,34 +110,220 @@
 
                 <!-- Buttons -->
                 <div class="text-center mt-4">
-                    <button type="submit" class="btn btn-primary mx-2" style="width:200px">
-                        <i class="bi bi-check-circle"></i> Save Changes
+                    <button type="submit" name="submitAction" value="Save" class="btn btn-primary mx-2" style="width:200px">
+                        <i class="bi bi-save"></i> Save
                     </button>
-                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
-                        <i class="bi bi-arrow-left-circle"></i> Back to List
-                    </a>
+                    <button type="button" id="cancelButton" class="btn btn-outline-secondary mx-2" style="width:200px">
+                        <i class="bi bi-arrow-left-circle"></i> Cancel
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="~/js/tinymce-init.js"></script>
-    <script src="~/js/category-attachments-references.js?v=1.3"></script>
+    <script src="~/js/category-attachments-references.js"></script>
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <link rel="nofollow" href="https://justpaste.it/redirect/anmty/https%3A%2F%2Fcdnjs.cloudflare.com%2Fajax%2Flibs%2Ftoastr.js%2Flatest%2Fcss%2Ftoastr.min.css" />
+
     <script>
-        console.log("Inline script starting");
-        try {
-            jQuery(document).ready(function () {
-                console.log("jQuery is loaded and working!");
+        $(document).ready(function () {
+            console.log("Category Edit view script loaded (v1.1)");
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCreateMode = !urlParams.has('id');
+            console.log("isCreateMode:", isCreateMode fast - forward
+                    let submitActionValue = null;
+
+            // Store initial state for rollback
+            const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
+            const initialReferences = JSON.parse(JSON.stringify(window.references || []));
+            console.log('Stored initial state:', { initialAttachments, initialReferences });
+
+            // Force initial state restoration
+            if (typeof window.forceRestoreState === 'function') {
+                window.forceRestoreState();
+            }
+
+            // Handle Save button
+            $('button[type="submit"]').on('click', function (e) {
+                submitActionValue = $(this).val();
+                console.log('Button clicked, submitAction set to:', submitActionValue);
             });
-        } catch (e) {
-            console.error("Error initializing jQuery:", e);
-        }
-        console.log("Inline script complete");
+
+            // Handle Cancel button
+            $('#cancelButton').on('click', function (e) {
+                e.preventDefault();
+                console.log('Cancel button clicked');
+
+                // Restore initial state
+                window.attachments = JSON.parse(JSON.stringify(initialAttachments));
+                window.references = JSON.parse(JSON.stringify(initialReferences));
+                window.reindexAttachments();
+                window.reindexReferences();
+                window.updateAttachmentData();
+                window.updateReferenceData();
+
+                // Clear sessionStorage
+                window.clearSessionStorage();
+                toastr.info('Changes discarded.');
+
+                // Redirect
+                const redirectUrl = '/Admin/Category/Index';
+                console.log('Redirecting to:', redirectUrl);
+                window.location.href = redirectUrl;
+            });
+
+            // Handle Parent Category Dropdown Change
+            $('#parentCategoryDropdown').change(function () {
+                var categoryId = $(this).val();
+                console.log('Parent category selected:', categoryId);
+                if (categoryId && categoryId !== "0") {
+                    load /
+
+                        loadCategoryTemplate(categoryId);
+                } else {
+                    console.log("No parent category selected, resetting to empty state");
+                    window.attachments = [];
+                    window.references = [];
+                    window.pendingFiles = [];
+                    window.deletedAttachmentIds = [];
+                            window deletedReferenceIds = [];
+                    window.reindexAttachments();
+                    window.reindexReferences();
+                    updateAttachmentData();
+                    updateReferenceData();
+
+                    jQuery(document).one('tinymceInitialized', function () {
+                        console.log("tinymceInitialized event received for reset");
+                        if (tinymce.get("editor")) {
+                            tinymce.get("editor").setContent("");
+                            document.getElementById('HtmlContent').value = "";
+                            console.log("TinyMCE content reset");
+                        } else {
+                            console.error("TinyMCE editor not found after tinymceInitialized");
+                            toastr.error("Unable to reset template content. Please refresh the page.");
+                        }
+                    });
+
+                    if (tinymce.get("editor")) {
+                        console.log("TinyMCE already initialized, resetting content immediately");
+                        tinymce.get("editor").setContent("");
+                        document.getElementById('HtmlContent').value = "";
+                                console log("TinyMCE content reset");
+                    }
+
+                    window.clearSessionStorage();
+                }
+            });
+
+            function loadCategoryTemplate(categoryId) {
+                console.log(`Loading template for categoryId=${categoryId}`);
+                $.get('/Admin/Category/GetCategoryData', { id: categoryId }, function (data) {
+                    console.log('GetCategoryData response:', data);
+                    if (data.success) {
+                        var editor = tinymce.get('editor');
+                        if (editor) {
+                            editor.setContent(data.data.htmlContent || '');
+                            $('#HtmlContent').val(editor.getContent());
+                            console.log("TinyMCE content updated:", data.data.htmlContent);
+                        } else {
+                            console.warn("TinyMCE editor not initialized yet, waiting for tinymceInitialized");
+                            jQuery(document).one('tinymceInitialized', function () {
+                                console.log("tinymceInitialized event received");
+                                if (tinymce.get("editor")) {
+                                    const content = data.data.htmlContent || "";
+                                    tinymce.get("editor").setContent(content);
+                                    document.getElementById('HtmlContent').value = content;
+                                    console.log("TinyMCE content updated:", content);
+                                } else {
+                                    console.error("TinyMCE editor not found after tinymceInitialized");
+                                    toastr.error("Unable to load template content. Please refresh the page.");
+                                }
+                            });
+                        }
+                        window.updateAttachmentsAndReferences(data.data.attachments || [], data.data.references || []);
+                        window.clearSessionStorage();
+                        saveStateToStorage();
+                    } else {
+                        console.error('GetCategoryData failed:', data.message);
+                        toastr.error(data.message || 'Failed to load category data.');
+                    }
+                }).fail(function (xhr, status, error) {
+                    console.error('GetCategoryData AJAX error:', status, error, xhr.responseText);
+                    toastr.error('Error loading category data: ' + error);
+                });
+            }
+
+            // Form submission
+            $('#categoryForm').on('submit', function (e) {
+                e.preventDefault();
+                console.log('Form submit triggered');
+
+                var editor = tinymce.get('editor');
+                if (!editor) {
+                    toastr.error('Editor not initialized. Please try again.');
+                    return false;
+                }
+
+                tinymce.triggerSave();
+                var editorContent = editor.getContent();
+                $('#HtmlContent').val(EditorContent);
+
+                // Validate
+                var name = $('#Name').val();
+                if (!name) {
+                    toastr.error('Please fill all required fields.');
+                    return false;
+                }
+
+                // Update ReferenceData
+                window.updateReferenceData();
+                console.log('ReferenceData before submission:', $('#referenceData').val());
+
+                var formData = new FormData(this);
+                if (submitActionValue) {
+                    formData.append('submitAction', submitActionValue);
+                } else {
+                    toastr.error('Please use the Save button.');
+                    return false;
+                }
+
+                // Log FormData
+                console.log('FormData contents:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
+                }
+
+                $.ajax({
+                    url: '/Admin/Category/Edit',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                        console.log('Server response:', response);
+                        if (response.success) {
+                            window.clearSessionStorage();
+                            toastr.success('Category updated successfully!');
+                            window.location.href = response.redirectUrl;
+                        } else {
+                            toastr.error(response.message || 'Failed to update category.');
+                            if (response.errors) {
+                                toastr.error('Validation errors: ' + response.errors.join(', '));
+                            }
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('AJAX error:', status, error, xhr.responseText);
+                        toastr.error('An error occurred while submitting: ' + (xhr.responseText || error));
+                    }
+                });
+            });
+        });
     </script>
 }
