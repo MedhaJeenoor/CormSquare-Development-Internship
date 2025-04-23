@@ -1,207 +1,192 @@
-﻿console.log("Script starting: category-attachments-references.js");
+﻿console.log("Script starting: category-attachments-references.js (v2.0)");
 
 (function () {
-    console.log("Immediate execution - initializing category-attachments-references.js");
+    const urlParams = new URLSearchParams(window.location.search);
+    const isCreateMode = !urlParams.has('id');
+    console.log("isCreateMode:", isCreateMode);
 
-    if (typeof jQuery === "undefined") {
-        console.error("jQuery is not loaded!");
-        alert("Error: jQuery is not loaded. Please check script references.");
-        return;
-    } else {
-        console.log("jQuery is loaded!");
+    window.attachments = [];
+    window.references = [];
+    window.deletedAttachmentIds = [];
+    window.deletedReferenceIds = [];
+    window.pendingFiles = [];
+    window.isSubmitting = false;
+
+    // Debounce function to prevent rapid submissions
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
-    let attachments = [];
-    let references = [];
-    let deletedAttachmentIds = [];
-    let deletedReferenceIds = [];
-    let pendingFiles = [];
-    const isEditView = document.querySelector('form[action*="/Edit"]') !== null;
-    const isCreateView = document.querySelector('form[action*="/Create"]') !== null;
-
-    // Get category ID from hidden input or use fallback for Create
-    function getCategoryId() {
-        const id = document.querySelector('input[name="Id"]')?.value;
-        if (isEditView && !id) {
-            console.error("Category ID not found in Edit view!");
-            alert("Error: Category ID not found in Edit view.");
-        }
-        return id ? id : (isCreateView ? "create_temp" : null);
-    }
-
-    // Initialize state from hidden inputs and sessionStorage
-    function initializeState() {
-        console.log("Initializing state...");
-        const categoryId = getCategoryId();
-        if (!categoryId) {
-            console.warn("No categoryId found, skipping initialization.");
-            alert("Error: Category ID not found. Changes may not persist.");
-            return;
-        }
-
-        // 1. Initialize from hidden inputs (form state)
-        const referenceDataInput = document.getElementById("referenceData");
-        if (referenceDataInput && referenceDataInput.value) {
-            try {
-                references = JSON.parse(referenceDataInput.value);
-                console.log("Restored references from hidden input:", JSON.stringify(references, null, 2));
-            } catch (e) {
-                console.error("Failed to parse referenceData from hidden input:", e);
-                references = [];
-            }
-        }
-
-        const attachmentDataInput = document.getElementById("attachmentData");
-        if (attachmentDataInput && attachmentDataInput.value) {
-            try {
-                attachments = JSON.parse(attachmentDataInput.value);
-                console.log("Restored attachments from hidden input:", JSON.stringify(attachments, null, 2));
-            } catch (e) {
-                console.error("Failed to parse attachmentData from hidden input:", e);
-                attachments = [];
-            }
-        }
-
-        // 2. Fallback to sessionStorage if hidden inputs are empty
-        const storedReferences = sessionStorage.getItem(`references_${categoryId}`);
-        if (storedReferences && references.length === 0) {
-            try {
-                references = JSON.parse(storedReferences);
-                console.log("Restored references from sessionStorage:", JSON.stringify(references, null, 2));
-                if (references.some(r => r.id === 0)) {
-                    console.log("Found new references (id: 0):", JSON.stringify(references.filter(r => r.id === 0), null, 2));
-                }
-            } catch (e) {
-                console.error("Failed to parse references from sessionStorage:", e);
-                references = [];
-            }
-        }
-
-        const storedAttachments = sessionStorage.getItem(`attachments_${categoryId}`);
-        if (storedAttachments && attachments.length === 0) {
-            try {
-                attachments = JSON.parse(storedAttachments);
-                console.log("Restored attachments from sessionStorage:", JSON.stringify(attachments, null, 2));
-            } catch (e) {
-                console.error("Failed to parse attachments from sessionStorage:", e);
-                attachments = [];
-            }
-        }
-
-        const storedPendingFiles = sessionStorage.getItem(`pendingFiles_${categoryId}`);
-        if (storedPendingFiles) {
-            try {
-                pendingFiles = JSON.parse(storedPendingFiles);
-                console.log("Restored pending files from sessionStorage:", JSON.stringify(pendingFiles, null, 2));
-            } catch (e) {
-                console.error("Failed to parse pending files from sessionStorage:", e);
-                pendingFiles = [];
-            }
-        }
-
-        // 3. Initialize existing data from DOM (Edit view only)
-        if (isEditView) {
-            console.log("Initializing existing attachments from DOM...");
-            document.querySelectorAll('#attachmentList li').forEach((li) => {
-                const attachmentId = parseInt(li.dataset.attachmentId);
-                if (attachmentId && !attachments.some(a => a.id === attachmentId)) {
-                    const attachment = {
-                        id: attachmentId,
-                        fileName: li.querySelector('strong a')?.textContent || li.querySelector('strong').textContent,
-                        caption: li.querySelector('.caption-input').value || "",
-                        isInternal: li.querySelector('.internal-attachment').checked
-                    };
-                    attachments.push(attachment);
-                }
-            });
-            console.log("DOM attachments initialized:", JSON.stringify(attachments, null, 2));
-
-            console.log("Initializing existing references from DOM...");
-            document.querySelectorAll('#referenceList li').forEach((li) => {
-                const referenceId = parseInt(li.dataset.referenceId);
-                if (referenceId && !references.some(r => r.id === referenceId)) {
-                    const reference = {
-                        id: referenceId,
-                        url: li.querySelector('a').textContent,
-                        description: li.querySelector('.description-input').value || "",
-                        isInternal: li.querySelector('.internal-reference').checked,
-                        openOption: li.querySelector('a').getAttribute('target') || "_self"
-                    };
-                    references.push(reference);
-                }
-            });
-            console.log("DOM references initialized:", JSON.stringify(references, null, 2));
-        }
-    }
-
-    // Save to sessionStorage (fallback)
-    function saveToSessionStorage() {
-        const categoryId = getCategoryId();
-        if (!categoryId) {
-            console.warn("No categoryId found, skipping sessionStorage save.");
-            return;
-        }
-
+    function saveStateToStorage() {
         try {
-            sessionStorage.setItem(`attachments_${categoryId}`, JSON.stringify(attachments));
-            sessionStorage.setItem(`references_${categoryId}`, JSON.stringify(references));
-            sessionStorage.setItem(`pendingFiles_${categoryId}`, JSON.stringify(pendingFiles));
-            console.log(`Saved to sessionStorage for key: ${categoryId}`, {
-                attachments: JSON.stringify(attachments, null, 2),
-                references: JSON.stringify(references, null, 2),
-                pendingFiles: JSON.stringify(pendingFiles, null, 2)
-            });
+            const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+            sessionStorage.setItem(`categoryAttachments_${categoryId}`, JSON.stringify(window.attachments));
+            sessionStorage.setItem(`categoryReferences_${categoryId}`, JSON.stringify(window.references));
+            sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles));
+            console.log('Saved to sessionStorage:', { attachments: window.attachments, references: window.references, pendingFiles: window.pendingFiles });
         } catch (e) {
-            console.error("Failed to save to sessionStorage:", e);
+            console.error('Error saving to sessionStorage:', e);
         }
     }
 
-    // Clear sessionStorage
-    function clearSessionStorage() {
-        const categoryId = getCategoryId();
-        if (!categoryId) {
-            console.warn("No categoryId found, skipping sessionStorage clear.");
-            return;
-        }
+    window.clearSessionStorage = function () {
+        const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+        sessionStorage.removeItem(`categoryAttachments_${categoryId}`);
+        sessionStorage.removeItem(`categoryReferences_${categoryId}`);
+        sessionStorage.removeItem(`categoryPendingFiles_${categoryId}`);
+        console.log('Cleared sessionStorage for category:', categoryId);
+    };
 
-        sessionStorage.removeItem(`attachments_${categoryId}`);
-        sessionStorage.removeItem(`references_${categoryId}`);
-        sessionStorage.removeItem(`pendingFiles_${categoryId}`);
-        console.log(`Cleared sessionStorage for key: ${categoryId}`);
-    }
-
-    // Update hidden inputs
     function updateAttachmentData() {
         const attachmentDataInput = document.getElementById("attachmentData");
         if (attachmentDataInput) {
-            attachmentDataInput.value = JSON.stringify(attachments.length > 0 ? attachments : []);
+            attachmentDataInput.value = JSON.stringify(window.attachments.map(a => ({
+                id: a.id,
+                fileName: a.fileName,
+                caption: a.caption,
+                isInternal: a.isInternal,
+                isDeleted: a.isDeleted || false
+            })));
             console.log("Updated attachmentData:", attachmentDataInput.value);
-        } else {
-            console.error("attachmentData input not found!");
         }
+        saveStateToStorage();
     }
 
     function updateReferenceData() {
         const referenceDataInput = document.getElementById("referenceData");
         if (referenceDataInput) {
-            referenceDataInput.value = JSON.stringify(references.length > 0 ? references : []);
+            referenceDataInput.value = JSON.stringify(window.references.map(r => ({
+                id: r.id || 0,
+                url: r.url,
+                description: r.description || '',
+                isInternal: r.isInternal || false,
+                openOption: r.openOption || '_self',
+                isDeleted: r.isDeleted || false
+            })));
             console.log("Updated referenceData:", referenceDataInput.value);
+        }
+        saveStateToStorage();
+    }
+
+    window.updateAttachmentData = updateAttachmentData;
+    window.updateReferenceData = updateReferenceData;
+
+    function restoreState() {
+        let attachments, references, pendingFiles;
+        try {
+            const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+            const savedAttachments = sessionStorage.getItem(`categoryAttachments_${categoryId}`);
+            const savedReferences = sessionStorage.getItem(`categoryReferences_${categoryId}`);
+            const savedPendingFiles = sessionStorage.getItem(`categoryPendingFiles_${categoryId}`);
+
+            attachments = savedAttachments ? JSON.parse(savedAttachments) : [];
+            references = savedReferences ? JSON.parse(savedReferences) : [];
+            pendingFiles = savedPendingFiles ? JSON.parse(savedPendingFiles) : [];
+
+            attachments = attachments.filter(a => a && a.fileName && typeof a.isDeleted === 'boolean');
+            references = references.filter(r => r && r.url && typeof r.isDeleted === 'boolean');
+            console.log('Validated sessionStorage data:', { attachments, references, pendingFiles });
+        } catch (e) {
+            console.error('Error parsing sessionStorage data:', e);
+            attachments = [];
+            references = [];
+            pendingFiles = [];
+        }
+
+        if (attachments.length > 0 || references.length > 0 || pendingFiles.length > 0) {
+            window.attachments = attachments;
+            window.references = references;
+            window.pendingFiles = pendingFiles;
+            console.log('Restored from sessionStorage:', { attachments: window.attachments, references: window.references, pendingFiles: window.pendingFiles });
+
+            const attachmentList = document.getElementById("attachmentList");
+            const referenceList = document.getElementById("referenceList");
+            if (attachmentList) {
+                attachmentList.innerHTML = "";
+                console.log('Cleared attachmentList');
+            }
+            if (referenceList) {
+                referenceList.innerHTML = "";
+                console.log('Cleared referenceList');
+            }
+
+            window.reindexAttachments();
+            window.reindexReferences();
+            updateAttachmentData();
+            updateReferenceData();
         } else {
-            console.error("referenceData input not found!");
+            console.log('No valid sessionStorage data, initializing from DOM');
+            initializeFromDOM();
         }
     }
 
-    // Initialize state first
-    console.log("Calling initializeState...");
-    initializeState();
+    function initializeFromDOM() {
+        window.attachments = [];
+        window.references = [];
 
-    // Reindex after initialization
-    console.log("Calling reindexAttachments and reindexReferences...");
-    reindexAttachments();
-    reindexReferences();
+        document.querySelectorAll('#attachmentList li').forEach((li, index) => {
+            const attachmentId = parseInt(li.dataset.attachmentId) || 0;
+            const anchor = li.querySelector('a');
+            const attachment = {
+                id: attachmentId,
+                fileName: anchor ? anchor.textContent : li.querySelector('strong')?.textContent || 'Unnamed',
+                url: anchor ? anchor.getAttribute('href') : null,
+                caption: li.querySelector('.caption-input')?.value || '',
+                isInternal: li.querySelector('.internal-attachment')?.checked || false,
+                isDeleted: false
+            };
+            if (attachment.fileName && !window.attachments.some(a => a.id === attachment.id && a.fileName === attachment.fileName)) {
+                window.attachments.push(attachment);
+            }
+            console.log(`Initialized attachment ${index}: fileName=${attachment.fileName}, url=${attachment.url}`);
+            addAttachmentEventListeners(li, index);
+        });
 
-    // Setup Add Buttons
-    console.log("Setting up uploadAttachmentBtn listener...");
+        document.querySelectorAll('#referenceList li').forEach((li, index) => {
+            const referenceId = parseInt(li.dataset.referenceId) || 0;
+            const anchor = li.querySelector('a');
+            const openOption = anchor?.getAttribute('target') || '_self';
+            const reference = {
+                id: referenceId,
+                url: anchor?.textContent || '',
+                description: li.querySelector('.description-input')?.value || '',
+                isInternal: li.querySelector('.internal-reference')?.checked || false,
+                openOption: openOption,
+                isDeleted: false
+            };
+            if (reference.url && !window.references.some(r => r.id === reference.id && r.url === reference.url)) {
+                window.references.push(reference);
+            }
+            console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${reference.openOption}`);
+            addReferenceEventListeners(li, index);
+        });
+
+        console.log("Initialized from DOM:", { attachments: window.attachments, references: window.references });
+        updateAttachmentData();
+        updateReferenceData();
+    }
+
+    window.addEventListener('pageshow', function (event) {
+        console.log('pageshow triggered, persisted:', event.persisted);
+        restoreState();
+    });
+
+    document.addEventListener('click', function (e) {
+        const anchor = e.target.closest('a[target="_self"]');
+        if (anchor && anchor.closest('#referenceList')) {
+            console.log('Click on _self reference, saving state');
+            saveStateToStorage();
+        }
+    });
+
     const uploadBtn = document.getElementById("uploadAttachmentBtn");
     if (uploadBtn) {
         uploadBtn.addEventListener("click", function (e) {
@@ -213,7 +198,6 @@
         console.error("uploadAttachmentBtn not found!");
     }
 
-    console.log("Setting up attachmentInput listener...");
     const attachmentInput = document.getElementById("attachmentInput");
     if (attachmentInput) {
         attachmentInput.addEventListener("change", function (event) {
@@ -221,29 +205,38 @@
             const files = event.target.files;
             if (!files || files.length === 0) return;
 
+            const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'];
+
             for (let file of files) {
-                const attachment = {
-                    id: 0,
-                    fileName: file.name,
-                    caption: "",
-                    isInternal: false
-                };
-                attachments.push(attachment);
-                pendingFiles.push({
-                    name: file.name,
-                    type: file.type,
-                    size: file.size
-                });
-                addAttachmentToList(attachment, attachments.length - 1);
+                if (!allowedTypes.includes(file.type)) {
+                    toastr.error(`File ${file.name} has an unsupported type. Allowed types: JPEG, PNG, PDF, TXT.`);
+                    continue;
+                }
+                if (!window.attachments.some(a => a.fileName === file.name && !a.isDeleted)) {
+                    const attachment = {
+                        id: 0,
+                        fileName: file.name,
+                        url: null,
+                        caption: "",
+                        isInternal: false,
+                        isDeleted: false
+                    };
+                    window.attachments.push(attachment);
+                    window.pendingFiles.push({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size
+                    });
+                    addAttachmentToList(attachment, window.attachments.length - 1);
+                    console.log(`Added uploaded attachment: fileName=${file.name}`);
+                }
             }
             updateAttachmentData();
-            saveToSessionStorage();
         });
     } else {
         console.error("attachmentInput not found!");
     }
 
-    console.log("Setting up addReferenceBtn listener...");
     const addRefBtn = document.getElementById("addReferenceBtn");
     if (addRefBtn) {
         addRefBtn.addEventListener("click", function (e) {
@@ -258,143 +251,124 @@
                 url: refUrl,
                 description: "",
                 isInternal: false,
-                openOption: openInNewWindow ? "_blank" : "_self"
+                openOption: openInNewWindow ? "_blank" : "_self",
+                isDeleted: false
             };
-            references.push(reference);
-            console.log("Added new reference:", JSON.stringify(reference, null, 2));
-            addReferenceToList(reference, references.length - 1);
+            window.references.push(reference);
+            addReferenceToList(reference, window.references.length - 1);
             updateReferenceData();
-            saveToSessionStorage();
+            console.log(`Added manual reference: url=${refUrl}, openOption=${reference.openOption}`);
         });
     } else {
         console.error("addReferenceBtn not found!");
     }
 
-    // Event delegation for all elements
-    console.log("Setting up event delegation...");
-    document.getElementById("attachmentList").addEventListener("change", function (e) {
+    document.getElementById("attachmentList")?.addEventListener("change", function (e) {
         if (e.target.classList.contains("internal-attachment")) {
-            e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= attachments.length) {
-                console.error("Invalid index for internal-attachment:", index);
-                return;
-            }
-            console.log("Attachment IsInternal changed for index", index, "to", e.target.checked);
-            attachments[index].isInternal = e.target.checked;
+            window.attachments[index].isInternal = e.target.checked;
+            console.log(`Updated attachment ${index}: isInternal=${e.target.checked}`);
             updateAttachmentData();
-            saveToSessionStorage();
         }
     });
 
-    document.getElementById("attachmentList").addEventListener("click", function (e) {
+    document.getElementById("referenceList")?.addEventListener("change", function (e) {
+        if (e.target.classList.contains("internal-reference")) {
+            const index = parseInt(e.target.dataset.index);
+            window.references[index].isInternal = e.target.checked;
+            console.log(`Updated reference ${index}: isInternal=${e.target.checked}`);
+            updateReferenceData();
+        }
+    });
+
+    document.getElementById("attachmentList")?.addEventListener("click", function (e) {
         if (e.target.classList.contains("delete-attachment")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= attachments.length) {
-                console.error("Invalid index for delete-attachment:", index);
-                return;
-            }
-            console.log("Delete clicked for attachment at index:", index);
-            const attachmentId = attachments[index].id;
-            if (attachmentId > 0) {
-                jQuery.post('/Admin/Category/RemoveAttachment', { id: attachmentId }, function (response) {
-                    console.log("RemoveAttachment response:", response);
-                    if (response && response.success) {
-                        deletedAttachmentIds.push(attachmentId);
-                        attachments.splice(index, 1);
-                        pendingFiles.splice(index, 1);
-                        reindexAttachments();
-                        updateAttachmentData();
-                        saveToSessionStorage();
-                    } else {
-                        alert(response ? response.message : "Failed to mark attachment for deletion.");
-                    }
-                }).fail(function (xhr, status, error) {
-                    console.error("Error marking attachment for deletion:", error);
-                    alert("An error occurred while marking the attachment for deletion.");
-                });
+            console.log(`Marking attachment for deletion: index=${index}`);
+            if (window.attachments[index]) {
+                const attachmentId = window.attachments[index].id;
+                if (attachmentId > 0) {
+                    jQuery.post('/Admin/Category/RemoveAttachment', { id: attachmentId }, function (response) {
+                        console.log("RemoveAttachment response:", response);
+                        if (response && response.success) {
+                            console.log("Successfully marked attachment for deletion:", attachmentId);
+                            window.deletedAttachmentIds.push(attachmentId);
+                            window.attachments[index].isDeleted = true;
+                            window.pendingFiles.splice(index, 1);
+                            window.reindexAttachments();
+                            toastr.success("Attachment marked for deletion. Save the form to finalize.");
+                        } else {
+                            console.error("Failed to mark attachment for deletion:", response ? response.message : "No response");
+                            toastr.error(response ? response.message : "Failed to mark attachment for deletion.");
+                        }
+                    }).fail(function (xhr, status, error) {
+                        console.error("Error in RemoveAttachment request:", status, error, xhr.responseText);
+                        toastr.error("An error occurred while marking the attachment for deletion.");
+                    });
+                } else {
+                    console.log("Removing unsaved attachment at index:", index);
+                    window.attachments[index].isDeleted = true;
+                    window.pendingFiles.splice(index, 1);
+                    window.reindexAttachments();
+                    toastr.success("Attachment removed. Save the form to finalize.");
+                }
             } else {
-                attachments.splice(index, 1);
-                pendingFiles.splice(index, 1);
-                reindexAttachments();
-                updateAttachmentData();
-                saveToSessionStorage();
+                console.warn(`Attachment at index ${index} not found`);
             }
         }
     });
 
-    document.getElementById("referenceList").addEventListener("change", function (e) {
-        if (e.target.classList.contains("internal-reference")) {
-            e.preventDefault();
-            const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= references.length) {
-                console.error("Invalid index for internal-reference:", index);
-                return;
-            }
-            console.log("Reference IsInternal changed for index", index, "to", e.target.checked);
-            references[index].isInternal = e.target.checked;
-            updateReferenceData();
-            saveToSessionStorage();
-        }
-    });
-
-    document.getElementById("referenceList").addEventListener("click", function (e) {
+    document.getElementById("referenceList")?.addEventListener("click", function (e) {
         if (e.target.classList.contains("delete-reference")) {
             e.preventDefault();
             const index = parseInt(e.target.dataset.index);
-            if (isNaN(index) || index < 0 || index >= references.length) {
-                console.error("Invalid index for delete-reference:", index);
-                return;
-            }
-            console.log("Delete clicked for reference at index:", index);
-            const referenceId = references[index].id;
-            if (referenceId > 0) {
-                jQuery.post('/Admin/Category/RemoveReference', { id: referenceId }, function (response) {
-                    console.log("RemoveReference response:", response);
-                    if (response && response.success) {
-                        deletedReferenceIds.push(referenceId);
-                        references.splice(index, 1);
-                        reindexReferences();
-                        updateReferenceData();
-                        saveToSessionStorage();
-                    } else {
-                        alert(response ? response.message : "Failed to mark reference for deletion.");
-                    }
-                }).fail(function (xhr, status, error) {
-                    console.error("Error marking reference for deletion:", error);
-                    alert("An error occurred while marking the reference for deletion.");
-                });
+            console.log(`Marking reference for deletion: index=${index}`);
+            if (window.references[index]) {
+                const referenceId = window.references[index].id;
+                if (referenceId > 0) {
+                    jQuery.post('/Admin/Category/RemoveReference', { id: referenceId }, function (response) {
+                        console.log("RemoveReference response:", response);
+                        if (response && response.success) {
+                            console.log("Successfully marked reference for deletion:", referenceId);
+                            window.deletedReferenceIds.push(referenceId);
+                            window.references[index].isDeleted = true;
+                            window.reindexReferences();
+                            toastr.success("Reference marked for deletion. Save the form to finalize.");
+                        } else {
+                            console.error("Failed to mark reference for deletion:", response ? response.message : "No response");
+                            toastr.error(response ? response.message : "Failed to mark reference for deletion.");
+                        }
+                    }).fail(function (xhr, status, error) {
+                        console.error("Error in RemoveReference request:", status, error, xhr.responseText);
+                        toastr.error("An error occurred while marking the reference for deletion.");
+                    });
+                } else {
+                    console.log("Removing unsaved reference at index:", index);
+                    window.references[index].isDeleted = true;
+                    window.reindexReferences();
+                    toastr.success("Reference removed. Save the form to finalize.");
+                }
             } else {
-                references.splice(index, 1);
-                reindexReferences();
-                updateReferenceData();
-                saveToSessionStorage();
+                console.warn(`Reference at index ${index} not found`);
             }
         }
     });
 
-    // Add Attachment to List
     function addAttachmentToList(attachment, index) {
-        console.log("Adding attachment to list at index:", index, JSON.stringify(attachment, null, 2));
+        if (attachment.isDeleted || !attachment.fileName) return;
         let attachmentList = document.getElementById("attachmentList");
-        if (!attachmentList) {
-            console.error("attachmentList element not found!");
-            return;
-        }
         let li = document.createElement("li");
         li.id = `attachment-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.attachmentId = attachment.id || 0;
-
-        const isExisting = attachment.id > 0;
-        const fileNameHtml = isExisting
-            ? `<a href="/Admin/Category/DownloadAttachment?id=${attachment.id}" style="text-decoration: underline;" class="attachment-link">${attachment.fileName}</a>`
-            : `<span>${attachment.fileName} ${attachment.id === 0 ? "(Please re-select file before saving)" : ""}</span>`;
-
+        const fileName = attachment.fileName || 'Unnamed_Attachment';
+        const fileNameHtml = attachment.url
+            ? `<a href='' download="${fileName}">${fileName}</a>`
+            : `<strong>${fileName}</strong>`;
         li.innerHTML = `
             <div>
-                <strong>${fileNameHtml}</strong><br />
+                ${fileNameHtml}<br />
                 <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption || ''}" data-index="${index}" />
             </div>
             <div>
@@ -405,23 +379,19 @@
         `;
         addAttachmentEventListeners(li, index);
         attachmentList.appendChild(li);
+        console.log(`Added attachment to list: index=${index}, fileName=${fileName}, url=${attachment.url}`);
     }
 
-    // Add Reference to List
     function addReferenceToList(reference, index) {
-        console.log("Adding reference to list at index:", index, JSON.stringify(reference, null, 2));
+        if (reference.isDeleted || !reference.url) return;
         let referenceList = document.getElementById("referenceList");
-        if (!referenceList) {
-            console.error("referenceList element not found!");
-            return;
-        }
         let li = document.createElement("li");
         li.id = `reference-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.referenceId = reference.id || 0;
         li.innerHTML = `
             <div>
-                <a href="${reference.url}" target="${reference.openOption}">${reference.url}</a><br />
+                <a href='' target="${reference.openOption}">${reference.url}</a><br />
                 <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
             </div>
             <div>
@@ -432,115 +402,219 @@
         `;
         addReferenceEventListeners(li, index);
         referenceList.appendChild(li);
+        console.log(`Added reference to list: index=${index}, url=${reference.url}, openOption=${reference.openOption}`);
     }
 
-    // Add Event Listeners for Attachments
     function addAttachmentEventListeners(li, index) {
-        console.log("Adding event listeners for attachment at index:", index);
-        li.querySelector(".caption-input").addEventListener("input", function () {
-            console.log("Caption input changed for attachment at index:", index);
-            attachments[index].caption = this.value;
-            updateAttachmentData();
-            saveToSessionStorage();
-        });
-
-        li.querySelector(".internal-attachment").addEventListener("change", function (e) {
-            e.preventDefault();
-            console.log("Attachment IsInternal changed for index", index, "to", this.checked);
-            attachments[index].isInternal = this.checked;
-            updateAttachmentData();
-            saveToSessionStorage();
-        });
+        const captionInput = li.querySelector(".caption-input");
+        if (captionInput) {
+            captionInput.addEventListener("input", function () {
+                window.attachments[index].caption = this.value;
+                console.log(`Updated attachment caption: index=${index}, caption=${this.value}`);
+                updateAttachmentData();
+            });
+        }
     }
 
-    // Add Event Listeners for References
     function addReferenceEventListeners(li, index) {
-        console.log("Adding event listeners for reference at index:", index);
-        li.querySelector(".description-input").addEventListener("input", function () {
-            console.log("Description input changed for reference at index:", index);
-            references[index].description = this.value;
-            updateReferenceData();
-            saveToSessionStorage();
-        });
-
-        li.querySelector(".internal-reference").addEventListener("change", function (e) {
-            e.preventDefault();
-            console.log("Reference IsInternal changed for index", index, "to", this.checked);
-            references[index].isInternal = this.checked;
-            updateReferenceData();
-            saveToSessionStorage();
-        });
+        const descriptionInput = li.querySelector(".description-input");
+        if (descriptionInput) {
+            descriptionInput.addEventListener("input", function () {
+                window.references[index].description = this.value;
+                console.log(`Updated reference description: index=${index}, description=${this.value}`);
+                updateReferenceData();
+            });
+        }
     }
 
-    // Reindex Attachments
-    function reindexAttachments() {
-        console.log("Reindexing attachments...", JSON.stringify(attachments, null, 2));
+    window.reindexAttachments = function () {
         let attachmentList = document.getElementById("attachmentList");
-        if (!attachmentList) {
-            console.error("attachmentList element not found!");
-            return;
-        }
         attachmentList.innerHTML = "";
-        attachments.forEach((attachment, index) => addAttachmentToList(attachment, index));
-    }
+        window.attachments.forEach((attachment, index) => {
+            if (!attachment.isDeleted && attachment.fileName) {
+                addAttachmentToList(attachment, index);
+            }
+        });
+        console.log("Reindexed attachments:", window.attachments);
+        updateAttachmentData();
+    };
 
-    // Reindex References
-    function reindexReferences() {
-        console.log("Reindexing references...", JSON.stringify(references, null, 2));
+    window.reindexReferences = function () {
         let referenceList = document.getElementById("referenceList");
-        if (!referenceList) {
-            console.error("referenceList element not found!");
+        referenceList.innerHTML = "";
+        window.references.forEach((reference, index) => {
+            if (!reference.isDeleted && reference.url) {
+                addReferenceToList(reference, index);
+            }
+        });
+        console.log("Reindexed references:", window.references);
+        updateReferenceData();
+    };
+
+    window.updateAttachmentsAndReferences = function (attachmentsFromCategory, referencesFromCategory) {
+        console.log("updateAttachmentsAndReferences called with:", {
+            attachments: attachmentsFromCategory,
+            references: referencesFromCategory
+        });
+
+        if (!Array.isArray(attachmentsFromCategory)) {
+            console.warn("attachmentsFromCategory is not an array:", attachmentsFromCategory);
+            attachmentsFromCategory = [];
+        }
+        if (!Array.isArray(referencesFromCategory)) {
+            console.warn("referencesFromCategory is not an array:", referencesFromCategory);
+            referencesFromCategory = [];
+        }
+
+        // Clear existing attachments and references
+        window.attachments = [];
+        window.references = [];
+        window.pendingFiles = [];
+        window.deletedAttachmentIds = [];
+        window.deletedReferenceIds = [];
+
+        // Add new attachments
+        attachmentsFromCategory.forEach(att => {
+            if (!att.fileName) {
+                console.warn("Skipping invalid attachment (missing fileName):", att);
+                return;
+            }
+            window.attachments.push({
+                id: att.id || 0,
+                fileName: att.fileName,
+                url: att.url || null,
+                caption: att.caption || '',
+                isInternal: att.isInternal || false,
+                isDeleted: false
+            });
+        });
+
+        // Add new references
+        referencesFromCategory.forEach(ref => {
+            if (!ref.url) {
+                console.warn("Skipping invalid reference (missing url):", ref);
+                return;
+            }
+            window.references.push({
+                id: isCreateMode ? 0 : (ref.id || 0),
+                url: ref.url,
+                description: ref.description || '',
+                isInternal: ref.isInternal || false,
+                openOption: ref.openOption || '_self',
+                isDeleted: false
+            });
+        });
+
+        console.log("After updating:", {
+            attachments: window.attachments,
+            references: window.references
+        });
+
+        window.reindexAttachments();
+        window.reindexReferences();
+    };
+
+    // Form submission handler
+    const handleFormSubmit = debounce(function (e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        console.log("Form submission triggered");
+
+        if (window.isSubmitting) {
+            console.log('Form submission prevented: Already submitting');
+            toastr.warning('Submission in progress. Please wait.');
             return;
         }
-        referenceList.innerHTML = "";
-        references.forEach((reference, index) => addReferenceToList(reference, index));
-    }
+        window.isSubmitting = true;
 
-    // Form Submission with TinyMCE sync and deleted IDs
-    document.querySelector("form").addEventListener("submit", function (e) {
-        console.log("Form submitting...");
-        if (typeof tinymce !== "undefined") {
+        const saveButton = document.getElementById("saveButton");
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+        }
+
+        // Lock and log ParentCategoryId
+        const parentCategoryInput = document.getElementById("parentCategoryDropdown");
+        const parentCategoryId = parentCategoryInput?.value;
+        console.log("Locked ParentCategoryId:", parentCategoryId);
+        if (parentCategoryInput) {
+            parentCategoryInput.disabled = true;
+        }
+
+        // Ensure ParentCategoryId is included
+        if (parentCategoryId) {
+            parentCategoryInput.setAttribute('value', parentCategoryId);
+            console.log("Set parentCategoryDropdown value attribute to:", parentCategoryId);
+        }
+
+        // Save TinyMCE content
+        if (typeof tinymce !== "undefined" && tinymce.get("editor")) {
             tinymce.triggerSave();
-            const editorContent = document.getElementById("editor").value;
+            const editorContent = tinymce.get("editor").getContent();
             document.getElementById("HtmlContent").value = editorContent;
             console.log("TinyMCE content saved:", editorContent);
+        } else {
+            console.warn("TinyMCE not initialized, proceeding without editor content");
         }
+
+        // Validate
+        const name = document.getElementById("Name")?.value;
+        if (!name) {
+            toastr.error('Please fill all required fields.');
+            window.isSubmitting = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save';
+            }
+            if (parentCategoryInput) {
+                parentCategoryInput.disabled = false;
+            }
+            return;
+        }
+
+        // Update attachment and reference data
         updateAttachmentData();
         updateReferenceData();
 
-        // Check if new attachments need re-selection
-        const newAttachments = attachments.filter(a => a.id === 0);
-        if (newAttachments.length > 0 && document.getElementById("attachmentInput").files.length === 0) {
-            alert("Please re-select files for new attachments before saving.");
-            e.preventDefault();
-            return;
-        }
-
-        // Add hidden inputs for deleted IDs
-        deletedAttachmentIds.forEach(id => {
+        // Add deleted IDs
+        window.deletedAttachmentIds.forEach(id => {
             const input = document.createElement("input");
             input.type = "hidden";
             input.name = "deletedAttachmentIds";
             input.value = id;
             this.appendChild(input);
+            console.log("Added deletedAttachmentIds input:", id);
         });
 
-        deletedReferenceIds.forEach(id => {
+        window.deletedReferenceIds.forEach(id => {
             const input = document.createElement("input");
             input.type = "hidden";
             input.name = "deletedReferenceIds";
             input.value = id;
             this.appendChild(input);
+            console.log("Added deletedReferenceIds input:", id);
         });
 
-        console.log("Deleted Attachment IDs:", deletedAttachmentIds);
-        console.log("Deleted Reference IDs:", deletedReferenceIds);
-        console.log("Files to be submitted:", document.getElementById("attachmentInput").files);
+        console.log("Deleted Attachment IDs:", window.deletedAttachmentIds);
+        console.log("Deleted Reference IDs:", window.deletedReferenceIds);
+        console.log("Files to be submitted:", document.getElementById("attachmentInput")?.files);
+        console.log("ParentCategoryId submitted:", parentCategoryId);
 
-        // Handle form submission via AJAX to clear sessionStorage on success
-        e.preventDefault();
         const form = this;
         const formData = new FormData(form);
+        formData.append("submitAction", "Save");
+
+        // Explicitly add ParentCategoryId to FormData
+        if (parentCategoryId) {
+            formData.append("ParentCategoryId", parentCategoryId);
+            console.log("Manually appended ParentCategoryId to FormData:", parentCategoryId);
+        }
+
+        // Log FormData
+        console.log("FormData entries:");
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
 
         jQuery.ajax({
             url: form.action,
@@ -548,26 +622,72 @@
             data: formData,
             processData: false,
             contentType: false,
+            beforeSend: function () {
+                console.log("Initiating AJAX request to:", form.action);
+            },
             success: function (response) {
                 console.log("Form submission response:", response);
                 if (response.success) {
-                    clearSessionStorage();
+                    window.clearSessionStorage();
+                    toastr.success(isCreateMode ? "Category created successfully!" : "Category updated successfully!");
+                    console.log("Redirecting to:", response.redirectUrl);
                     window.location.href = response.redirectUrl;
                 } else {
-                    alert(response.message || "Failed to submit form.");
+                    toastr.error(response.message || "Failed to submit form.");
+                    if (response.errors) {
+                        toastr.error("Validation errors: " + response.errors.join(", "));
+                    }
+                    window.isSubmitting = false;
+                    if (saveButton) {
+                        saveButton.disabled = false;
+                        saveButton.textContent = 'Save';
+                    }
+                    if (parentCategoryInput) {
+                        parentCategoryInput.disabled = false;
+                    }
                 }
             },
             error: function (xhr, status, error) {
-                console.error("Error submitting form:", error);
-                alert("An error occurred while submitting the form.");
+                console.error("Error submitting form:", error, xhr.responseText);
+                const errorMessage = xhr.responseJSON?.message || xhr.responseText || "An error occurred while submitting the form.";
+                toastr.error(`Error: ${errorMessage}`);
+                window.isSubmitting = false;
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.textContent = 'Save';
+                }
+                if (parentCategoryInput) {
+                    parentCategoryInput.disabled = false;
+                }
             }
         });
+    }.bind(document.getElementById("categoryForm")), 500);
+
+    // Bind submission handler
+    const form = document.getElementById("categoryForm");
+    if (form) {
+        form.addEventListener("submit", handleFormSubmit);
+    }
+
+    // Handle Save button click
+    const saveButton = document.getElementById("saveButton");
+    if (saveButton) {
+        saveButton.addEventListener("click", function (e) {
+            e.preventDefault();
+            console.log("Save button clicked, triggering form submission");
+            if (form) {
+                const submitEvent = new Event('submit', { cancelable: true });
+                form.dispatchEvent(submitEvent);
+            }
+        });
+    }
+
+    window.addEventListener('beforeunload', function (e) {
+        if (window.deletedAttachmentIds.length > 0 || window.deletedReferenceIds.length > 0) {
+            e.preventDefault();
+            e.returnValue = "You have pending deletions. Are you sure you want to leave without saving?";
+        }
     });
 
-    // Initialize hidden fields
-    console.log("Initializing hidden fields...");
-    updateAttachmentData();
-    updateReferenceData();
-
-    console.log("Script initialization complete!");
+    restoreState();
 })();
