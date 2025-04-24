@@ -9,8 +9,7 @@
     </div>
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-            <form method="post" enctype="multipart/form-data" asp-action="Create" id="categoryForm" novalidate>
-                @Html.AntiForgeryToken()
+            <form method="post" enctype="multipart/form-data" asp-action="Create" id="categoryForm">
                 <!-- Name -->
                 <div class="mb-3">
                     <label asp-for="Name"></label>
@@ -28,9 +27,9 @@
                 <!-- Parent Category -->
                 <div class="mb-3 row p-1">
                     <label asp-for="ParentCategoryId">Select Parent Category</label>
-                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown" name="ParentCategoryId">
+                    <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        @foreach (var category in Model.Categories)
                         {
                             <option value="@category.Id">@category.Name</option>
                         }
@@ -41,8 +40,8 @@
                 <!-- Template -->
                 <div class="mb-3">
                     <label asp-for="HtmlContent">Category Content</label>
-                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
-                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
+                    <textarea id="editor"></textarea>
+                    <input type="hidden" id="HtmlContent" name="HtmlContent" />
                     <span asp-validation-for="HtmlContent" class="text-danger"></span>
                 </div>
 
@@ -77,59 +76,28 @@
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="~/js/tinymce-init.js"></script>
-    <script src="~/js/category-attachments-references.js"></script>
+    <script src="~/js/category-attachments-references.js?v=2.6"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <link rel="nofollow" href="https://justpaste.it/redirect/anmty/https%3A%2F%2Fcdnjs.cloudflare.com%2Fajax%2Flibs%2Ftoastr.js%2Flatest%2Fcss%2Ftoastr.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
-        (function($) {
-            if (typeof $ === 'undefined') {
-                console.error('jQuery is not loaded');
-                return;
-            }
-            console.log("Category Create view script loaded (v1.9)");
-            const isCreateMode = true;
+        $(document).ready(function () {
+            console.log("Category Create view script loaded (v1.0)");
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCreateMode = !urlParams.has('id');
             console.log("isCreateMode:", isCreateMode);
 
-            // Store initial state for rollback
-            const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
-            const initialReferences = JSON.parse(JSON.stringify(window.references || []));
-            console.log('Stored initial state:', { initialAttachments, initialReferences });
-
-            // Handle Cancel button
-            $('#cancelButton').on('click', function (e) {
-                e.preventDefault();
-                console.log('Cancel button clicked');
-
-                // Restore initial state
-                window.attachments = JSON.parse(JSON.stringify(initialAttachments));
-                window.references = JSON.parse(JSON.stringify(initialReferences));
-                window.reindexAttachments();
-                window.reindexReferences();
-                window.updateAttachmentData();
-                window.updateReferenceData();
-
-                // Clear sessionStorage
-                window.clearSessionStorage();
-                toastr.info('Changes discarded.');
-
-                // Redirect
-                const redirectUrl = '/Admin/Category/Index';
-                console.log('Redirecting to:', redirectUrl);
-                window.location.href = redirectUrl;
-            });
-
-            // Handle Parent Category Dropdown Change
+            // Debug parent data
             $('#parentCategoryDropdown').on('change', function () {
                 var categoryId = $(this).val();
                 console.log('Parent category selected:', categoryId);
                 if (categoryId && categoryId !== "0") {
                     loadCategoryTemplate(categoryId);
                 } else {
-                    console.log("No parent category selected, resetting to empty state");
+                    console.log("No parent category selected, resetting");
                     window.attachments = [];
                     window.references = [];
                     window.pendingFiles = [];
@@ -139,29 +107,8 @@
                     window.reindexReferences();
                     window.updateAttachmentData();
                     window.updateReferenceData();
-
-                    // Reset TinyMCE content
-                    jQuery(document).one('tinymceInitialized', function () {
-                        console.log("tinymceInitialized event received for reset");
-                        var editor = tinymce.get("editor");
-                        if (editor) {
-                            editor.setContent("");
-                            $('#HtmlContent').val("");
-                            console.log("TinyMCE content reset");
-                        } else {
-                            console.error("TinyMCE editor not found after tinymceInitialized");
-                            toastr.error("Unable to reset template content. Please refresh the page.");
-                        }
-                    });
-
-                    var editor = tinymce.get("editor");
-                    if (editor) {
-                        console.log("TinyMCE already initialized, resetting content immediately");
-                        editor.setContent("");
-                        $('#HtmlContent').val("");
-                        console.log("TinyMCE content reset");
-                    }
-
+                    tinymce.get("editor")?.setContent("");
+                    $('#HtmlContent').val("");
                     window.clearSessionStorage();
                 }
             });
@@ -176,25 +123,12 @@
                             editor.setContent(data.data.htmlContent || '');
                             $('#HtmlContent').val(data.data.htmlContent || '');
                             console.log("TinyMCE content updated:", data.data.htmlContent);
-                        } else {
-                            console.warn("TinyMCE editor not initialized yet, waiting for tinymceInitialized");
-                            jQuery(document).one('tinymceInitialized', function () {
-                                console.log("tinymceInitialized event received");
-                                var editor = tinymce.get("editor");
-                                if (editor) {
-                                    const content = data.data.htmlContent || "";
-                                    editor.setContent(content);
-                                    $('#HtmlContent').val(content);
-                                    console.log("TinyMCE content updated:", content);
-                                } else {
-                                    console.error("TinyMCE editor not found after tinymceInitialized");
-                                    toastr.error("Unable to load template content. Please refresh the page.");
-                                }
-                            });
                         }
                         window.updateAttachmentsAndReferences(data.data.attachments || [], data.data.references || []);
                         window.clearSessionStorage();
                         saveStateToStorage();
+                        console.log("Debug: window.attachments:", window.attachments);
+                        console.log("Debug: window.references:", window.references);
                     } else {
                         console.error('GetCategoryData failed:', data.message);
                         toastr.error(data.message || 'Failed to load category data.');
@@ -207,7 +141,7 @@
 
             function saveStateToStorage() {
                 try {
-                    const categoryId = 'create';
+                    const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
                     sessionStorage.setItem(`categoryAttachments_${categoryId}`, JSON.stringify(window.attachments));
                     sessionStorage.setItem(`categoryReferences_${categoryId}`, JSON.stringify(window.references));
                     sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles));
@@ -217,19 +151,14 @@
                 }
             }
 
-            // Prevent native form submission
-            $('#categoryForm').on('submit', function (e) {
+            // Handle Cancel button
+            $('#cancelButton').on('click', function (e) {
                 e.preventDefault();
-                e.stopImmediatePropagation();
-                console.log('Native form submission prevented');
+                console.log('Cancel button clicked');
+                window.clearSessionStorage();
+                toastr.info('Changes discarded.');
+                window.location.href = '/Admin/Category/Index';
             });
-
-            // Debug ParentCategoryId on change
-            $('#parentCategoryDropdown').on('change', function () {
-                var selectedValue = $(this).val();
-                console.log('ParentCategoryId dropdown changed to:', selectedValue);
-                $(this).attr('value', selectedValue); // Ensure value attribute is updated
-            });
-        })(jQuery);
+        });
     </script>
 }
