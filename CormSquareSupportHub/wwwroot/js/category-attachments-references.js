@@ -372,14 +372,25 @@
             const index = parseInt(e.target.dataset.index);
             console.log(`Marking attachment for deletion: index=${index}`);
             if (window.attachments[index]) {
-                const attachmentId = window.attachments[index].id;
-                const parentAttachmentId = window.attachments[index].parentAttachmentId;
-                if (attachmentId > 0 || parentAttachmentId > 0) {
-                    jQuery.post('/Admin/Category/RemoveAttachment', { id: attachmentId || parentAttachmentId }, function (response) {
+                const attachment = window.attachments[index];
+                const attachmentId = attachment.id;
+                const parentAttachmentId = attachment.parentAttachmentId;
+                const isFromParent = attachment.fromParent;
+
+                if (isFromParent && parentAttachmentId > 0) {
+                    // For parent-sourced attachments, mark as deleted locally only
+                    console.log(`Parent-sourced attachment: marking locally as deleted, parentAttachmentId=${parentAttachmentId}`);
+                    window.attachments[index].isDeleted = true;
+                    window.deletedAttachmentIds.push(parentAttachmentId); // Track for form submission
+                    window.reindexAttachments();
+                    toastr.success("Parent attachment marked for deletion. Save the form to finalize.");
+                } else if (attachmentId > 0) {
+                    // For existing non-parent attachments, call RemoveAttachment
+                    jQuery.post('/Admin/Category/RemoveAttachment', { id: attachmentId }, function (response) {
                         console.log("RemoveAttachment response:", response);
                         if (response && response.success) {
-                            console.log("Successfully marked attachment for deletion:", attachmentId || parentAttachmentId);
-                            window.deletedAttachmentIds.push(attachmentId || parentAttachmentId);
+                            console.log("Successfully marked attachment for deletion:", attachmentId);
+                            window.deletedAttachmentIds.push(attachmentId);
                             window.attachments[index].isDeleted = true;
                             window.pendingFiles.splice(index, 1);
                             window.reindexAttachments();
@@ -393,6 +404,7 @@
                         toastr.error("An error occurred while marking the attachment for deletion.");
                     });
                 } else {
+                    // For unsaved attachments, remove locally
                     console.log("Removing unsaved attachment at index:", index);
                     window.attachments[index].isDeleted = true;
                     window.pendingFiles.splice(index, 1);
@@ -411,14 +423,25 @@
             const index = parseInt(e.target.dataset.index);
             console.log(`Marking reference for deletion: index=${index}`);
             if (window.references[index]) {
-                const referenceId = window.references[index].id;
-                const parentReferenceId = window.references[index].parentReferenceId;
-                if (referenceId > 0 || parentReferenceId > 0) {
-                    jQuery.post('/Admin/Category/RemoveReference', { id: referenceId || parentReferenceId }, function (response) {
+                const reference = window.references[index];
+                const referenceId = reference.id;
+                const parentReferenceId = reference.parentReferenceId;
+                const isFromParent = reference.fromParent;
+
+                if (isFromParent && parentReferenceId > 0) {
+                    // For parent-sourced references, mark as deleted locally only
+                    console.log(`Parent-sourced reference: marking locally as deleted, parentReferenceId=${parentReferenceId}`);
+                    window.references[index].isDeleted = true;
+                    window.deletedReferenceIds.push(parentReferenceId); // Track for form submission
+                    window.reindexReferences();
+                    toastr.success("Parent reference marked for deletion. Save the form to finalize.");
+                } else if (referenceId > 0) {
+                    // For existing non-parent references, call RemoveReference
+                    jQuery.post('/Admin/Category/RemoveReference', { id: referenceId }, function (response) {
                         console.log("RemoveReference response:", response);
                         if (response && response.success) {
-                            console.log("Successfully marked reference for deletion:", referenceId || parentReferenceId);
-                            window.deletedReferenceIds.push(referenceId || parentReferenceId);
+                            console.log("Successfully marked reference for deletion:", referenceId);
+                            window.deletedReferenceIds.push(referenceId);
                             window.references[index].isDeleted = true;
                             window.reindexReferences();
                             toastr.success("Reference marked for deletion. Save the form to finalize.");
@@ -431,6 +454,7 @@
                         toastr.error("An error occurred while marking the reference for deletion.");
                     });
                 } else {
+                    // For unsaved references, remove locally
                     console.log("Removing unsaved reference at index:", index);
                     window.references[index].isDeleted = true;
                     window.reindexReferences();

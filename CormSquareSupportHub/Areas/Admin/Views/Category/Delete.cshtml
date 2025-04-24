@@ -59,9 +59,11 @@
                         <ul id="attachmentList" class="list-group mt-2">
                             @foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
                             {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
                                     <div>
-                                        <strong>@attachment.FileName</strong><br />
+                                        <a href="@Url.Action("DownloadAttachment", "Category", new { attachmentId = attachment.Id, area = "Admin" })"
+                                           download="@attachment.FileName"
+                                           class="text-decoration-underline">@attachment.FileName</a><br />
                                         <input type="text" class="form-control mt-1" value="@attachment.Caption" disabled />
                                     </div>
                                     <div>
@@ -88,7 +90,7 @@
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     <div>
-                                        <a href="@reference.Url" target="@reference.OpenOption">@reference.Url</a><br />
+                                        <a href="@reference.Url" target="@reference.OpenOption" class="reference-link">@reference.Url</a><br />
                                         <input type="text" class="form-control mt-1" value="@reference.Description" disabled />
                                     </div>
                                     <div>

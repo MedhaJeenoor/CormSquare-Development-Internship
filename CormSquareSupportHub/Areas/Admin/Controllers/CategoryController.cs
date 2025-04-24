@@ -756,6 +756,17 @@ namespace SupportHub.Areas.Admin.Controllers
             }
 
             category.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted && c.ParentCategoryId == null)).ToList();
+
+            // Add ViewData["AttachmentLinks"] to provide download URLs
+            ViewData["AttachmentLinks"] = category.Attachments.Where(a => !a.IsDeleted).Select(a => new
+            {
+                Id = a.Id,
+                FileName = a.FileName,
+                Url = Url.Action("DownloadAttachment", "Category", new { attachmentId = a.Id, area = "Admin" }),
+                IsInternal = a.IsInternal,
+                OriginalFileName = a.FileName
+            }).ToList();
+
             return View(category);
         }
 
@@ -926,6 +937,14 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Attachment not found." });
             }
 
+            // Ensure the attachment belongs to a category being edited (optional, depending on requirements)
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == attachment.CategoryId && !c.IsDeleted);
+            if (category == null)
+            {
+                Console.WriteLine($"Category for attachment ID {id} not found or deleted.");
+                return Json(new { success = false, message = "Invalid category for attachment." });
+            }
+
             attachment.IsDeleted = true;
             attachment.UpdateAudit(user.Id);
             _unitOfWork.Attachment.Update(attachment);
@@ -949,6 +968,14 @@ namespace SupportHub.Areas.Admin.Controllers
             {
                 Console.WriteLine($"Reference ID {id} not found or deleted.");
                 return Json(new { success = false, message = "Reference not found." });
+            }
+
+            // Ensure the reference belongs to a category being edited (optional, depending on requirements)
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == reference.CategoryId && !c.IsDeleted);
+            if (category == null)
+            {
+                Console.WriteLine($"Category for reference ID {id} not found or deleted.");
+                return Json(new { success = false, message = "Invalid category for reference." });
             }
 
             reference.IsDeleted = true;
