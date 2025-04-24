@@ -11,8 +11,6 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Net.Http.Headers;
-using Azure;
-using SupportHub.DataAccess.Repository;
 
 namespace SupportHub.Areas.Admin.Controllers
 {
@@ -37,7 +35,7 @@ namespace SupportHub.Areas.Admin.Controllers
 
             if (string.IsNullOrEmpty(_attachmentSettings.UploadPath))
             {
-                throw new InvalidOperationException("UploadPath is not configured in appsettings.json. Please specify AttachmentSettings:UploadPath.");
+                throw new InvalidOperationException("UploadPath is not configured in appsettings.json.");
             }
 
             Console.WriteLine($"UploadPath configured: {_attachmentSettings.UploadPath} (Absolute: {Path.GetFullPath(_attachmentSettings.UploadPath)})");
@@ -47,11 +45,11 @@ namespace SupportHub.Areas.Admin.Controllers
                 if (!Directory.Exists(_attachmentSettings.UploadPath))
                 {
                     Directory.CreateDirectory(_attachmentSettings.UploadPath);
-                    Console.WriteLine($"Created base upload directory: {_attachmentSettings.UploadPath} (Absolute: {Path.GetFullPath(_attachmentSettings.UploadPath)})");
+                    Console.WriteLine($"Created base upload directory: {_attachmentSettings.UploadPath}");
                 }
                 else
                 {
-                    Console.WriteLine($"Base upload directory exists: {_attachmentSettings.UploadPath} (Absolute: {Path.GetFullPath(_attachmentSettings.UploadPath)})");
+                    Console.WriteLine($"Base upload directory exists: {_attachmentSettings.UploadPath}");
                 }
             }
             catch (Exception ex)
@@ -104,10 +102,9 @@ namespace SupportHub.Areas.Admin.Controllers
             return View(category);
         }
 
-
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Category category, IFormFile[] files, string AttachmentData, string ReferenceData)
+        public async Task<IActionResult> Create(Category category, IFormFile[] files, string AttachmentData, string ReferenceData, List<int> deletedAttachmentIds, List<int> deletedReferenceIds)
         {
             Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
             Response.Headers["Pragma"] = "no-cache";
@@ -121,8 +118,8 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Unauthorized();
             }
 
-            // Log raw form data for debugging
-            Console.WriteLine($"Form submission: Name={category.Name}, ParentCategoryId={category.ParentCategoryId}, FilesCount={(files?.Length ?? 0)}, AttachmentData={AttachmentData}, ReferenceData={ReferenceData}");
+            // Log form data
+            Console.WriteLine($"Form submission: Name={category.Name}, ParentCategoryId={category.ParentCategoryId}, FilesCount={(files?.Length ?? 0)}, AttachmentData={AttachmentData}, ReferenceData={ReferenceData}, DeletedAttachmentIds={string.Join(",", deletedAttachmentIds ?? new List<int>())}");
             foreach (var key in Request.Form.Keys)
             {
                 Console.WriteLine($"Form key: {key}, Value: {Request.Form[key]}");
@@ -168,7 +165,7 @@ namespace SupportHub.Areas.Admin.Controllers
             await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             try
             {
-                // Double-check for duplicates within transaction
+                // Double-check for duplicates
                 existingCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Name == category.Name && c.ParentCategoryId == category.ParentCategoryId && !c.IsDeleted);
                 if (existingCategory != null)
                 {
@@ -182,12 +179,11 @@ namespace SupportHub.Areas.Admin.Controllers
                 // Set audit fields
                 category.UpdateAudit(user.Id);
                 category.IsDeleted = false;
-                // Explicitly set ParentCategoryId (0 -> null)
                 category.ParentCategoryId = category.ParentCategoryId == 0 ? null : category.ParentCategoryId;
 
                 Console.WriteLine($"Saving category: Name={category.Name}, ParentCategoryId={category.ParentCategoryId}");
 
-                // Set DisplayOrder if not provided
+                // Set DisplayOrder
                 if (category.DisplayOrder == 0)
                 {
                     var maxOrder = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).Max(c => (int?)c.DisplayOrder) ?? 0;
@@ -206,16 +202,12 @@ namespace SupportHub.Areas.Admin.Controllers
                     if (!Directory.Exists(categoryPath))
                     {
                         Directory.CreateDirectory(categoryPath);
-                        Console.WriteLine($"Created directory: {categoryPath} (Absolute: {Path.GetFullPath(categoryPath)})");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Directory already exists: {categoryPath} (Absolute: {Path.GetFullPath(categoryPath)})");
+                        Console.WriteLine($"Created directory: {categoryPath}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error creating directory {categoryPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                    Console.WriteLine($"Error creating directory {categoryPath}: {ex.Message}");
                     throw new Exception($"Failed to create directory: {categoryPath}", ex);
                 }
 
@@ -228,26 +220,106 @@ namespace SupportHub.Areas.Admin.Controllers
                     Console.WriteLine($"Processed HtmlContent media for category {category.Id}");
                 }
 
-                // Process References
+                // Initialize collections
                 var savedReferences = new List<object>();
-                if (!string.IsNullOrEmpty(ReferenceData))
+                var savedAttachments = new List<object>();
+                List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new();
+
+                // Process Parent Category Attachments and References
+                if (category.ParentCategoryId.HasValue)
                 {
-                    savedReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
-                    await _unitOfWork.SaveAsync();
-                    Console.WriteLine($"Saved {savedReferences.Count} references for category {category.Id}");
+                    var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                        c => c.Id == category.ParentCategoryId.Value && !c.IsDeleted,
+                        includeProperties: "Attachments,References");
+
+                    if (parentCategory != null)
+                    {
+                        // Copy Parent Attachments
+                        var parentAttachments = parentCategory.Attachments
+                            .Where(a => !a.IsDeleted && !(deletedAttachmentIds?.Contains(a.Id) ?? false))
+                            .ToList();
+
+                        foreach (var parentAttachment in parentAttachments)
+                        {
+                            string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(parentAttachment.FileName);
+                            string relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
+                            string destPath = Path.Combine(_attachmentSettings.UploadPath, relativeFilePath);
+                            string sourcePath = Path.Combine(_attachmentSettings.UploadPath, parentAttachment.FilePath);
+
+                            var newAttachment = new Attachment
+                            {
+                                FileName = parentAttachment.FileName,
+                                FilePath = relativeFilePath,
+                                Caption = parentAttachment.Caption,
+                                IsInternal = parentAttachment.IsInternal,
+                                CategoryId = category.Id
+                            };
+                            newAttachment.UpdateAudit(user.Id);
+                            _unitOfWork.Attachment.Add(newAttachment);
+
+                            savedAttachments.Add(new
+                            {
+                                id = 0,
+                                fileName = guidFileName,
+                                filePath = relativeFilePath,
+                                originalFileName = parentAttachment.FileName,
+                                caption = parentAttachment.Caption,
+                                isInternal = parentAttachment.IsInternal
+                            });
+
+                            stagedAttachments.Add((newAttachment, sourcePath, destPath, parentAttachment.FileName));
+                            Console.WriteLine($"Staged parent attachment: {parentAttachment.FileName} -> {relativeFilePath}");
+                        }
+
+                        // Copy Parent References
+                        var parentReferences = parentCategory.References
+                            .Where(r => !r.IsDeleted && !(deletedReferenceIds?.Contains(r.Id) ?? false))
+                            .ToList();
+
+                        foreach (var parentReference in parentReferences)
+                        {
+                            var newReference = new Reference
+                            {
+                                Url = parentReference.Url,
+                                Description = parentReference.Description,
+                                IsInternal = parentReference.IsInternal,
+                                OpenOption = parentReference.OpenOption,
+                                CategoryId = category.Id
+                            };
+                            newReference.UpdateAudit(user.Id);
+                            _unitOfWork.Reference.Add(newReference);
+
+                            savedReferences.Add(new
+                            {
+                                id = 0,
+                                url = parentReference.Url,
+                                description = parentReference.Description,
+                                isInternal = parentReference.IsInternal,
+                                openOption = parentReference.OpenOption
+                            });
+                            Console.WriteLine($"Added parent reference: {parentReference.Url}");
+                        }
+
+                        await _unitOfWork.SaveAsync();
+                    }
                 }
 
-                // Process Attachments
-                var savedAttachments = new List<object>();
-                List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new List<(Attachment, string, string, string)>();
+                // Process Form References
+                if (!string.IsNullOrEmpty(ReferenceData))
+                {
+                    var formReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
+                    savedReferences.AddRange(formReferences);
+                    await _unitOfWork.SaveAsync();
+                    Console.WriteLine($"Saved {formReferences.Count} form references for category {category.Id}");
+                }
+
+                // Process Form Attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || (files?.Any() ?? false))
                 {
-                    savedAttachments = await ProcessAttachmentsAsync(category, files?.ToList(), AttachmentData, user.Id);
+                    var formAttachments = await ProcessAttachmentsAsync(category, files?.ToList(), AttachmentData, user.Id);
                     var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
 
-                    Console.WriteLine($"Processing {savedAttachments.Count} attachments, Uploaded files: {(files?.Length ?? 0)}");
-
-                    foreach (var item in savedAttachments)
+                    foreach (var item in formAttachments)
                     {
                         var id = (int)item.GetType().GetProperty("id").GetValue(item);
                         var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
@@ -255,6 +327,14 @@ namespace SupportHub.Areas.Admin.Controllers
                         var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
                         var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
                         var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+                        var fromParent = (bool)item.GetType().GetProperty("fromParent").GetValue(item);
+                        var parentAttachmentId = (int)item.GetType().GetProperty("parentAttachmentId").GetValue(item);
+
+                        // Skip parent attachments already processed
+                        if (fromParent && parentAttachmentId > 0)
+                        {
+                            continue;
+                        }
 
                         Attachment entity;
                         if (id > 0)
@@ -295,40 +375,28 @@ namespace SupportHub.Areas.Admin.Controllers
                         {
                             var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == category.Id && !a.IsDeleted);
                             sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
-                            Console.WriteLine($"No uploaded file matched for {originalFileName}, sourcePath: {sourcePath ?? "null"}");
+                            Console.WriteLine($"No uploaded file for {originalFileName}, sourcePath: {sourcePath ?? "null"}");
                         }
-                        else
-                        {
-                            Console.WriteLine($"Matched uploaded file for {originalFileName}: {uploadedFile.FileName}");
-                        }
+
                         stagedAttachments.Add((entity, sourcePath, destPath, originalFileName));
                     }
                     await _unitOfWork.SaveAsync();
                 }
 
                 // Save Files
-                Console.WriteLine($"Saving {stagedAttachments.Count} attachment files...");
                 foreach (var (entity, sourcePath, destPath, originalFileName) in stagedAttachments)
                 {
                     if (System.IO.File.Exists(destPath))
                     {
-                        Console.WriteLine($"File already exists: {destPath}, skipping copy.");
+                        Console.WriteLine($"File already exists: {destPath}, skipping.");
                         continue;
                     }
 
                     string destDir = Path.GetDirectoryName(destPath);
                     if (!Directory.Exists(destDir))
                     {
-                        try
-                        {
-                            Directory.CreateDirectory(destDir);
-                            Console.WriteLine($"Created destination directory: {destDir} (Absolute: {Path.GetFullPath(destDir)})");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error creating destination directory {destDir}: {ex.Message}");
-                            throw new Exception($"Failed to create destination directory: {destDir}", ex);
-                        }
+                        Directory.CreateDirectory(destDir);
+                        Console.WriteLine($"Created destination directory: {destDir}");
                     }
 
                     try
@@ -336,7 +404,7 @@ namespace SupportHub.Areas.Admin.Controllers
                         if (sourcePath != null && System.IO.File.Exists(sourcePath))
                         {
                             System.IO.File.Copy(sourcePath, destPath, overwrite: false);
-                            Console.WriteLine($"Copied file: {sourcePath} to {destPath} (Absolute: {Path.GetFullPath(destPath)})");
+                            Console.WriteLine($"Copied file: {sourcePath} to {destPath}");
                         }
                         else
                         {
@@ -346,12 +414,12 @@ namespace SupportHub.Areas.Admin.Controllers
                                 using (var fileStream = new FileStream(destPath, FileMode.Create))
                                 {
                                     await file.CopyToAsync(fileStream);
-                                    Console.WriteLine($"Uploaded file: {originalFileName} to {destPath} (Absolute: {Path.GetFullPath(destPath)})");
+                                    Console.WriteLine($"Uploaded file: {originalFileName} to {destPath}");
                                 }
                             }
                             else
                             {
-                                Console.WriteLine($"Error: No source file or uploaded file found for {originalFileName} (GUID: {entity.FileName})");
+                                Console.WriteLine($"Error: No source or uploaded file for {originalFileName} (GUID: {entity.FileName})");
                                 entity.IsDeleted = true;
                                 _unitOfWork.Attachment.Update(entity);
                                 await _unitOfWork.SaveAsync();
@@ -360,7 +428,7 @@ namespace SupportHub.Areas.Admin.Controllers
                     }
                     catch (IOException ex)
                     {
-                        Console.WriteLine($"File operation error for {originalFileName} (GUID: {entity.FileName}): {ex.Message}\nStackTrace: {ex.StackTrace}");
+                        Console.WriteLine($"File operation error for {originalFileName}: {ex.Message}");
                         throw new Exception($"Failed to save file {originalFileName}.", ex);
                     }
                 }
@@ -374,19 +442,14 @@ namespace SupportHub.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                Console.WriteLine($"Error in Create POST: {ex.Message}\nStackTrace: {ex.StackTrace}\nInnerException: {ex.InnerException?.Message}");
-                return Json(new { success = false, message = $"Error: {ex.Message}", innerException = ex.InnerException?.Message });
+                Console.WriteLine($"Error in Create POST: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
             }
         }
 
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
-            Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
-            Response.Headers["Pragma"] = "no-cache";
-            Response.Headers["Expires"] = "0";
-            Response.Headers["Vary"] = "Accept-Encoding";
-
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
@@ -419,11 +482,12 @@ namespace SupportHub.Areas.Admin.Controllers
                 OriginalFileName = a.FileName
             }).ToList();
 
+            Console.WriteLine($"CategoryController.Edit: Fetched category ID {id} with {category.References.Count} references");
             return View(category);
         }
 
         [HttpPost]
-        public async Task<IActionResult> Edit(Category model, List<IFormFile>? files, string? ReferenceData, string? AttachmentData, string submitAction, List<int>? deletedAttachmentIds, List<int>? deletedReferenceIds)
+        public async Task<IActionResult> Edit(Category model, List<IFormFile> files, string ReferenceData, string AttachmentData, string submitAction, List<int> deletedAttachmentIds, List<int> deletedReferenceIds)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
@@ -490,18 +554,10 @@ namespace SupportHub.Areas.Admin.Controllers
                 Console.WriteLine($"Updated category: {category.Id}");
 
                 string categoryPath = Path.Combine(_attachmentSettings.UploadPath, "categories", category.Id.ToString());
-                try
+                if (!Directory.Exists(categoryPath))
                 {
-                    if (!Directory.Exists(categoryPath))
-                    {
-                        Directory.CreateDirectory(categoryPath);
-                        Console.WriteLine($"Created directory: {categoryPath}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error creating directory {categoryPath}: {ex.Message}");
-                    throw new Exception($"Failed to create directory: {categoryPath}", ex);
+                    Directory.CreateDirectory(categoryPath);
+                    Console.WriteLine($"Created directory: {categoryPath}");
                 }
 
                 if (!string.IsNullOrEmpty(category.HtmlContent))
@@ -515,90 +571,75 @@ namespace SupportHub.Areas.Admin.Controllers
                 var savedReferences = new List<object>();
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
-                    try
-                    {
-                        savedReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
-                        await _unitOfWork.SaveAsync();
-                        Console.WriteLine($"Saved {savedReferences.Count} references for category {category.Id}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Reference processing error: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                        throw new Exception("Failed to process references.", ex);
-                    }
+                    savedReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
+                    await _unitOfWork.SaveAsync();
+                    Console.WriteLine($"Saved {savedReferences.Count} references for category {category.Id}");
                 }
 
                 var savedAttachments = new List<object>();
-                List<(Attachment Entity, string SourcePath, string DestPath)> stagedAttachments = new List<(Attachment, string, string)>();
-                if (!string.IsNullOrEmpty(AttachmentData) || (files?.Any() ?? false))
+                List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new();
+                if (!string.IsNullOrEmpty(AttachmentData) || files?.Any() == true)
                 {
-                    try
+                    savedAttachments = await ProcessAttachmentsAsync(category, files, AttachmentData, user.Id);
+                    var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
+
+                    foreach (var item in savedAttachments)
                     {
-                        savedAttachments = await ProcessAttachmentsAsync(category, files, AttachmentData, user.Id);
-                        var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
+                        var id = (int)item.GetType().GetProperty("id").GetValue(item);
+                        var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
+                        var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
+                        var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
+                        var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
+                        var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
 
-                        foreach (var item in savedAttachments)
+                        Attachment entity;
+                        if (id > 0)
                         {
-                            var id = (int)item.GetType().GetProperty("id").GetValue(item);
-                            var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
-                            var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
-                            var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
-                            var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
-                            var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
-
-                            Attachment entity;
-                            if (id > 0)
+                            entity = existingAttachments.FirstOrDefault(a => a.Id == id);
+                            if (entity != null)
                             {
-                                entity = existingAttachments.FirstOrDefault(a => a.Id == id);
-                                if (entity != null)
-                                {
-                                    entity.Caption = caption;
-                                    entity.IsInternal = isInternal;
-                                    entity.UpdateAudit(user.Id);
-                                    _unitOfWork.Attachment.Update(entity);
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"Attachment ID {id} not found, skipping.");
-                                    continue;
-                                }
+                                entity.Caption = caption;
+                                entity.IsInternal = isInternal;
+                                entity.UpdateAudit(user.Id);
+                                _unitOfWork.Attachment.Update(entity);
                             }
                             else
                             {
-                                entity = new Attachment
-                                {
-                                    FileName = guidFileName,
-                                    FilePath = filePath,
-                                    Caption = caption,
-                                    IsInternal = isInternal,
-                                    CategoryId = category.Id
-                                };
-                                entity.UpdateAudit(user.Id);
-                                _unitOfWork.Attachment.Add(entity);
-                                existingAttachments.Add(entity);
+                                Console.WriteLine($"Attachment ID {id} not found, skipping.");
+                                continue;
                             }
-
-                            string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
-                            string sourcePath = null;
-                            var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName || f.FileName.EndsWith(Path.GetFileName(originalFileName)));
-                            if (uploadedFile == null)
-                            {
-                                var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == category.Id && !a.IsDeleted);
-                                sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
-                                Console.WriteLine($"No uploaded file matched for {originalFileName}, sourcePath: {sourcePath}");
-                            }
-                            stagedAttachments.Add((entity, sourcePath, destPath));
                         }
-                        await _unitOfWork.SaveAsync();
+                        else
+                        {
+                            entity = new Attachment
+                            {
+                                FileName = guidFileName,
+                                FilePath = filePath,
+                                Caption = caption,
+                                IsInternal = isInternal,
+                                CategoryId = category.Id
+                            };
+                            entity.UpdateAudit(user.Id);
+                            _unitOfWork.Attachment.Add(entity);
+                            existingAttachments.Add(entity);
+                        }
+
+                        string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
+                        string sourcePath = null;
+                        var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName || f.FileName.EndsWith(Path.GetFileName(originalFileName)));
+                        if (uploadedFile == null)
+                        {
+                            var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == category.Id && !a.IsDeleted);
+                            sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
+                            Console.WriteLine($"No uploaded file for {originalFileName}, sourcePath: {sourcePath}");
+                        }
+
+                        stagedAttachments.Add((entity, sourcePath, destPath, originalFileName));
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Attachment processing error: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                        throw new Exception("Failed to process attachments.", ex);
-                    }
+                    await _unitOfWork.SaveAsync();
                 }
 
-                if (deletedAttachmentIds?.Any() ?? false)
+                if (deletedAttachmentIds?.Any() == true)
                 {
                     foreach (var id in deletedAttachmentIds)
                     {
@@ -614,7 +655,7 @@ namespace SupportHub.Areas.Admin.Controllers
                     await _unitOfWork.SaveAsync();
                 }
 
-                if (deletedReferenceIds?.Any() ?? false)
+                if (deletedReferenceIds?.Any() == true)
                 {
                     foreach (var id in deletedReferenceIds)
                     {
@@ -630,12 +671,19 @@ namespace SupportHub.Areas.Admin.Controllers
                     await _unitOfWork.SaveAsync();
                 }
 
-                foreach (var (entity, sourcePath, destPath) in stagedAttachments)
+                foreach (var (entity, sourcePath, destPath, originalFileName) in stagedAttachments)
                 {
                     if (System.IO.File.Exists(destPath))
                     {
-                        Console.WriteLine($"File already exists: {destPath}, skipping copy.");
+                        Console.WriteLine($"File already exists: {destPath}, skipping.");
                         continue;
+                    }
+
+                    string destDir = Path.GetDirectoryName(destPath);
+                    if (!Directory.Exists(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                        Console.WriteLine($"Created destination directory: {destDir}");
                     }
 
                     try
@@ -647,25 +695,25 @@ namespace SupportHub.Areas.Admin.Controllers
                         }
                         else
                         {
-                            var file = files?.FirstOrDefault(f => f.FileName == entity.FileName || f.FileName.EndsWith(Path.GetFileName(entity.FileName)));
+                            var file = files?.FirstOrDefault(f => f.FileName == originalFileName || f.FileName.EndsWith(Path.GetFileName(originalFileName)));
                             if (file != null)
                             {
                                 using (var fileStream = new FileStream(destPath, FileMode.Create))
                                 {
                                     await file.CopyToAsync(fileStream);
-                                    Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
+                                    Console.WriteLine($"Uploaded file: {originalFileName} to {destPath}");
                                 }
                             }
                             else
                             {
-                                Console.WriteLine($"Warning: No source file found for {entity.FileName} and it’s not uploaded.");
+                                Console.WriteLine($"Warning: No source file for {originalFileName} and not uploaded.");
                             }
                         }
                     }
                     catch (IOException ex)
                     {
-                        Console.WriteLine($"File operation error for {entity.FileName}: {ex.Message}");
-                        throw new Exception($"Failed to save file {entity.FileName}.", ex);
+                        Console.WriteLine($"File operation error for {originalFileName}: {ex.Message}");
+                        throw new Exception($"Failed to save file {originalFileName}.", ex);
                     }
                 }
 
@@ -678,8 +726,8 @@ namespace SupportHub.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                Console.WriteLine($"Error in Edit: {ex.Message}\nStackTrace: {ex.StackTrace}\nInnerException: {ex.InnerException?.Message}");
-                return Json(new { success = false, message = $"Error updating category: {ex.Message}", innerException = ex.InnerException?.Message });
+                Console.WriteLine($"Error in Edit: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, message = $"Error updating category: {ex.Message}" });
             }
         }
 
@@ -732,7 +780,7 @@ namespace SupportHub.Areas.Admin.Controllers
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                if (category.SubCategories?.Any(sc => !sc.IsDeleted) ?? false)
+                if (category.SubCategories?.Any(sc => !sc.IsDeleted) == true)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     Console.WriteLine($"Cannot delete category {id}: Active subcategories found.");
@@ -774,8 +822,8 @@ namespace SupportHub.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                Console.WriteLine($"Error in Delete: {ex.Message}\nStackTrace: {ex.StackTrace}\nInnerException: {ex.InnerException?.Message}");
-                return Json(new { success = false, message = $"Error deleting category: {ex.Message}", innerException = ex.InnerException?.Message });
+                Console.WriteLine($"Error in Delete: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return Json(new { success = false, message = $"Error deleting category: {ex.Message}" });
             }
         }
 
@@ -807,7 +855,9 @@ namespace SupportHub.Areas.Admin.Controllers
                     url = Url.Action("DownloadAttachment", "Category", new { attachmentId = a.Id, area = "Admin" }),
                     caption = a.Caption,
                     isInternal = a.IsInternal,
-                    originalFileName = a.FileName
+                    originalFileName = a.FileName,
+                    fromParent = false, // Parent data for UI
+                    parentAttachmentId = a.Id
                 }).ToList(),
                 references = category.References.Where(r => !r.IsDeleted).Select(r => new
                 {
@@ -815,7 +865,9 @@ namespace SupportHub.Areas.Admin.Controllers
                     url = r.Url,
                     description = r.Description,
                     isInternal = r.IsInternal,
-                    openOption = r.OpenOption
+                    openOption = r.OpenOption,
+                    fromParent = false, // Parent data for UI
+                    parentReferenceId = r.Id
                 }).ToList()
             };
 
@@ -842,22 +894,19 @@ namespace SupportHub.Areas.Admin.Controllers
             var filePath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath);
             if (!System.IO.File.Exists(filePath))
             {
-                Console.WriteLine($"File not found: {filePath}");
+                Console.WriteLine($"Attachment file not found: {filePath}");
                 return NotFound();
             }
 
-            try
+            var memory = new MemoryStream();
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
             {
-                var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-                var contentType = "application/octet-stream";
-                Console.WriteLine($"Serving file: {attachment.FileName} from {filePath}");
-                return File(fileBytes, contentType, attachment.FileName);
+                await stream.CopyToAsync(memory);
             }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"Error reading file {filePath}: {ex.Message}");
-                return StatusCode(500, new { message = $"Error reading file: {ex.Message}" });
-            }
+            memory.Position = 0;
+
+            var contentType = "application/octet-stream";
+            return File(memory, contentType, attachment.FileName);
         }
 
         [HttpPost]
@@ -877,23 +926,12 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Attachment not found." });
             }
 
-            await _unitOfWork.BeginTransactionAsync();
-            try
-            {
-                attachment.IsDeleted = true;
-                attachment.UpdateAudit(user.Id);
-                _unitOfWork.Attachment.Update(attachment);
-                await _unitOfWork.SaveAsync();
-                await _unitOfWork.CommitTransactionAsync();
-                Console.WriteLine($"Marked attachment {id} as deleted");
-                return Json(new { success = true });
-            }
-            catch (Exception ex)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
-                Console.WriteLine($"Error in RemoveAttachment: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error removing attachment: {ex.Message}" });
-            }
+            attachment.IsDeleted = true;
+            attachment.UpdateAudit(user.Id);
+            _unitOfWork.Attachment.Update(attachment);
+            await _unitOfWork.SaveAsync();
+            Console.WriteLine($"Marked attachment {id} as deleted.");
+            return Json(new { success = true });
         }
 
         [HttpPost]
@@ -913,268 +951,236 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Reference not found." });
             }
 
-            await _unitOfWork.BeginTransactionAsync();
-            try
+            reference.IsDeleted = true;
+            reference.UpdateAudit(user.Id);
+            _unitOfWork.Reference.Update(reference);
+            await _unitOfWork.SaveAsync();
+            Console.WriteLine($"Marked reference {id} as deleted.");
+            return Json(new { success = true });
+        }
+
+        private async Task<string> ProcessHtmlContentMediaAsync(Category category, string htmlContent, string userId, List<IFormFile> files)
+        {
+            if (string.IsNullOrEmpty(htmlContent) || files == null || !files.Any())
             {
-                reference.IsDeleted = true;
-                reference.UpdateAudit(user.Id);
-                _unitOfWork.Reference.Update(reference);
-                await _unitOfWork.SaveAsync();
-                await _unitOfWork.CommitTransactionAsync();
-                Console.WriteLine($"Marked reference {id} as deleted");
-                return Json(new { success = true });
+                return htmlContent;
             }
-            catch (Exception ex)
+
+            var regex = new Regex("<img[^>]+src=[\"'](data:image/[^\"']+)[\"'][^>]*>");
+            var matches = regex.Matches(htmlContent);
+            foreach (Match match in matches)
             {
-                await _unitOfWork.RollbackTransactionAsync();
-                Console.WriteLine($"Error in RemoveReference: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return Json(new { success = false, message = $"Error removing reference: {ex.Message}" });
+                var base64String = match.Groups[1].Value;
+                if (!base64String.StartsWith("data:image/"))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var parts = base64String.Split(',');
+                    if (parts.Length < 2)
+                    {
+                        Console.WriteLine($"Invalid base64 image data: {base64String.Substring(0, Math.Min(50, base64String.Length))}...");
+                        continue;
+                    }
+
+                    var mimeType = parts[0].Split(';')[0].Replace("data:", "");
+                    var extension = mimeType switch
+                    {
+                        "image/jpeg" => ".jpg",
+                        "image/png" => ".png",
+                        _ => null
+                    };
+
+                    if (extension == null)
+                    {
+                        Console.WriteLine($"Unsupported image MIME type: {mimeType}");
+                        continue;
+                    }
+
+                    var bytes = Convert.FromBase64String(parts[1]);
+                    var guidFileName = Guid.NewGuid().ToString() + extension;
+                    var relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
+                    var absoluteFilePath = Path.Combine(_attachmentSettings.UploadPath, relativeFilePath);
+
+                    var destDir = Path.GetDirectoryName(absoluteFilePath);
+                    if (!Directory.Exists(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                        Console.WriteLine($"Created directory for image: {destDir}");
+                    }
+
+                    await System.IO.File.WriteAllBytesAsync(absoluteFilePath, bytes);
+                    Console.WriteLine($"Saved base64 image: {absoluteFilePath}");
+
+                    var attachment = new Attachment
+                    {
+                        FileName = guidFileName,
+                        FilePath = relativeFilePath,
+                        CategoryId = category.Id,
+                        IsInternal = false
+                    };
+                    attachment.UpdateAudit(userId);
+                    _unitOfWork.Attachment.Add(attachment);
+                    await _unitOfWork.SaveAsync();
+
+                    var newSrc = Url.Action("DownloadAttachment", "Category", new { attachmentId = attachment.Id, area = "Admin" });
+                    htmlContent = htmlContent.Replace(base64String, newSrc);
+                    Console.WriteLine($"Replaced base64 image with URL: {newSrc}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error processing base64 image: {ex.Message}");
+                    continue;
+                }
             }
+
+            return htmlContent;
         }
 
         private async Task<List<object>> ProcessReferencesAsync(Category category, string referenceData, string userId)
         {
-            var savedReferences = new List<object>();
+            var references = new List<object>();
             if (string.IsNullOrEmpty(referenceData))
             {
-                Console.WriteLine("No reference data provided.");
-                return savedReferences;
+                return references;
             }
 
-            List<dynamic> references;
             try
             {
-                references = JsonConvert.DeserializeObject<List<dynamic>>(referenceData);
-            }
-            catch (JsonException ex)
-            {
-                Console.WriteLine($"Invalid reference data JSON: {ex.Message}");
-                throw new Exception("Invalid reference data format.", ex);
-            }
+                var stagedReferences = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(referenceData);
+                var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == category.Id && !r.IsDeleted)).ToList();
 
-            if (references == null || !references.Any())
-            {
-                Console.WriteLine("No references to process after deserialization.");
-                return savedReferences;
-            }
-
-            var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == category.Id && !r.IsDeleted)).ToList();
-
-            foreach (var refItem in references)
-            {
-                int id = refItem.id ?? 0;
-                string url = refItem.url?.ToString();
-                string description = refItem.description?.ToString();
-                bool isInternal = refItem.isInternal ?? false;
-                string openOption = refItem.openOption?.ToString() ?? "_self";
-                bool isDeleted = refItem.isDeleted ?? false;
-
-                if (string.IsNullOrEmpty(url) || isDeleted)
+                foreach (var refItem in stagedReferences)
                 {
-                    Console.WriteLine($"Skipping reference: URL is empty or marked as deleted.");
-                    continue;
-                }
+                    int id = refItem.ContainsKey("id") ? Convert.ToInt32(refItem["id"]) : 0;
+                    string url = refItem["url"]?.ToString() ?? "";
+                    string description = refItem["description"]?.ToString();
+                    bool isInternal = refItem.ContainsKey("isInternal") && bool.Parse(refItem["isInternal"].ToString());
+                    string openOption = refItem["openOption"]?.ToString() ?? "";
+                    bool isDeleted = refItem.ContainsKey("isDeleted") && bool.Parse(refItem["isDeleted"].ToString());
+                    bool fromParent = refItem.ContainsKey("fromParent") && bool.Parse(refItem["fromParent"].ToString());
+                    int parentReferenceId = refItem.ContainsKey("parentReferenceId") ? Convert.ToInt32(refItem["parentReferenceId"]) : 0;
 
-                Reference reference;
-                if (id > 0)
-                {
-                    reference = existingReferences.FirstOrDefault(r => r.Id == id);
-                    if (reference != null)
+                    // Skip parent references already processed
+                    if (fromParent && parentReferenceId > 0)
                     {
-                        reference.Url = url;
-                        reference.Description = description;
-                        reference.IsInternal = isInternal;
-                        reference.OpenOption = openOption;
-                        reference.UpdateAudit(userId);
-                        _unitOfWork.Reference.Update(reference);
+                        continue;
+                    }
+
+                    if (isDeleted)
+                    {
+                        continue;
+                    }
+
+                    Reference reference;
+                    if (id > 0)
+                    {
+                        reference = existingReferences.FirstOrDefault(r => r.Id == id);
+                        if (reference != null)
+                        {
+                            reference.Url = url;
+                            reference.Description = description;
+                            reference.IsInternal = isInternal;
+                            reference.OpenOption = openOption;
+                            reference.UpdateAudit(userId);
+                            _unitOfWork.Reference.Update(reference);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Reference ID {id} not found, skipping.");
+                            continue;
+                        }
                     }
                     else
                     {
-                        Console.WriteLine($"Reference ID {id} not found, skipping.");
-                        continue;
-                    }
-                }
-                else
-                {
-                    reference = new Reference
-                    {
-                        Url = url,
-                        Description = description,
-                        IsInternal = isInternal,
-                        OpenOption = openOption,
-                        CategoryId = category.Id
-                    };
-                    reference.UpdateAudit(userId);
-                    _unitOfWork.Reference.Add(reference);
-                    existingReferences.Add(reference);
-                }
-
-                savedReferences.Add(new
-                {
-                    id = reference.Id,
-                    url = reference.Url,
-                    description = reference.Description,
-                    isInternal = reference.IsInternal,
-                    openOption = reference.OpenOption
-                });
-            }
-
-            return savedReferences;
-        }
-
-        private async Task<List<object>> ProcessAttachmentsAsync(Category category, List<IFormFile>? files, string attachmentData, string userId)
-        {
-            var savedAttachments = new List<object>();
-            if (string.IsNullOrEmpty(attachmentData))
-            {
-                Console.WriteLine("No attachment data provided.");
-                return savedAttachments;
-            }
-
-            List<dynamic> attachments;
-            try
-            {
-                attachments = JsonConvert.DeserializeObject<List<dynamic>>(attachmentData);
-            }
-            catch (JsonException ex)
-            {
-                Console.WriteLine($"Invalid attachment data JSON: {ex.Message}");
-                throw new Exception("Invalid attachment data format.", ex);
-            }
-
-            if (attachments == null || !attachments.Any())
-            {
-                Console.WriteLine("No attachments to process after deserialization.");
-                return savedAttachments;
-            }
-
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".txt" };
-
-            foreach (var attItem in attachments)
-            {
-                int id = attItem.id ?? 0;
-                string fileName = attItem.fileName?.ToString();
-                string caption = attItem.caption?.ToString();
-                bool isInternal = attItem.isInternal ?? false;
-                bool isDeleted = attItem.isDeleted ?? false;
-
-                if (string.IsNullOrEmpty(fileName) || isDeleted)
-                {
-                    Console.WriteLine($"Skipping attachment: FileName is empty or marked as deleted.");
-                    continue;
-                }
-
-                var extension = Path.GetExtension(fileName).ToLowerInvariant();
-                if (!allowedExtensions.Contains(extension))
-                {
-                    Console.WriteLine($"Skipping attachment: Invalid file extension {extension} for {fileName}.");
-                    continue;
-                }
-
-                string guidFileName = Guid.NewGuid().ToString() + extension;
-                string relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
-
-                savedAttachments.Add(new
-                {
-                    id,
-                    fileName = guidFileName,
-                    filePath = relativeFilePath,
-                    originalFileName = fileName,
-                    caption,
-                    isInternal
-                });
-            }
-
-            return savedAttachments;
-        }
-
-        private async Task<string> ProcessHtmlContentMediaAsync(Category category, string htmlContent, string userId, List<IFormFile>? files)
-        {
-            if (string.IsNullOrEmpty(htmlContent))
-            {
-                Console.WriteLine("No HtmlContent to process.");
-                return htmlContent;
-            }
-
-            var srcRegex = new Regex(@"(?:<img|<video|<audio)\s+[^>]*src=""([^""]+)""", RegexOptions.IgnoreCase);
-            var matches = srcRegex.Matches(htmlContent);
-            string updatedHtmlContent = htmlContent;
-
-            foreach (Match match in matches)
-            {
-                string src = match.Groups[1].Value;
-                if (src.StartsWith("http") || src.StartsWith("data:"))
-                {
-                    Console.WriteLine($"Skipping external or data URL in HtmlContent: {src}");
-                    continue;
-                }
-
-                string fileName = Path.GetFileName(src);
-                if (string.IsNullOrEmpty(fileName))
-                {
-                    Console.WriteLine($"Invalid src in HtmlContent: {src}");
-                    continue;
-                }
-
-                var extension = Path.GetExtension(fileName).ToLowerInvariant();
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mp3", ".wav" };
-                if (!allowedExtensions.Contains(extension))
-                {
-                    Console.WriteLine($"Invalid file extension in HtmlContent: {extension} for {fileName}");
-                    continue;
-                }
-
-                string guidFileName = Guid.NewGuid().ToString() + extension;
-                string relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
-                string destPath = Path.Combine(_attachmentSettings.UploadPath, relativeFilePath);
-
-                string destDir = Path.GetDirectoryName(destPath);
-                if (!Directory.Exists(destDir))
-                {
-                    Directory.CreateDirectory(destDir);
-                    Console.WriteLine($"Created destination directory for HtmlContent media: {destDir} (Absolute: {Path.GetFullPath(destDir)})");
-                }
-
-                var file = files?.FirstOrDefault(f => f.FileName == fileName || f.FileName.EndsWith(fileName));
-                if (file != null)
-                {
-                    try
-                    {
-                        using (var fileStream = new FileStream(destPath, FileMode.Create))
+                        reference = new Reference
                         {
-                            await file.CopyToAsync(fileStream);
-                            Console.WriteLine($"Saved HtmlContent media: {fileName} to {destPath} (Absolute: {Path.GetFullPath(destPath)})");
-                        }
-
-                        var attachment = new Attachment
-                        {
-                            FileName = guidFileName,
-                            FilePath = relativeFilePath,
-                            Caption = $"Media from HtmlContent: {fileName}",
-                            IsInternal = true,
+                            Url = url,
+                            Description = description,
+                            IsInternal = isInternal,
+                            OpenOption = openOption,
                             CategoryId = category.Id
                         };
-                        attachment.UpdateAudit(userId);
-                        _unitOfWork.Attachment.Add(attachment);
-                        await _unitOfWork.SaveAsync();
+                        reference.UpdateAudit(userId);
+                        _unitOfWork.Reference.Add(reference);
+                        existingReferences.Add(reference);
+                    }
 
-                        string newSrc = $"/Uploads/categories/{category.Id}/{guidFileName}";
-                        updatedHtmlContent = updatedHtmlContent.Replace(src, newSrc);
-                        Console.WriteLine($"Updated HtmlContent src: {src} to {newSrc}");
-                    }
-                    catch (IOException ex)
+                    references.Add(new
                     {
-                        Console.WriteLine($"Error saving HtmlContent media {fileName}: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                        throw new Exception($"Failed to save HtmlContent media: {fileName}", ex);
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"No uploaded file found for HtmlContent media: {fileName}");
+                        id = 0,
+                        url,
+                        description,
+                        isInternal,
+                        openOption
+                    });
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing references: {ex.Message}");
+                throw new Exception("Failed to process references.", ex);
+            }
 
-            return updatedHtmlContent;
+            return references;
+        }
+        private async Task<List<object>> ProcessAttachmentsAsync(Category category, List<IFormFile> files, string attachmentData, string userId)
+        {
+            var attachments = new List<object>();
+            if (string.IsNullOrEmpty(attachmentData))
+            {
+                return attachments;
+            }
+
+            try
+            {
+                var stagedAttachments = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                foreach (var att in stagedAttachments)
+                {
+                    int id = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
+                    string originalFileName = att["fileName"]?.ToString() ?? "";
+                    bool isDeleted = att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString());
+                    bool fromParent = att.ContainsKey("fromParent") && bool.Parse(att["fromParent"].ToString());
+                    int parentAttachmentId = att.ContainsKey("parentAttachmentId") ? Convert.ToInt32(att["parentAttachmentId"]) : 0;
+
+                    if (isDeleted)
+                    {
+                        continue;
+                    }
+
+                    // Skip parent attachments already processed
+                    if (fromParent && parentAttachmentId > 0)
+                    {
+                        continue;
+                    }
+
+                    string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(originalFileName);
+                    string filePath = Path.Combine("categories", category.Id.ToString(), guidFileName).Replace("\\", "/");
+                    bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
+                    string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
+
+                    attachments.Add(new
+                    {
+                        id,
+                        fileName = guidFileName,
+                        filePath,
+                        originalFileName,
+                        caption,
+                        isInternal,
+                        fromParent,
+                        parentAttachmentId
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing attachments: {ex.Message}");
+                throw new Exception("Failed to process attachments.", ex);
+            }
+
+            return attachments;
         }
     }
 }
