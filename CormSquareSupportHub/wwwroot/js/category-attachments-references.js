@@ -84,9 +84,12 @@
     window.updateReferenceData = updateReferenceData;
 
     function restoreState() {
+        const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+        const isEditMode = !!categoryId && categoryId !== 'create';
+        console.log('restoreState: isEditMode=', isEditMode, 'categoryId=', categoryId);
+
         let attachments, references, pendingFiles;
         try {
-            const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
             const savedAttachments = sessionStorage.getItem(`categoryAttachments_${categoryId}`);
             const savedReferences = sessionStorage.getItem(`categoryReferences_${categoryId}`);
             const savedPendingFiles = sessionStorage.getItem(`categoryPendingFiles_${categoryId}`);
@@ -105,11 +108,15 @@
             pendingFiles = [];
         }
 
-        if (attachments.length > 0 || references.length > 0 || pendingFiles.length > 0) {
+        // In Edit mode, prefer DOM initialization unless sessionStorage has unsaved changes
+        if (isEditMode && attachments.length === 0 && references.length === 0 && pendingFiles.length === 0) {
+            console.log('Edit mode with no sessionStorage data, initializing from DOM');
+            initializeFromDOM();
+        } else if (attachments.length > 0 || references.length > 0 || pendingFiles.length > 0) {
+            console.log('Restoring from sessionStorage:', { attachments, references, pendingFiles });
             window.attachments = attachments;
             window.references = references;
             window.pendingFiles = pendingFiles;
-            console.log('Restored from sessionStorage:', { attachments: window.attachments, references: window.references, pendingFiles: window.pendingFiles });
 
             const attachmentList = document.getElementById("attachmentList");
             const referenceList = document.getElementById("referenceList");
@@ -127,7 +134,7 @@
             updateAttachmentData();
             updateReferenceData();
         } else {
-            console.log('No valid sessionStorage data, initializing from DOM');
+            console.log('No sessionStorage data, initializing from DOM');
             initializeFromDOM();
         }
     }
@@ -138,18 +145,19 @@
 
         document.querySelectorAll('#attachmentList li').forEach((li, index) => {
             const attachmentId = parseInt(li.dataset.attachmentId) || 0;
-            const anchor = li.querySelector('a');
+            const anchor = li.querySelector('a.attachment-link');
+            const fileName = anchor ? anchor.textContent : li.querySelector('strong')?.textContent || 'Unnamed';
             const attachment = {
                 id: attachmentId,
-                fileName: anchor ? anchor.textContent : li.querySelector('strong')?.textContent || 'Unnamed',
+                fileName: fileName,
                 url: anchor ? anchor.getAttribute('href') : null,
                 caption: li.querySelector('.caption-input')?.value || '',
                 isInternal: li.querySelector('.internal-attachment')?.checked || false,
                 isDeleted: false,
-                fromParent: attachmentId > 0,
+                fromParent: attachmentId > 0, // Assume existing attachments are from parent or previously saved
                 parentAttachmentId: attachmentId
             };
-            if (attachment.fileName && !window.attachments.some(a => a.id === attachment.id && a.fileName === attachment.fileName)) {
+            if (attachment.fileName && !window.attachments.some(a => a.fileName === attachment.fileName)) {
                 window.attachments.push(attachment);
             }
             console.log(`Initialized attachment ${index}: fileName=${attachment.fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}`);
@@ -168,10 +176,10 @@
                 isInternal: li.querySelector('.internal-reference')?.checked || false,
                 openOption: openOption,
                 isDeleted: false,
-                fromParent: referenceId > 0,
+                fromParent: referenceId > 0, // Assume existing references are from parent or previously saved
                 parentReferenceId: referenceId
             };
-            if (reference.url && !window.references.some(r => r.id === reference.id && r.url === reference.url)) {
+            if (reference.url && !window.references.some(r => r.url === reference.url)) {
                 window.references.push(reference);
             }
             console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${reference.openOption}, fromParent=${reference.fromParent}`);

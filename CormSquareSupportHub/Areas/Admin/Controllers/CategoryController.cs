@@ -76,6 +76,7 @@ namespace SupportHub.Areas.Admin.Controllers
                 {
                     Id = c.Id,
                     Name = c.Name,
+                    Description = c.Description,
                     SubCategories = categories
                         .Where(sc => sc.ParentCategoryId == c.Id && !sc.IsDeleted)
                         .ToList()
@@ -463,17 +464,90 @@ namespace SupportHub.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == id.Value && !c.IsDeleted,
-                includeProperties: "Attachments,References");
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                c => c.Id == id.Value && !c.IsDeleted,
+                includeProperties: "Attachments,References,ParentCategory"
+            );
             if (category == null)
             {
                 Console.WriteLine($"Category ID {id} not found or deleted.");
                 return NotFound();
             }
 
-            category.Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted && c.ParentCategoryId == null && c.Id != id.Value)).ToList();
+            // Only include the category's own attachments and references
+            var attachments = category.Attachments.Where(a => !a.IsDeleted).ToList();
+            var references = category.References.Where(r => !r.IsDeleted).ToList();
 
-            ViewData["AttachmentLinks"] = category.Attachments.Where(a => !a.IsDeleted).Select(a => new
+            // Copy parent attachments and references to the category if not already present
+            if (category.ParentCategoryId.HasValue)
+            {
+                var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                    c => c.Id == category.ParentCategoryId.Value && !c.IsDeleted,
+                    includeProperties: "Attachments,References"
+                );
+                if (parentCategory != null)
+                {
+                    foreach (var parentAttachment in parentCategory.Attachments.Where(a => !a.IsDeleted))
+                    {
+                        if (!category.Attachments.Any(a => a.FileName == parentAttachment.FileName && !a.IsDeleted))
+                        {
+                            var newAttachment = new Attachment
+                            {
+                                FileName = parentAttachment.FileName,
+                                FilePath = Path.Combine("categories", category.Id.ToString(), Guid.NewGuid().ToString() + Path.GetExtension(parentAttachment.FileName)).Replace("\\", "/"),
+                                Caption = parentAttachment.Caption,
+                                IsInternal = parentAttachment.IsInternal,
+                                CategoryId = category.Id,
+                                IsDeleted = false
+                            };
+                            newAttachment.UpdateAudit(user.Id);
+                            _unitOfWork.Attachment.Add(newAttachment);
+                            category.Attachments.Add(newAttachment);
+
+                            // Copy the physical file
+                            string sourcePath = Path.Combine(_attachmentSettings.UploadPath, parentAttachment.FilePath);
+                            string destPath = Path.Combine(_attachmentSettings.UploadPath, newAttachment.FilePath);
+                            if (System.IO.File.Exists(sourcePath))
+                            {
+                                string destDir = Path.GetDirectoryName(destPath);
+                                if (!Directory.Exists(destDir))
+                                {
+                                    Directory.CreateDirectory(destDir);
+                                }
+                                System.IO.File.Copy(sourcePath, destPath, overwrite: false);
+                                Console.WriteLine($"Copied parent attachment: {sourcePath} to {destPath}");
+                            }
+                        }
+                    }
+
+                    foreach (var parentReference in parentCategory.References.Where(r => !r.IsDeleted))
+                    {
+                        if (!category.References.Any(r => r.Url == parentReference.Url && !r.IsDeleted))
+                        {
+                            var newReference = new Reference
+                            {
+                                Url = parentReference.Url,
+                                Description = parentReference.Description,
+                                IsInternal = parentReference.IsInternal,
+                                OpenOption = parentReference.OpenOption,
+                                CategoryId = category.Id,
+                                IsDeleted = false
+                            };
+                            newReference.UpdateAudit(user.Id);
+                            _unitOfWork.Reference.Add(newReference);
+                            category.References.Add(newReference);
+                        }
+                    }
+
+                    await _unitOfWork.SaveAsync();
+                }
+            }
+
+            category.Categories = (await _unitOfWork.Category.GetAllAsync(
+                c => !c.IsDeleted && c.ParentCategoryId == null && c.Id != id.Value
+            )).ToList();
+
+            ViewData["AttachmentLinks"] = attachments.Select(a => new
             {
                 Id = a.Id,
                 FileName = a.FileName,
@@ -482,7 +556,16 @@ namespace SupportHub.Areas.Admin.Controllers
                 OriginalFileName = a.FileName
             }).ToList();
 
-            Console.WriteLine($"CategoryController.Edit: Fetched category ID {id} with {category.References.Count} references");
+            ViewData["ReferenceLinks"] = references.Select(r => new
+            {
+                Id = r.Id,
+                Url = r.Url,
+                Description = r.Description,
+                IsInternal = r.IsInternal,
+                OpenOption = r.OpenOption
+            }).ToList();
+
+            Console.WriteLine($"CategoryController.Edit: Fetched category ID {id} with {attachments.Count} attachments and {references.Count} references");
             return View(category);
         }
 
