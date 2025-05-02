@@ -15,7 +15,7 @@
 
     <div class="container mb-5 pb-5">
         <div class="card-body p-4">
-            <form method="post" asp-action="Delete">
+            <form method="post" asp-action="Delete" class="delete-category-form">
                 <input type="hidden" asp-for="Id" />
 
                 <!-- Category Name -->
@@ -47,8 +47,8 @@
                 <!-- Template Section -->
                 <div class="mb-3 p-1">
                     <label>Template</label>
-                    <textarea id="editor" disabled>@Html.Raw(Model.HtmlContent)</textarea>
-                    <input type="hidden" name="HtmlContent" id="HtmlContent" />
+                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
+                    @* <input type="hidden" name="HtmlContent" id="HtmlContent" /> *@
                 </div>
 
                 <!-- Attachments Section -->
@@ -126,4 +126,43 @@
 @section Scripts {
     <script src="~/js/tinymce-init.js"></script>
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        console.log("Script starting: delete-category inline");
+
+        (function () {
+            try {
+                jQuery(document).on('submit', '.delete-category-form', function (e) {
+                    e.preventDefault();
+                    const form = jQuery(this);
+                    const categoryId = form.find('input[name="Id"]').val();
+                    if (!categoryId) {
+                        console.error('Delete form: Category ID not found');
+                        return;
+                    }
+
+                    console.log('Delete form submitted for category ID:', categoryId);
+
+                    jQuery.ajax({
+                        url: form.attr('action'),
+                        type: form.attr('method'),
+                        data: form.serialize(),
+                        success: function (response) {
+                            console.log('Delete response:', response);
+                            if (response.success) {
+                                window.location.href = response.redirectUrl;
+                            } else {
+                                toastr.error(response.message || 'Failed to delete category.');
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('Error deleting category:', error, xhr.responseText);
+                        }
+                    });
+                });
+                console.log('Delete form handler registered successfully');
+            } catch (err) {
+                console.error('Error registering delete form handler:', err);
+            }
+        })();
+    </script>
 }
