@@ -659,7 +659,7 @@
         const saveButton = document.getElementById("saveButton");
         if (saveButton) {
             saveButton.disabled = true;
-            saveButton.textContent = 'Saving...';
+            saveButton.textContent = 'Saving';
         }
 
         const parentCategoryInput = document.getElementById("parentCategoryDropdown");

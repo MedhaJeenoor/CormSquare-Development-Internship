@@ -889,22 +889,22 @@ namespace SupportHub.Areas.Admin.Controllers
                     return Json(new { success = false, message = "Cannot delete category with associated solutions." });
                 }
 
-                category.IsDeleted = true;
-                category.UpdateAudit(user.Id);
-                _unitOfWork.Category.Update(category);
+                //category.IsDeleted = true;
+                category.SoftDelete(user.Id);
+                //_unitOfWork.Category.Update(category);
 
                 foreach (var attachment in category.Attachments.Where(a => !a.IsDeleted))
                 {
-                    attachment.IsDeleted = true;
-                    attachment.UpdateAudit(user.Id);
-                    _unitOfWork.Attachment.Update(attachment);
+                    //attachment.IsDeleted = true;
+                    attachment.SoftDelete(user.Id);
+                    //_unitOfWork.Attachment.Update(attachment);
                 }
 
                 foreach (var reference in category.References.Where(r => !r.IsDeleted))
                 {
-                    reference.IsDeleted = true;
-                    reference.UpdateAudit(user.Id);
-                    _unitOfWork.Reference.Update(reference);
+                    //reference.IsDeleted = true;
+                    reference.SoftDelete(user.Id);
+                    //_unitOfWork.Reference.Update(reference);
                 }
 
                 await _unitOfWork.SaveAsync();
@@ -1028,9 +1028,9 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Invalid category for attachment." });
             }
 
-            attachment.IsDeleted = true;
-            attachment.UpdateAudit(user.Id);
-            _unitOfWork.Attachment.Update(attachment);
+            //attachment.IsDeleted = true;
+            attachment.SoftDelete(user.Id);
+            //_unitOfWork.Attachment.Update(attachment);
             await _unitOfWork.SaveAsync();
             Console.WriteLine($"Marked attachment {id} as deleted.");
             return Json(new { success = true });
@@ -1061,9 +1061,9 @@ namespace SupportHub.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Invalid category for reference." });
             }
 
-            reference.IsDeleted = true;
-            reference.UpdateAudit(user.Id);
-            _unitOfWork.Reference.Update(reference);
+            //reference.IsDeleted = true;
+            reference.SoftDelete(user.Id);
+            //_unitOfWork.Reference.Update(reference);
             await _unitOfWork.SaveAsync();
             Console.WriteLine($"Marked reference {id} as deleted.");
             return Json(new { success = true });
