@@ -1,5 +1,4 @@
-﻿@model Category
-
+﻿@model SupportHub.Models.Category
 @{
     ViewData["Title"] = "Delete Category";
 }
@@ -47,8 +46,7 @@
                 <!-- Template Section -->
                 <div class="mb-3 p-1">
                     <label>Template</label>
-                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
-                    @* <input type="hidden" name="HtmlContent" id="HtmlContent" /> *@
+                    <div class="content-container template-box">@Html.Raw(Model.HtmlContent)</div>
                 </div>
 
                 <!-- Attachments Section -->
@@ -112,9 +110,9 @@
                     <button type="submit" class="btn btn-primary mx-2" style="width:200px">
                         <i class="bi bi-trash"></i> Confirm Delete
                     </button>
-                    <a asp-controller="Category" asp-action="Index" class="btn btn-outline-secondary mx-2" style="width:200px">
+                    <button type="button" id="cancelButton" class="btn btn-outline-secondary mx-2" style="width:200px">
                         <i class="bi bi-arrow-left-circle"></i> Cancel
-                    </a>
+                    </button>
                 </div>
             </form>
         </div>
@@ -124,13 +122,28 @@
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
-    <script src="~/js/tinymce-init.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="~/js/code-block-copy.js"></script>
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
+    <link rel="stylesheet" href="~/css/code-block-copy.css" />
+
+    <style>
+        .template-box {
+            border: 1px solid #ECEEEF; /* Matches Bootstrap's disabled input border */
+            border-radius: 0.25rem; /* Matches Bootstrap's form-control border-radius */
+            padding: 15px; /* Inner spacing for content */
+            background-color: #ECEEEF;
+        }
+    </style>
+
     <script>
         console.log("Script starting: delete-category inline");
 
         (function () {
             try {
+                // Form submission handler for Confirm Delete
                 jQuery(document).on('submit', '.delete-category-form', function (e) {
                     e.preventDefault();
                     const form = jQuery(this);
@@ -160,8 +173,17 @@
                     });
                 });
                 console.log('Delete form handler registered successfully');
+
+                // Cancel button handler
+                jQuery('#cancelButton').on('click', function (e) {
+                    e.preventDefault(); // Prevent any default behavior
+                    e.stopPropagation(); // Stop event bubbling
+                    console.log('Cancel button clicked');
+                    window.location.href = '@Url.Action("Index", "Category")'; // Redirect to Index
+                });
+                console.log('Cancel button handler registered successfully');
             } catch (err) {
-                console.error('Error registering delete form handler:', err);
+                console.error('Error in script:', err);
             }
         })();
     </script>

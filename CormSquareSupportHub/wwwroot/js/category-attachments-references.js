@@ -1,4 +1,4 @@
-﻿console.log("Script starting: category-attachments-references.js (v2.6)");
+﻿console.log("Script starting: category-attachments-references.js (v2.7)");
 
 (function () {
     const urlParams = new URLSearchParams(window.location.search);
@@ -31,6 +31,17 @@
             sessionStorage.setItem(`categoryAttachments_${categoryId}`, JSON.stringify(window.attachments));
             sessionStorage.setItem(`categoryReferences_${categoryId}`, JSON.stringify(window.references));
             sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles));
+
+            // Save TinyMCE editor content
+            if (typeof tinymce !== "undefined" && tinymce.get("editor")) {
+                tinymce.triggerSave();
+                const editorContent = tinymce.get("editor").getContent();
+                sessionStorage.setItem(`categoryEditorContent_${categoryId}`, editorContent);
+                console.log(`Saved TinyMCE content to sessionStorage: ${editorContent}`);
+            } else {
+                console.warn("TinyMCE not initialized, skipping editor content save");
+            }
+
             console.log('Saved to sessionStorage:', { attachments: window.attachments, references: window.references, pendingFiles: window.pendingFiles });
         } catch (e) {
             console.error('Error saving to sessionStorage:', e);
@@ -42,6 +53,7 @@
         sessionStorage.removeItem(`categoryAttachments_${categoryId}`);
         sessionStorage.removeItem(`categoryReferences_${categoryId}`);
         sessionStorage.removeItem(`categoryPendingFiles_${categoryId}`);
+        sessionStorage.removeItem(`categoryEditorContent_${categoryId}`);
         console.log('Cleared sessionStorage for category:', categoryId);
     };
 
@@ -243,7 +255,7 @@
             // Debug navigation
             console.log(`Attempting navigation to: ${url} (openOption: ${reference.openOption})`);
 
-            // Save state
+            // Save state, including TinyMCE content
             saveStateToStorage();
 
             // Navigate
@@ -282,7 +294,7 @@
             const files = event.target.files;
             if (!files || files.length === 0) return;
 
-            const allowedTypes = ['image/jpeg', 'image/png', 'application W/pdf', 'text/plain'];
+            const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'];
 
             for (let file of files) {
                 if (!allowedTypes.includes(file.type)) {
