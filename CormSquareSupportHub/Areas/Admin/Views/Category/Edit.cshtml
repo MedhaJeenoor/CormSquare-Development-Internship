@@ -1,4 +1,5 @@
 ﻿@model SupportHub.Models.Category
+@using System.Web
 @{
     ViewData["Title"] = "Edit Category";
 }
@@ -42,9 +43,8 @@
                 <!-- Template -->
                 <div class="mb-3">
                     <label asp-for="HtmlContent">Template</label>
-                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
-                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
-                    <span asp-validation-for="HtmlContent" class="text-danger"></span>
+                    <textarea id="editor"></textarea>
+                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@HttpUtility.JavaScriptStringEncode(Model.HtmlContent ?? "")" />
                 </div>
 
                 <!-- Attachments Section -->
@@ -104,7 +104,7 @@
 
                 <!-- Buttons -->
                 <div class="text-center mt-4">
-                    <button type="submit" name="submitAction" value="Save" class="btn btn-primary mx-2" style="width:200px">
+                    <button type="submit" name="submitAction" value="Save" class="btn btn-primary mx-2" style="width:200px" id="saveButton">
                         <i class="bi bi-save"></i> Save
                     </button>
                     <button type="button" id="cancelButton" class="btn btn-outline-secondary mx-2" style="width:200px">
@@ -118,16 +118,46 @@
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="~/js/tinymce-init.js"></script>
-    <script src="~/js/category-attachments-references.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <!-- Load Prism.js core and language components for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup-templating.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
+    <!-- Load TinyMCE 7.x as specified -->
+    <script src="https://cdn.tiny.cloud/1/va71qjjfnk13w6l1jzbwaocco4pacxz41q6d5g2fo2hdbljq/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
+    <!-- Add cache-busting query parameter to ensure the latest scripts are loaded -->
+    <script src="~/js/tinymce-init.js?v=1.1-rev2"></script>
+    <script src="~/js/category-attachments-references.js?v=2.7"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <link rel="nofollow" href="https://justpaste.it/redirect/anmty/https%3A%2F%2Fcdnjs.cloudflare.com%2Fajax%2Flibs%2Ftoastr.js%2Flatest%2Fcss%2Ftoastr.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
         $(document).ready(function () {
-            console.log("Category Edit view script loaded (v1.2)");
+            console.log("Category Edit view script loaded (v1.18)");
+
+            // Ensure Prism.js is loaded before proceeding
+            function waitForPrism() {
+                if (typeof Prism !== 'undefined') {
+                    console.log("Prism.js is loaded, proceeding with TinyMCE logic");
+                } else {
+                    console.warn("Prism.js not loaded yet, retrying in 100ms");
+                    setTimeout(waitForPrism, 100);
+                }
+            }
+
+            waitForPrism();
+
             const urlParams = new URLSearchParams(window.location.search);
             const isCreateMode = !urlParams.has('id');
             console.log("isCreateMode:", isCreateMode);
@@ -141,6 +171,30 @@
             if (typeof window.forceRestoreState === 'function') {
                 window.forceRestoreState();
             }
+
+            // Load editor content after TinyMCE initializes
+            jQuery(document).one('tinymceInitialized', function () {
+                console.log("tinymceInitialized event received");
+                if (tinymce.get("editor")) {
+                    // Check for saved editor content in sessionStorage
+                    const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+                    const savedContent = sessionStorage.getItem(`categoryEditorContent_${categoryId}`);
+                    if (savedContent) {
+                        tinymce.get("editor").setContent(savedContent);
+                        document.getElementById('HtmlContent').value = savedContent;
+                        console.log("Restored TinyMCE content from sessionStorage:", savedContent);
+                    } else {
+                        const rawContent = '@HttpUtility.JavaScriptStringEncode(Model.HtmlContent ?? "")';
+                        const content = rawContent || "";
+                        tinymce.get("editor").setContent(content);
+                        document.getElementById('HtmlContent').value = content;
+                        console.log("No saved content in sessionStorage, set to Model.HtmlContent:", content);
+                    }
+                } else {
+                    console.error("TinyMCE editor not found after tinymceInitialized");
+                    toastr.error("Unable to load template content. Please refresh the page.");
+                }
+            });
 
             // Handle Save button
             $('button[type="submit"]').on('click', function (e) {
@@ -179,8 +233,8 @@
                     loadCategoryTemplate(categoryId);
                 } else {
                     console.log("No parent category selected, resetting to empty state");
-                    window.attachments = initialAttachments.filter(a => !a.fromParent); // Keep only non-parent attachments
-                    window.references = initialReferences.filter(r => !r.fromParent); // Keep only non-parent references
+                    window.attachments = initialAttachments.filter(a => !a.fromParent);
+                    window.references = initialReferences.filter(r => !r.fromParent);
                     window.pendingFiles = [];
                     window.deletedAttachmentIds = [];
                     window.deletedReferenceIds = [];
@@ -248,6 +302,18 @@
                     console.error('GetCategoryData AJAX error:', status, error, xhr.responseText);
                     toastr.error('Error loading category data: ' + error);
                 });
+            }
+
+            function saveStateToStorage() {
+                try {
+                    const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+                    sessionStorage.setItem(`categoryAttachments_${categoryId}`, JSON.stringify(window.attachments));
+                    sessionStorage.setItem(`categoryReferences_${categoryId}`, JSON.stringify(window.references));
+                    sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles));
+                    console.log('Saved to sessionStorage:', { attachments: window.attachments, references: window.references, pendingFiles: window.pendingFiles });
+                } catch (e) {
+                    console.error('Error saving to sessionStorage:', e);
+                }
             }
 
             // Form submission
@@ -329,8 +395,7 @@
                         toastr.error('An error occurred while submitting: ' + (xhr.responseJSON?.message || error));
                     },
                     complete: function () {
-                        // Re-enable form elements
-                        $('button[type="submit"]').prop('disabled', false);
+                        $('#saveButton').prop('disabled', false);
                         $('#parentCategoryDropdown').prop('disabled', false);
                     }
                 });

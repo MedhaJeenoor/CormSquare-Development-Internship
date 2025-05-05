@@ -29,7 +29,7 @@
                     <label asp-for="ParentCategoryId">Select Parent Category</label>
                     <select asp-for="ParentCategoryId" class="form-control" id="parentCategoryDropdown">
                         <option value="0">This is a Parent Category</option>
-                        @foreach (var category in Model.Categories)
+                        @foreach (var category in Model.Categories.Where(c => c.ParentCategoryId == null))
                         {
                             <option value="@category.Id">@category.Name</option>
                         }
@@ -77,20 +77,73 @@
 
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="~/js/tinymce-init.js"></script>
-    <script src="~/js/category-attachments-references.js?v=2.6"></script>
+    <!-- Load Prism.js core and language components for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup-templating.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
+    <!-- Load TinyMCE 7.x as specified -->
+    <script src="https://cdn.tiny.cloud/1/va71qjjfnk13w6l1jzbwaocco4pacxz41q6d5g2fo2hdbljq/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
+    <!-- Add cache-busting query parameter to ensure the latest scripts are loaded -->
+    <script src="~/js/tinymce-init.js?v=1.1-rev2"></script>
+    <script src="~/js/category-attachments-references.js?v=2.7"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
         $(document).ready(function () {
-            console.log("Category Create view script loaded (v1.0)");
+            console.log("Category Create view script loaded (v1.17)");
+
+            // Ensure Prism.js is loaded before proceeding
+            function waitForPrism() {
+                if (typeof Prism !== 'undefined') {
+                    console.log("Prism.js is loaded, proceeding with TinyMCE logic");
+                } else {
+                    console.warn("Prism.js not loaded yet, retrying in 100ms");
+                    setTimeout(waitForPrism, 100);
+                }
+            }
+
+            waitForPrism();
+
             const urlParams = new URLSearchParams(window.location.search);
             const isCreateMode = !urlParams.has('id');
             console.log("isCreateMode:", isCreateMode);
 
-            // Debug parent data
+            // Wait for TinyMCE to initialize before interacting with the editor
+            jQuery(document).one('tinymceInitialized', function () {
+                console.log("tinymceInitialized event received");
+                if (tinymce.get("editor")) {
+                    console.log("TinyMCE editor initialized successfully on Create page");
+
+                    // Check for saved editor content in sessionStorage
+                    const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
+                    const savedContent = sessionStorage.getItem(`categoryEditorContent_${categoryId}`);
+                    if (savedContent) {
+                        tinymce.get("editor").setContent(savedContent);
+                        document.getElementById('HtmlContent').value = savedContent;
+                        console.log("Restored TinyMCE content from sessionStorage:", savedContent);
+                    } else {
+                        tinymce.get("editor").setContent("");
+                        document.getElementById('HtmlContent').value = "";
+                        console.log("No saved content in sessionStorage, set to empty");
+                    }
+                } else {
+                    console.error("TinyMCE editor not found after tinymceInitialized");
+                    toastr.error("Unable to initialize TinyMCE editor. Please refresh the page.");
+                }
+            });
+
             $('#parentCategoryDropdown').on('change', function () {
                 var categoryId = $(this).val();
                 console.log('Parent category selected:', categoryId);
@@ -107,8 +160,21 @@
                     window.reindexReferences();
                     window.updateAttachmentData();
                     window.updateReferenceData();
-                    tinymce.get("editor")?.setContent("");
-                    $('#HtmlContent').val("");
+
+                    if (tinymce.get("editor")) {
+                        tinymce.get("editor").setContent("");
+                        $('#HtmlContent').val("");
+                        console.log("TinyMCE content reset");
+                    } else {
+                        console.warn("TinyMCE editor not initialized yet, waiting for tinymceInitialized");
+                        jQuery(document).one('tinymceInitialized', function () {
+                            if (tinymce.get("editor")) {
+                                tinymce.get("editor").setContent("");
+                                $('#HtmlContent').val("");
+                                console.log("TinyMCE content reset after initialization");
+                            }
+                        });
+                    }
                     window.clearSessionStorage();
                 }
             });
@@ -123,6 +189,15 @@
                             editor.setContent(data.data.htmlContent || '');
                             $('#HtmlContent').val(data.data.htmlContent || '');
                             console.log("TinyMCE content updated:", data.data.htmlContent);
+                        } else {
+                            console.warn("TinyMCE editor not initialized yet, waiting for tinymceInitialized");
+                            jQuery(document).one('tinymceInitialized', function () {
+                                if (tinymce.get("editor")) {
+                                    tinymce.get("editor").setContent(data.data.htmlContent || '');
+                                    $('#HtmlContent').val(data.data.htmlContent || '');
+                                    console.log("TinyMCE content updated after initialization:", data.data.htmlContent);
+                                }
+                            });
                         }
                         window.updateAttachmentsAndReferences(data.data.attachments || [], data.data.references || []);
                         window.clearSessionStorage();
@@ -151,13 +226,98 @@
                 }
             }
 
-            // Handle Cancel button
             $('#cancelButton').on('click', function (e) {
                 e.preventDefault();
                 console.log('Cancel button clicked');
                 window.clearSessionStorage();
                 toastr.info('Changes discarded.');
                 window.location.href = '/Admin/Category/Index';
+            });
+
+            let submitActionValue = null;
+            $('#categoryForm').on('submit', function (e) {
+                e.preventDefault();
+                console.log('Form submit triggered');
+
+                var editor = tinymce.get('editor');
+                if (!editor) {
+                    console.error("TinyMCE editor not initialized during form submission");
+                    toastr.error('Editor not initialized. Please try again.');
+                    return false;
+                }
+
+                tinymce.triggerSave();
+                var editorContent = editor.getContent();
+                $('#HtmlContent').val(editorContent);
+                console.log('Editor content on submit:', editorContent);
+
+                var name = $('#Name').val();
+                if (!name) {
+                    toastr.error('Please fill all required fields.');
+                    return false;
+                }
+
+                window.updateAttachmentData();
+                window.updateReferenceData();
+                console.log('AttachmentData:', $('#attachmentData').val());
+                console.log('ReferenceData:', $('#referenceData').val());
+
+                var formData = new FormData(this);
+                window.deletedAttachmentIds.forEach(id => {
+                    formData.append('deletedAttachmentIds', id);
+                });
+                window.deletedReferenceIds.forEach(id => {
+                    formData.append('deletedReferenceIds', id);
+                });
+
+                if (submitActionValue) {
+                    formData.append('submitAction', submitActionValue);
+                } else {
+                    toastr.error('Please use the Save button.');
+                    return false;
+                }
+
+                console.log('FormData contents:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
+                }
+
+                $.ajax({
+                    url: '/Admin/Category/Create',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    beforeSend: function () {
+                        console.log('Initiating AJAX request to:', '/Admin/Category/Create');
+                    },
+                    success: function (response) {
+                        console.log('Server response:', response);
+                        if (response.success) {
+                            window.clearSessionStorage();
+                            toastr.success('Category created successfully!');
+                            window.location.href = response.redirectUrl;
+                        } else {
+                            toastr.error(response.message || 'Failed to create category.');
+                            if (response.errors) {
+                                toastr.error('Validation errors: ' + response.errors.join(', '));
+                            }
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('AJAX error:', status, error, xhr.responseText);
+                        toastr.error('An error occurred while submitting: ' + (xhr.responseJSON?.message || error));
+                    },
+                    complete: function () {
+                        $('button[type="submit"]').prop('disabled', false);
+                        $('#parentCategoryDropdown').prop('disabled', false);
+                    }
+                });
+            });
+
+            $('button[type="submit"]').on('click', function (e) {
+                submitActionValue = $(this).val();
+                console.log('Button clicked, submitAction set to:', submitActionValue);
             });
         });
     </script>
