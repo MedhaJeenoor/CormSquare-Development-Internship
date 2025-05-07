@@ -1,9 +1,9 @@
-﻿console.log("Script starting: category-attachments-references.js (v2.7)");
+﻿console.log("Script starting: category-attachments-references.js (v2.12)");
 
 (function () {
     const urlParams = new URLSearchParams(window.location.search);
-    const isCreateMode = !urlParams.has('id');
-    console.log("isCreateMode:", isCreateMode);
+    const initialIsCreateMode = !urlParams.has('id');
+    console.log("Initial isCreateMode:", initialIsCreateMode);
 
     window.attachments = [];
     window.references = [];
@@ -11,6 +11,8 @@
     window.deletedReferenceIds = [];
     window.pendingFiles = [];
     window.isSubmitting = false;
+    let isDirty = false; // Track unsaved changes
+    window.isNavigatingSelf = false;
 
     // Debounce function to prevent rapid submissions
     function debounce(func, wait) {
@@ -25,12 +27,31 @@
         };
     }
 
+    // Mark the form as dirty (has unsaved changes)
+    function markAsDirty() {
+        isDirty = true;
+        console.log('Form marked as dirty');
+    }
+
+    // Clear the dirty flag after a successful save
+    function clearDirtyFlag() {
+        isDirty = false;
+        window.deletedAttachmentIds = [];
+        window.deletedReferenceIds = [];
+        console.log('Form marked as clean (no unsaved changes)');
+    }
+
     function saveStateToStorage() {
         try {
             const categoryId = document.querySelector('input[name="Id"]')?.value || 'create';
             sessionStorage.setItem(`categoryAttachments_${categoryId}`, JSON.stringify(window.attachments));
             sessionStorage.setItem(`categoryReferences_${categoryId}`, JSON.stringify(window.references));
-            sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles));
+            sessionStorage.setItem(`categoryPendingFiles_${categoryId}`, JSON.stringify(window.pendingFiles.map(pf => ({
+                name: pf.name,
+                type: pf.type,
+                size: pf.size
+                // Note: We can't store the actual File object in sessionStorage, only metadata
+            }))));
 
             // Save TinyMCE editor content
             if (typeof tinymce !== "undefined" && tinymce.get("editor")) {
@@ -60,15 +81,17 @@
     function updateAttachmentData() {
         const attachmentDataInput = document.getElementById("attachmentData");
         if (attachmentDataInput) {
-            attachmentDataInput.value = JSON.stringify(window.attachments.map(a => ({
-                id: a.id,
+            // Ensure new attachments are not marked as deleted unless explicitly set
+            const updatedAttachments = window.attachments.map(a => ({
+                id: a.id || 0,
                 fileName: a.fileName,
-                caption: a.caption,
-                isInternal: a.isInternal,
-                isDeleted: a.isDeleted || false,
+                caption: a.caption || '',
+                isInternal: a.isInternal || false,
+                isDeleted: a.isDeleted === true, // Explicitly check for true to avoid undefined/false issues
                 fromParent: a.fromParent || false,
                 parentAttachmentId: a.parentAttachmentId || 0
-            })));
+            }));
+            attachmentDataInput.value = JSON.stringify(updatedAttachments);
             console.log("Updated attachmentData:", attachmentDataInput.value);
         }
         saveStateToStorage();
@@ -100,7 +123,7 @@
         const isEditMode = !!categoryId && categoryId !== 'create';
         console.log('restoreState: isEditMode=', isEditMode, 'categoryId=', categoryId);
 
-        let attachments, references, pendingFiles;
+        let attachments, references, pendingFilesMeta;
         try {
             const savedAttachments = sessionStorage.getItem(`categoryAttachments_${categoryId}`);
             const savedReferences = sessionStorage.getItem(`categoryReferences_${categoryId}`);
@@ -108,27 +131,36 @@
 
             attachments = savedAttachments ? JSON.parse(savedAttachments) : [];
             references = savedReferences ? JSON.parse(savedReferences) : [];
-            pendingFiles = savedPendingFiles ? JSON.parse(savedPendingFiles) : [];
+            pendingFilesMeta = savedPendingFiles ? JSON.parse(savedPendingFiles) : [];
 
             attachments = attachments.filter(a => a && a.fileName && typeof a.isDeleted === 'boolean');
             references = references.filter(r => r && r.url && typeof r.isDeleted === 'boolean');
-            console.log('Validated sessionStorage data:', { attachments, references, pendingFiles });
+            console.log('Validated sessionStorage data:', { attachments, references, pendingFilesMeta });
         } catch (e) {
             console.error('Error parsing sessionStorage data:', e);
             attachments = [];
             references = [];
-            pendingFiles = [];
+            pendingFilesMeta = [];
+        }
+
+        // Preserve existing window.pendingFiles if it contains File objects
+        // Only reset if we need to restore from sessionStorage and there are no pending files
+        if (window.pendingFiles.length === 0) {
+            // Since we can't store File objects in sessionStorage, pendingFiles cannot be fully restored
+            // Keep window.pendingFiles as-is if it already contains files
+            console.log('No File objects can be restored from sessionStorage; preserving existing window.pendingFiles');
+        } else {
+            console.log('window.pendingFiles already contains files, preserving:', window.pendingFiles);
         }
 
         // In Edit mode, prefer DOM initialization unless sessionStorage has unsaved changes
-        if (isEditMode && attachments.length === 0 && references.length === 0 && pendingFiles.length === 0) {
+        if (isEditMode && attachments.length === 0 && references.length === 0 && pendingFilesMeta.length === 0) {
             console.log('Edit mode with no sessionStorage data, initializing from DOM');
             initializeFromDOM();
-        } else if (attachments.length > 0 || references.length > 0 || pendingFiles.length > 0) {
-            console.log('Restoring from sessionStorage:', { attachments, references, pendingFiles });
+        } else if (attachments.length > 0 || references.length > 0 || pendingFilesMeta.length > 0) {
+            console.log('Restoring from sessionStorage:', { attachments, references, pendingFilesMeta });
             window.attachments = attachments;
             window.references = references;
-            window.pendingFiles = pendingFiles;
 
             const attachmentList = document.getElementById("attachmentList");
             const referenceList = document.getElementById("referenceList");
@@ -154,7 +186,10 @@
     function initializeFromDOM() {
         window.attachments = [];
         window.references = [];
+        // Do not clear window.pendingFiles here to preserve uploaded files
+        console.log('Preserving existing window.pendingFiles during initializeFromDOM:', window.pendingFiles);
 
+        // First, try to initialize from DOM
         document.querySelectorAll('#attachmentList li').forEach((li, index) => {
             const attachmentId = parseInt(li.dataset.attachmentId) || 0;
             const anchor = li.querySelector('a.attachment-link');
@@ -172,9 +207,41 @@
             if (attachment.fileName && !window.attachments.some(a => a.fileName === attachment.fileName)) {
                 window.attachments.push(attachment);
             }
-            console.log(`Initialized attachment ${index}: fileName=${attachment.fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}`);
+            console.log(`Initialized attachment ${index} from DOM: fileName=${attachment.fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}`);
             addAttachmentEventListeners(li, index);
         });
+
+        // If no attachments were found in the DOM, try to initialize from a hidden input (server data)
+        if (window.attachments.length === 0) {
+            const attachmentLinks = document.querySelector('#attachmentLinks')?.value;
+            if (attachmentLinks) {
+                try {
+                    const attachmentsFromServer = JSON.parse(attachmentLinks);
+                    attachmentsFromServer.forEach((attachment, index) => {
+                        if (!attachment.isDeleted) {
+                            const att = {
+                                id: attachment.id || 0,
+                                fileName: attachment.fileName,
+                                url: attachment.filePath || null, // Use filePath from the server
+                                caption: attachment.caption || '',
+                                isInternal: attachment.isInternal || false,
+                                isDeleted: false,
+                                fromParent: attachment.fromParent || false,
+                                parentAttachmentId: attachment.parentAttachmentId || attachment.id || 0
+                            };
+                            if (att.fileName && !window.attachments.some(a => a.fileName === att.fileName)) {
+                                window.attachments.push(att);
+                                console.log(`Initialized attachment ${index} from server data: fileName=${att.fileName}, url=${att.url}, fromParent=${att.fromParent}`);
+                            }
+                        }
+                    });
+                    // Reindex to ensure the UI is updated with server-loaded attachments
+                    window.reindexAttachments();
+                } catch (e) {
+                    console.error('Error parsing attachmentLinks:', e);
+                }
+            }
+        }
 
         document.querySelectorAll('#referenceList li').forEach((li, index) => {
             const referenceId = parseInt(li.dataset.referenceId) || 0;
@@ -265,11 +332,17 @@
                     window.open(url, '_blank');
                 } else {
                     console.log("Navigating in current tab:", url);
+                    window.isNavigatingSelf = true;
                     window.location.assign(url);
                 }
             } catch (err) {
                 console.error("Navigation failed:", err);
-                toastr.error('Navigation failed: ' + err.message);
+                if (typeof toastr !== 'undefined') {
+                    toastr.error('Navigation failed: ' + err.message);
+                } else {
+                    alert('Navigation failed: ' + err.message);
+                }
+                window.isNavigatingSelf = false;
             }
         });
     } else {
@@ -301,28 +374,32 @@
                     toastr.error(`File ${file.name} has an unsupported type. Allowed types: JPEG, PNG, PDF, TXT.`);
                     continue;
                 }
-                if (!window.attachments.some(a => a.fileName === file.name && !a.isDeleted)) {
+                // Check if the file already exists in window.attachments or window.pendingFiles
+                if (!window.attachments.some(a => a.fileName === file.name && !a.isDeleted) &&
+                    !window.pendingFiles.some(pf => pf.name === file.name)) {
+                    // Create a temporary URL for the file to make it downloadable in the UI
+                    const tempUrl = URL.createObjectURL(file);
                     const attachment = {
                         id: 0,
                         fileName: file.name,
-                        url: null,
+                        url: tempUrl, // Temporary URL for UI display
                         caption: "",
                         isInternal: false,
                         isDeleted: false,
                         fromParent: false,
-                        parentAttachmentId: 0
+                        parentAttachmentId: 0,
+                        tempUrl: true // Flag to indicate this is a temporary URL
                     };
                     window.attachments.push(attachment);
-                    window.pendingFiles.push({
-                        name: file.name,
-                        type: file.type,
-                        size: file.size
-                    });
+                    window.pendingFiles.push(file); // Store the File object directly
                     addAttachmentToList(attachment, window.attachments.length - 1);
-                    console.log(`Added uploaded attachment: fileName=${file.name}`);
+                    console.log(`Added uploaded attachment: fileName=${file.name}, type=${file.type}, size=${file.size}, tempUrl=${tempUrl}`);
+                } else {
+                    console.log(`Attachment already exists: ${file.name}`);
                 }
             }
             updateAttachmentData();
+            markAsDirty();
         });
     } else {
         console.error("attachmentInput not found!");
@@ -363,6 +440,7 @@
             addReferenceToList(reference, window.references.length - 1);
             updateReferenceData();
             console.log(`Added manual reference: url=${refUrl}, openOption=${reference.openOption}`);
+            markAsDirty();
         });
     } else {
         console.error("addReferenceBtn not found!");
@@ -374,6 +452,7 @@
             window.attachments[index].isInternal = e.target.checked;
             console.log(`Updated attachment ${index}: isInternal=${e.target.checked}`);
             updateAttachmentData();
+            markAsDirty();
         }
     });
 
@@ -383,6 +462,7 @@
             window.references[index].isInternal = e.target.checked;
             console.log(`Updated reference ${index}: isInternal=${e.target.checked}`);
             updateReferenceData();
+            markAsDirty();
         }
     });
 
@@ -397,11 +477,18 @@
                 const parentAttachmentId = attachment.parentAttachmentId;
                 const isFromParent = attachment.fromParent;
 
+                // Revoke the temporary URL if it exists
+                if (attachment.tempUrl && attachment.url) {
+                    URL.revokeObjectURL(attachment.url);
+                    console.log(`Revoked temporary URL for attachment: ${attachment.fileName}`);
+                }
+
                 if (isFromParent && parentAttachmentId > 0) {
                     // For parent-sourced attachments, mark as deleted locally only
                     console.log(`Parent-sourced attachment: marking locally as deleted, parentAttachmentId=${parentAttachmentId}`);
                     window.attachments[index].isDeleted = true;
                     window.deletedAttachmentIds.push(parentAttachmentId); // Track for form submission
+                    window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                     window.reindexAttachments();
                     toastr.success("Parent attachment marked for deletion. Save the form to finalize.");
                 } else if (attachmentId > 0) {
@@ -412,7 +499,7 @@
                             console.log("Successfully marked attachment for deletion:", attachmentId);
                             window.deletedAttachmentIds.push(attachmentId);
                             window.attachments[index].isDeleted = true;
-                            window.pendingFiles.splice(index, 1);
+                            window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                             window.reindexAttachments();
                             toastr.success("Attachment marked for deletion. Save the form to finalize.");
                         } else {
@@ -427,10 +514,11 @@
                     // For unsaved attachments, remove locally
                     console.log("Removing unsaved attachment at index:", index);
                     window.attachments[index].isDeleted = true;
-                    window.pendingFiles.splice(index, 1);
+                    window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                     window.reindexAttachments();
                     toastr.success("Attachment removed. Save the form to finalize.");
                 }
+                markAsDirty();
             } else {
                 console.warn(`Attachment at index ${index} not found`);
             }
@@ -480,6 +568,7 @@
                     window.reindexReferences();
                     toastr.success("Reference removed. Save the form to finalize.");
                 }
+                markAsDirty();
             } else {
                 console.warn(`Reference at index ${index} not found`);
             }
@@ -495,7 +584,7 @@
         li.dataset.attachmentId = attachment.id || attachment.parentAttachmentId || 0;
         const fileName = attachment.fileName || 'Unnamed_Attachment';
         const fileNameHtml = attachment.url
-            ? `<a href='${attachment.url}' download="${fileName}">${fileName}</a>`
+            ? `<a href='${attachment.url}' download="${fileName}" class="attachment-link">${fileName}</a>`
             : `<strong>${fileName}</strong>`;
         li.innerHTML = `
             <div>
@@ -543,6 +632,7 @@
                 window.attachments[index].caption = this.value;
                 console.log(`Updated attachment caption: index=${index}, caption=${this.value}`);
                 updateAttachmentData();
+                markAsDirty();
             });
         }
     }
@@ -554,6 +644,7 @@
                 window.references[index].description = this.value;
                 console.log(`Updated reference description: index=${index}, description=${this.value}`);
                 updateReferenceData();
+                markAsDirty();
             });
         }
     }
@@ -604,7 +695,9 @@
         // Clear existing attachments/references and initialize with user-added ones
         window.attachments = userAddedAttachments;
         window.references = userAddedReferences;
+        // Preserve pendingFiles that match remaining attachments
         window.pendingFiles = window.pendingFiles.filter(f => window.attachments.some(a => a.fileName === f.name && !a.isDeleted));
+        console.log('Preserved pendingFiles after updateAttachmentsAndReferences:', window.pendingFiles);
 
         // Add new parent category attachments
         attachmentsFromCategory.forEach(att => {
@@ -671,7 +764,7 @@
         const saveButton = document.getElementById("saveButton");
         if (saveButton) {
             saveButton.disabled = true;
-            saveButton.textContent = 'Saving';
+            saveButton.textContent = initialIsCreateMode ? 'Saving' : 'Updating';
         }
 
         const parentCategoryInput = document.getElementById("parentCategoryDropdown");
@@ -701,7 +794,7 @@
             window.isSubmitting = false;
             if (saveButton) {
                 saveButton.disabled = false;
-                saveButton.textContent = 'Save';
+                saveButton.textContent = initialIsCreateMode ? 'Save' : 'Update';
             }
             if (parentCategoryInput) {
                 parentCategoryInput.disabled = false;
@@ -732,11 +825,22 @@
 
         console.log("Deleted Attachment IDs:", window.deletedAttachmentIds);
         console.log("Deleted Reference IDs:", window.deletedReferenceIds);
-        console.log("Files to be submitted:", document.getElementById("attachmentInput")?.files);
-        console.log("ParentCategoryId submitted:", parentCategoryId);
 
         const form = this;
         const formData = new FormData(form);
+
+        // Ensure all pending files are appended to FormData with unique keys
+        console.log("Pending files before submission:", window.pendingFiles);
+        window.pendingFiles.forEach((pf, index) => {
+            if (window.attachments.some(a => a.fileName === pf.name && !a.isDeleted)) {
+                // Use a unique key for each file to ensure the server receives all files
+                formData.append(`files[${index}]`, pf, pf.name);
+                console.log(`Appended file to FormData: key=files[${index}], name=${pf.name}, type=${pf.type}, size=${pf.size}`);
+            } else {
+                console.warn(`Skipping file append: ${pf.name} (attachment deleted)`);
+            }
+        });
+
         formData.append("submitAction", "Save");
 
         if (parentCategoryId) {
@@ -744,10 +848,15 @@
             console.log("Manually appended ParentCategoryId to FormData:", parentCategoryId);
         }
 
-        console.log("FormData entries:");
+        console.log("FormData entries before submission:");
         for (let [key, value] of formData.entries()) {
-            console.log(`${key}: ${value}`);
+            console.log(`${key}: ${value instanceof File ? `${value.name} (File, ${value.type}, ${value.size} bytes)` : value}`);
         }
+
+        // Determine if this is Create or Edit mode based on the presence of Id
+        const categoryId = document.querySelector('input[name="Id"]')?.value;
+        const isCreateMode = !categoryId || categoryId === 'create';
+        console.log("isCreateMode at submission:", isCreateMode);
 
         jQuery.ajax({
             url: form.action,
@@ -761,7 +870,37 @@
             success: function (response) {
                 console.log("Form submission response:", response);
                 if (response.success) {
+                    // Update attachments with server-provided URLs if available
+                    if (response.attachments && Array.isArray(response.attachments)) {
+                        response.attachments.forEach(serverAtt => {
+                            const matchingAtt = window.attachments.find(a => a.fileName === serverAtt.fileName && !a.isDeleted);
+                            if (matchingAtt) {
+                                // Revoke temporary URL if it exists
+                                if (matchingAtt.tempUrl && matchingAtt.url) {
+                                    URL.revokeObjectURL(matchingAtt.url);
+                                    console.log(`Revoked temporary URL for attachment: ${matchingAtt.fileName}`);
+                                }
+                                matchingAtt.id = serverAtt.id || matchingAtt.id;
+                                matchingAtt.url = serverAtt.filePath || serverAtt.url || matchingAtt.url;
+                                matchingAtt.tempUrl = false; // Clear tempUrl flag
+                                console.log(`Updated attachment URL: fileName=${matchingAtt.fileName}, url=${matchingAtt.url}`);
+                            }
+                        });
+                        window.reindexAttachments();
+                    }
+
                     window.clearSessionStorage();
+                    clearDirtyFlag(); // Clear the dirty flag on successful submission
+
+                    // Clear the file input and pending files after successful submission
+                    const attachmentInput = document.getElementById("attachmentInput");
+                    if (attachmentInput) {
+                        attachmentInput.value = ''; // Clear the input
+                        console.log("Cleared attachmentInput files");
+                    }
+                    window.pendingFiles = []; // Clear pendingFiles after successful submission
+                    console.log("Cleared window.pendingFiles after successful submission");
+
                     toastr.success(isCreateMode ? "Category created successfully!" : "Category updated successfully!");
                     console.log("Redirecting to:", response.redirectUrl);
                     window.location.href = response.redirectUrl;
@@ -773,7 +912,7 @@
                     window.isSubmitting = false;
                     if (saveButton) {
                         saveButton.disabled = false;
-                        saveButton.textContent = 'Save';
+                        saveButton.textContent = isCreateMode ? 'Save' : 'Update';
                     }
                     if (parentCategoryInput) {
                         parentCategoryInput.disabled = false;
@@ -787,11 +926,20 @@
                 window.isSubmitting = false;
                 if (saveButton) {
                     saveButton.disabled = false;
-                    saveButton.textContent = 'Save';
+                    saveButton.textContent = isCreateMode ? 'Save' : 'Update';
                 }
                 if (parentCategoryInput) {
                     parentCategoryInput.disabled = false;
                 }
+            },
+            complete: function () {
+                // Do not clear window.pendingFiles here to preserve files in case of failure
+                const attachmentInput = document.getElementById("attachmentInput");
+                if (attachmentInput) {
+                    attachmentInput.value = ''; // Clear the input
+                    console.log("Cleared attachmentInput files in complete callback");
+                }
+                console.log("Preserving window.pendingFiles after submission attempt:", window.pendingFiles);
             }
         });
     }.bind(document.getElementById("categoryForm")), 500);
@@ -799,6 +947,15 @@
     const form = document.getElementById("categoryForm");
     if (form) {
         form.addEventListener("submit", handleFormSubmit);
+        // Track changes in form inputs
+        form.querySelectorAll('input, textarea, select').forEach(input => {
+            if (input.id !== 'attachmentInput') { // Exclude attachmentInput since it's handled separately
+                input.addEventListener('change', function () {
+                    console.log(`${input.id || input.name} changed, marking as dirty`);
+                    markAsDirty();
+                });
+            }
+        });
     }
 
     const saveButton = document.getElementById("saveButton");
@@ -813,10 +970,23 @@
         });
     }
 
+    // Track TinyMCE changes
+    if (typeof tinymce !== "undefined") {
+        tinymce.on('AddEditor', function (e) {
+            const editor = e.editor;
+            if (editor.id === 'editor') {
+                editor.on('change keyup', function () {
+                    console.log('TinyMCE content changed, marking as dirty');
+                    markAsDirty();
+                });
+            }
+        });
+    }
+
     window.addEventListener('beforeunload', function (e) {
-        if (window.deletedAttachmentIds.length > 0 || window.deletedReferenceIds.length > 0) {
+        if (isDirty && !window.isNavigatingSelf) {
             e.preventDefault();
-            e.returnValue = "You have pending deletions. Are you sure you want to leave without saving?";
+            e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
         }
     });
 

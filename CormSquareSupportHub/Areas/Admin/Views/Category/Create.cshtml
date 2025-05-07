@@ -95,14 +95,14 @@
     <script src="https://cdn.tiny.cloud/1/va71qjjfnk13w6l1jzbwaocco4pacxz41q6d5g2fo2hdbljq/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <!-- Add cache-busting query parameter to ensure the latest scripts are loaded -->
     <script src="~/js/tinymce-init.js?v=1.1-rev2"></script>
-    <script src="~/js/category-attachments-references.js?v=2.7"></script>
+    <script src="~/js/category-attachments-references.js?v=2.11"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
 
     <script>
         $(document).ready(function () {
-            console.log("Category Create view script loaded (v1.17)");
+            console.log("Category Create view script loaded (v1.18)");
 
             // Ensure Prism.js is loaded before proceeding
             function waitForPrism() {
@@ -232,92 +232,6 @@
                 window.clearSessionStorage();
                 toastr.info('Changes discarded.');
                 window.location.href = '/Admin/Category/Index';
-            });
-
-            let submitActionValue = null;
-            $('#categoryForm').on('submit', function (e) {
-                e.preventDefault();
-                console.log('Form submit triggered');
-
-                var editor = tinymce.get('editor');
-                if (!editor) {
-                    console.error("TinyMCE editor not initialized during form submission");
-                    toastr.error('Editor not initialized. Please try again.');
-                    return false;
-                }
-
-                tinymce.triggerSave();
-                var editorContent = editor.getContent();
-                $('#HtmlContent').val(editorContent);
-                console.log('Editor content on submit:', editorContent);
-
-                var name = $('#Name').val();
-                if (!name) {
-                    toastr.error('Please fill all required fields.');
-                    return false;
-                }
-
-                window.updateAttachmentData();
-                window.updateReferenceData();
-                console.log('AttachmentData:', $('#attachmentData').val());
-                console.log('ReferenceData:', $('#referenceData').val());
-
-                var formData = new FormData(this);
-                window.deletedAttachmentIds.forEach(id => {
-                    formData.append('deletedAttachmentIds', id);
-                });
-                window.deletedReferenceIds.forEach(id => {
-                    formData.append('deletedReferenceIds', id);
-                });
-
-                if (submitActionValue) {
-                    formData.append('submitAction', submitActionValue);
-                } else {
-                    toastr.error('Please use the Save button.');
-                    return false;
-                }
-
-                console.log('FormData contents:');
-                for (let [key, value] of formData.entries()) {
-                    console.log(`${key}: ${value}`);
-                }
-
-                $.ajax({
-                    url: '/Admin/Category/Create',
-                    type: 'POST',
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    beforeSend: function () {
-                        console.log('Initiating AJAX request to:', '/Admin/Category/Create');
-                    },
-                    success: function (response) {
-                        console.log('Server response:', response);
-                        if (response.success) {
-                            window.clearSessionStorage();
-                            toastr.success('Category created successfully!');
-                            window.location.href = response.redirectUrl;
-                        } else {
-                            toastr.error(response.message || 'Failed to create category.');
-                            if (response.errors) {
-                                toastr.error('Validation errors: ' + response.errors.join(', '));
-                            }
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('AJAX error:', status, error, xhr.responseText);
-                        toastr.error('An error occurred while submitting: ' + (xhr.responseJSON?.message || error));
-                    },
-                    complete: function () {
-                        $('button[type="submit"]').prop('disabled', false);
-                        $('#parentCategoryDropdown').prop('disabled', false);
-                    }
-                });
-            });
-
-            $('button[type="submit"]').on('click', function (e) {
-                submitActionValue = $(this).val();
-                console.log('Button clicked, submitAction set to:', submitActionValue);
             });
         });
     </script>

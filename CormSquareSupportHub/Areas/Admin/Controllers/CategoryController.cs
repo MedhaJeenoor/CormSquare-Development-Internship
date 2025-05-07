@@ -729,9 +729,9 @@ namespace SupportHub.Areas.Admin.Controllers
                         var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
                         if (attachment != null)
                         {
-                            attachment.IsDeleted = true;
-                            attachment.UpdateAudit(user.Id);
-                            _unitOfWork.Attachment.Update(attachment);
+                            //attachment.IsDeleted = true;
+                            attachment.SoftDelete(user.Id);
+                            //_unitOfWork.Attachment.Update(attachment);
                             Console.WriteLine($"Marked attachment {id} as deleted for category {category.Id}");
                         }
                     }
@@ -745,9 +745,9 @@ namespace SupportHub.Areas.Admin.Controllers
                         var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
                         if (reference != null)
                         {
-                            reference.IsDeleted = true;
-                            reference.UpdateAudit(user.Id);
-                            _unitOfWork.Reference.Update(reference);
+                            //reference.IsDeleted = true;
+                            reference.SoftDelete(user.Id);
+                            //_unitOfWork.Reference.Update(reference);
                             Console.WriteLine($"Marked reference {id} as deleted for category {category.Id}");
                         }
                     }
@@ -1174,10 +1174,10 @@ namespace SupportHub.Areas.Admin.Controllers
                     int parentReferenceId = refItem.ContainsKey("parentReferenceId") ? Convert.ToInt32(refItem["parentReferenceId"]) : 0;
 
                     // Skip parent references already processed
-                    if (fromParent && parentReferenceId > 0)
-                    {
-                        continue;
-                    }
+                    //if (fromParent && parentReferenceId > 0)
+                    //{
+                    //    continue;
+                    //}
 
                     if (isDeleted)
                     {
@@ -1261,10 +1261,10 @@ namespace SupportHub.Areas.Admin.Controllers
                     }
 
                     // Skip parent attachments already processed
-                    if (fromParent && parentAttachmentId > 0)
-                    {
-                        continue;
-                    }
+                    //if (fromParent && parentAttachmentId > 0)
+                    //{
+                    //    continue;
+                    //}
 
                     string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(originalFileName);
                     string filePath = Path.Combine("categories", category.Id.ToString(), guidFileName).Replace("\\", "/");
