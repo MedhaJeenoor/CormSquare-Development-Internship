@@ -123,7 +123,7 @@
 
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="~/js/code-block-copy.js"></script>
+    <script src="~/js/code-block-copy.js?v=1.1"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
@@ -139,7 +139,7 @@
     </style>
 
     <script>
-        console.log("Script starting: delete-category inline");
+        console.log("Script starting: delete-category inline (v1.1)");
 
         (function () {
             try {
@@ -150,6 +150,7 @@
                     const categoryId = form.find('input[name="Id"]').val();
                     if (!categoryId) {
                         console.error('Delete form: Category ID not found');
+                        toastr.error('Category ID not found.');
                         return;
                     }
 
@@ -162,6 +163,7 @@
                         success: function (response) {
                             console.log('Delete response:', response);
                             if (response.success) {
+                                toastr.success('Category deleted successfully!');
                                 window.location.href = response.redirectUrl;
                             } else {
                                 toastr.error(response.message || 'Failed to delete category.');
@@ -169,6 +171,7 @@
                         },
                         error: function (xhr, status, error) {
                             console.error('Error deleting category:', error, xhr.responseText);
+                            toastr.error('An error occurred while deleting the category.');
                         }
                     });
                 });
@@ -179,11 +182,12 @@
                     e.preventDefault(); // Prevent any default behavior
                     e.stopPropagation(); // Stop event bubbling
                     console.log('Cancel button clicked');
-                    window.location.href = '@Url.Action("Index", "Category")'; // Redirect to Index
+                    window.location.href = '@Url.Action("Index", "Category", new { area = "Admin" })'; // Redirect to Index
                 });
                 console.log('Cancel button handler registered successfully');
             } catch (err) {
                 console.error('Error in script:', err);
+                toastr.error('An error occurred in the script.');
             }
         })();
     </script>
