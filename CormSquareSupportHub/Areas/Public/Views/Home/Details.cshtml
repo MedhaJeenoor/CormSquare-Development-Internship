@@ -2,7 +2,7 @@
 
 @{
     ViewData["Title"] = "Solution Details";
-    Layout = "~/Views/Shared/_Layout.cshtml"; // Use the layout file
+    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 <style>
@@ -80,6 +80,11 @@
     </div>
 
     <div class="section">
+        <div class="section-title">DocId</div>
+        <div class="section-content">@Model.DocId</div>
+    </div>
+
+    <div class="section">
         <div class="section-title">Solution Content</div>
         <div class="section-content">@Html.Raw(Model.HtmlContent)</div>
     </div>
@@ -127,6 +132,19 @@
             }
         </div>
     </div>
+
+    <div class="section">
+        <div class="section-title">Author</div>
+        <div class="section-content">@Model.Author</div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.Contributors))
+    {
+        <div class="section">
+            <div class="section-title">Contributors</div>
+            <div class="section-content">@Model.Contributors</div>
+        </div>
+    }
 
     <div class="section">
         <div class="section-title">Feedback</div>
