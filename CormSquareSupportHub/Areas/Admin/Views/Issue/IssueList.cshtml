@@ -2,67 +2,113 @@
 @{
     ViewData["Title"] = "All Issues";
 }
-<div class="container mt-4">
-    <h2 class="text-center mb-4">Issue Management</h2>
-    <div class="row pb-3">
-        <div class="col-6">
-            <input type="text" id="searchInput" class="form-control" placeholder="Search Issues" />
-        </div>
-        <div class="col-6 text-end">
-            <a asp-controller="Solution" asp-action="Upsert" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Add New Solution
-            </a>
+
+<div class="card shadow border-0">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">Issue Management</h2>
+            </div>
         </div>
     </div>
 
-    <table class="table table-bordered table-striped">
-        <thead class="table-dark">
-            <tr>
-                <th>#</th>
-                <th>Product</th>
-                <th>Subcategory</th>
-                <th>User</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Created On</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (Model != null && Model.Any())
-            {
-                int count = 1;
-                @foreach (var issue in Model)
-                {
+    <div class="card-body p-4">
+        <div class="row pb-3">
+            <div class="col-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search Issues" />
+            </div>
+            <div class="col-6 text-end">
+                <a asp-controller="Solution" asp-action="Upsert" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add New Solution
+                </a>
+            </div>
+        </div>
+
+        <div class="mb-5 pb-5">
+            <table class="table table-bordered table-striped" id="issueTable">
+                <thead>
                     <tr>
-                        <td>@count</td>
-                        <td>@(issue.Product?.ProductName ?? "N/A")</td>
-                        <td>@(issue.SubCategory?.Name ?? "N/A")</td>
-                        <td>@(issue.User?.EmployeeID ?? "N/A")</td>
-                        <td>@issue.Description</td>
-                        <td>
-                            <span class="badge @(issue.Status == "Pending" ? "bg-warning" : "bg-success")">
-                                @issue.Status
-                            </span>
-                        </td>
-                        <td>@issue.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>
-                            <a asp-controller="Solution" asp-action="Upsert" asp-route-issueId="@issue.Id"  class="btn btn-primary">
-                                <i class="bi bi-plus-circle"></i> Create Solution
-                            </a>
-                        </td>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Subcategory</th>
+                        <th>User</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Created On</th>
+                        <th>Actions</th>
                     </tr>
-                    count++;
-                }
-            }
-            else
-            {
-                <tr>
-                    <td colspan="8" class="text-center text-muted">No issues found.</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                </thead>
+                <tbody id="issueTableBody">
+                    @if (Model != null && Model.Any())
+                    {
+                        int count = 1;
+                        @foreach (var issue in Model)
+                        {
+                            <tr class="issue-row">
+                                <td class="issue-count">@count</td>
+                                <td class="issue-product">@(issue.Product?.ProductName ?? "N/A")</td>
+                                <td class="issue-subcategory">@(issue.SubCategory?.Name ?? "N/A")</td>
+                                <td class="issue-user">@(issue.User?.EmployeeID ?? "N/A")</td>
+                                <td class="issue-description">@issue.Description</td>
+                                <td>
+                                    <span class="badge @(issue.Status == "Pending" ? "bg-warning" : "bg-success")">
+                                        @issue.Status
+                                    </span>
+                                </td>
+                                <td class="issue-created">@issue.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>
+                                    <div class="w-75 btn-group" role="group">
+                                        <a asp-controller="Solution" asp-action="Upsert" asp-route-issueId="@issue.Id" class="btn btn-primary mx-2">
+                                            <i class="bi bi-plus-circle"></i> Create Solution
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            count++;
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No issues found.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 <div class="mb-5 pb-5"></div>
 <div style="min-height: 100px;"></div>
+
+<!-- JavaScript for Search Functionality -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById("searchInput");
+        const issueRows = document.querySelectorAll(".issue-row");
+
+        // Attach input event listener to filter table rows
+        searchInput.addEventListener("input", function () {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+
+            issueRows.forEach(function (row) {
+                const count = row.querySelector(".issue-count").textContent.toLowerCase();
+                const product = row.querySelector(".issue-product").textContent.toLowerCase();
+                const subcategory = row.querySelector(".issue-subcategory").textContent.toLowerCase();
+                const user = row.querySelector(".issue-user").textContent.toLowerCase();
+                const description = row.querySelector(".issue-description").textContent.toLowerCase();
+                const status = row.querySelector(".badge").textContent.toLowerCase();
+                const created = row.querySelector(".issue-created").textContent.toLowerCase();
+
+                // Check if search term is in any of the columns
+                if (count.includes(searchTerm) || product.includes(searchTerm) || subcategory.includes(searchTerm) ||
+                    user.includes(searchTerm) || description.includes(searchTerm) || status.includes(searchTerm) ||
+                    created.includes(searchTerm)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        });
+    });
+</script>

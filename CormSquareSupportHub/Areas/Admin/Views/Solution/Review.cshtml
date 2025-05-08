@@ -1,4 +1,5 @@
 ﻿@model SupportHub.Models.SolutionViewModel
+@using System.Text.RegularExpressions
 
 @{
     ViewData["Title"] = "Review Solution";
@@ -167,6 +168,32 @@
         opacity: 0.6;
         cursor: not-allowed;
     }
+
+    .code-block {
+        position: relative;
+        background-color: #e9ecef;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-family: 'Courier New', Courier, monospace;
+    }
+
+    .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 5px 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+        .copy-btn:hover {
+            background-color: #0056b3;
+        }
 </style>
 
 <div class="review-container">
@@ -215,7 +242,13 @@
 
                 <div class="mb-4">
                     <label class="form-label">Solution Content</label>
-                    <div class="content-preview">@Html.Raw(Model.HtmlContent)</div>
+                    <div class="content-preview">
+                        @Html.Raw(Regex.Replace(Model.HtmlContent, @"<pre[^>]*>\s*<code>(.*?)</code>\s*</pre>", m =>
+                                 "<div class='code-block'>" +
+                                 "<button class='copy-btn' onclick='copyCode(this, event)'>Copy</button>" +
+                                 "<pre><code>" + m.Groups[1].Value + "</code></pre>" +
+                                 "</div>", RegexOptions.Singleline))
+                    </div>
                 </div>
 
                 <div class="mb-4">
@@ -375,5 +408,24 @@
         $('.download-attachment').on('click', function () {
             console.log('Download clicked for attachment ID: ' + $(this).data('attachment-id'));
         });
+
+        function copyCode(button, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const codeBlock = button.nextElementSibling.querySelector('code');
+            const text = codeBlock.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy code: ', err);
+                button.textContent = 'Error';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            });
+        }
     </script>
 }

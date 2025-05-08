@@ -5,148 +5,38 @@
     Layout = "_Layout";
 }
 
-<style>
-    .approvals-container {
-        max-width: 1280px;
-        margin: 2rem auto;
-        padding: 0 1rem;
-        color: #1e293b;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-        .approvals-container .card {
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-            overflow: hidden;
-        }
-
-        .approvals-container .card-header {
-            background: linear-gradient(135deg, #3b82f6, #1e40af);
-            color: #ffffff;
-            padding: 1.5rem;
-            text-align: center;
-        }
-
-            .approvals-container .card-header h2 {
-                margin: 0;
-                font-size: 1.75rem;
-                font-weight: 600;
-            }
-
-        .approvals-container .card-body {
-            padding: 1.5rem;
-        }
-
-        .approvals-container .table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-bottom: 0;
-            overflow-x: auto;
-            display: block;
-        }
-
-            .approvals-container .table th,
-            .approvals-container .table td {
-                padding: 0.875rem;
-                vertical-align: middle;
-                border-bottom: 1px solid #e2e8f0;
-                text-align: left;
-                white-space: nowrap;
-            }
-
-            .approvals-container .table th {
-                background-color: #f1f5f9;
-                color: #475569;
-                font-weight: 600;
-                text-transform: uppercase;
-                font-size: 0.75rem;
-                letter-spacing: 0.05em;
-            }
-
-            .approvals-container .table td {
-                color: #1e293b;
-                font-size: 0.875rem;
-            }
-
-            .approvals-container .table tr:last-child td {
-                border-bottom: none;
-            }
-
-            .approvals-container .table a {
-                color: #2563eb;
-                text-decoration: none;
-            }
-
-        .approvals-container .badge {
-            display: inline-flex;
-            align-items: center;
-            font-size: 0.75rem;
-            font-weight: 500;
-            padding: 0.5rem 0.875rem;
-            border-radius: 9999px;
-            background-color: #10b981;
-            color: #ffffff;
-        }
-
-        .approvals-container .view-btn {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            text-decoration: none;
-            background-color: WHITE;
-            color: #ffffff;
-            border: 1px solid #2563eb;
-            cursor: pointer;
-        }
-
-        .approvals-container .alert {
-            padding: 0.875rem;
-            border-radius: 6px;
-            margin-bottom: 1.25rem;
-            font-size: 0.875rem;
-        }
-
-        .approvals-container .alert-danger {
-            background-color: #fee2e2;
-            color: #b91c1c;
-        }
-
-        .approvals-container .alert-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-
-        .approvals-container .text-muted {
-            color: #64748b;
-            font-size: 0.9375rem;
-            font-weight: 500;
-            text-align: center;
-        }
-</style>
-
-<div class="approvals-container">
-    <div class="card">
-        <div class="card-header">
-            <h2>My Approved Solutions</h2>
+<div class="card shadow border-0">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">My Approved Solutions</h2>
+            </div>
         </div>
-        <div class="card-body">
-            @if (TempData["error"] != null)
-            {
-                <div class="alert alert-danger">@TempData["error"]</div>
-            }
-            @if (TempData["success"] != null)
-            {
-                <div class="alert alert-success">@TempData["success"]</div>
-            }
+    </div>
 
+    <div class="card-body p-4">
+        <div class="row pb-3">
+            <div class="col-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search solutions" />
+            </div>
+            <div class="col-6 text-end">
+                <!-- Optional: Add a button here if needed, similar to Category List -->
+            </div>
+        </div>
+
+        @if (TempData["error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["error"]</div>
+        }
+        @if (TempData["success"] != null)
+        {
+            <div class="alert alert-success">@TempData["success"]</div>
+        }
+
+        <div class="mb-5 pb-5">
             @if (Model.Any())
             {
-                <table class="table">
+                <table class="table table-bordered table-striped" id="solutionTable">
                     <thead>
                         <tr>
                             <th>Title</th>
@@ -158,20 +48,24 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="solutionTableBody">
                         @foreach (var solution in Model)
                         {
-                            <tr>
-                                <td>@solution.Title</td>
-                                <td>@solution.Product?.ProductName</td>
-                                <td>@solution.Category?.Name</td>
-                                <td>@solution.SubCategory?.Name</td>
-                                <td>@solution.Author?.UserName</td>
+                            <tr class="solution-row">
+                                <td class="solution-title">@solution.Title</td>
+                                <td class="solution-product">@solution.Product?.ProductName</td>
+                                <td class="solution-category">@solution.Category?.Name</td>
+                                <td class="solution-subcategory">@solution.SubCategory?.Name</td>
+                                <td class="solution-author">@solution.Author?.UserName</td>
                                 <td>
-                                    <span class="badge">@solution.Status</span>
+                                    <span class="badge bg-success">@solution.Status</span>
                                 </td>
                                 <td>
-                                    <a asp-action="Review" asp-route-id="@solution.Id" class="view-btn btn-sm">View</a>
+                                    <div class="w-75 btn-group" role="group">
+                                        <a asp-action="Review" asp-route-id="@solution.Id" class="btn btn-primary mx-2">
+                                            View
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -192,6 +86,32 @@
     <script>
         $(document).ready(function () {
             console.log('MyApprovedSolutions page loaded');
+
+            const searchInput = document.getElementById("searchInput");
+            const solutionRows = document.querySelectorAll(".solution-row");
+
+            // Attach input event listener to filter table rows
+            searchInput.addEventListener("input", function () {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+
+                solutionRows.forEach(function (row) {
+                    const title = row.querySelector(".solution-title").textContent.toLowerCase();
+                    const product = row.querySelector(".solution-product").textContent.toLowerCase();
+                    const category = row.querySelector(".solution-category").textContent.toLowerCase();
+                    const subcategory = row.querySelector(".solution-subcategory").textContent.toLowerCase();
+                    const author = row.querySelector(".solution-author").textContent.toLowerCase();
+                    const status = row.querySelector(".badge").textContent.toLowerCase();
+
+                    // Check if search term is in any of the columns
+                    if (title.includes(searchTerm) || product.includes(searchTerm) ||
+                        category.includes(searchTerm) || subcategory.includes(searchTerm) ||
+                        author.includes(searchTerm) || status.includes(searchTerm)) {
+                        row.style.display = "";
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+            });
         });
     </script>
 }
