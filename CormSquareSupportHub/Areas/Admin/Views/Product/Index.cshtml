@@ -3,51 +3,79 @@
     ViewData["Title"] = "Products";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Products</h2>
-    <a asp-action="Create" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Create New Product
-    </a>
-</div>
+<style>
+    .btn-group .btn {
+        width: 100px; /* Increased width for buttons */
+        padding: 4px 8px; /* Reduced vertical padding to make buttons shorter */
+        text-align: center;
+    }
+</style>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Product Name</th>
-            <th>Description</th>
-            <th>Subcategories</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var product in Model)
-        {
-            <tr>
-                <td>@product.ProductName</td>
-                <td>@product.Description</td>
-                <td>
-                    @if (product.SubCategories != null && product.SubCategories.Any())
+<div class="card shadow border-0">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">Products</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-4">
+        <div class="row pb-3">
+            <div class="col-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search products" />
+            </div>
+            <div class="col-6 text-end">
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create New Product
+                </a>
+            </div>
+        </div>
+
+        <div class="mb-5 pb-5">
+            <table class="table table-bordered table-striped" id="productTable">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Description</th>
+                        <th>Subcategories</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="productTableBody">
+                    @foreach (var product in Model)
                     {
-                        <ul class="list-unstyled">
-                            @foreach (var sub in product.SubCategories)
-                            {
-                                <li>@sub.Name</li>
-                            }
-                        </ul>
+                        <tr class="product-row">
+                            <td class="product-name">@product.ProductName</td>
+                            <td class="product-description">@product.Description</td>
+                            <td class="product-subcategories">
+                                @if (product.SubCategories != null && product.SubCategories.Any())
+                                {
+                                    <ul class="list-unstyled">
+                                        @foreach (var sub in product.SubCategories)
+                                        {
+                                            <li>@sub.Name</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <span>No Subcategories</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="w-75 btn-group" role="group">
+                                    <a asp-action="Edit" asp-route-id="@product.Id" class="btn btn-warning mx-2">Edit</a>
+                                    <a href="#" class="btn btn-danger mx-2" onclick="confirmDelete(@product.Id, '@product.ProductName')">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
                     }
-                    else
-                    {
-                        <span>No Subcategories</span>
-                    }
-                </td>
-                <td>
-                    <a asp-action="Edit" asp-route-id="@product.Id" class="btn btn-warning btn-sm">Edit</a>
-                    <a href="#" class="btn btn-danger btn-sm" onclick="confirmDelete(@product.Id, '@product.ProductName')">Delete</a>
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <div class="mb-5 pb-5"></div>
 <div style="min-height: 100px;"></div>
@@ -73,7 +101,31 @@
     </div>
 </div>
 
+<!-- JavaScript for Search Functionality -->
 <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById("searchInput");
+        const productRows = document.querySelectorAll(".product-row");
+
+        // Attach input event listener to filter table rows
+        searchInput.addEventListener("input", function () {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+
+            productRows.forEach(function (row) {
+                const name = row.querySelector(".product-name").textContent.toLowerCase();
+                const description = row.querySelector(".product-description").textContent.toLowerCase();
+                const subcategories = row.querySelector(".product-subcategories").textContent.toLowerCase();
+
+                // Check if search term is in any of the columns
+                if (name.includes(searchTerm) || description.includes(searchTerm) || subcategories.includes(searchTerm)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        });
+    });
+
     function confirmDelete(productId, productName) {
         document.getElementById("deleteProductId").value = productId;
         document.getElementById("deleteProductName").textContent = productName;

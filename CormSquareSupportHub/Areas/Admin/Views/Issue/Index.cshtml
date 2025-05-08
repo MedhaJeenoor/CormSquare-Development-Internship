@@ -3,41 +3,77 @@
     ViewData["Title"] = "All Issues";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>All Issues</h2>
-    <a asp-action="Create" class="btn btn-success">
-        <i class="fas fa-plus"></i> Create Issue
-    </a>
-</div>
+<div class="card shadow border-0">
+    <div class="card-header bg-secondary bg-gradient ml-0 py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">All Issues</h2>
+            </div>
+        </div>
+    </div>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Product</th>
-            <th>Subcategory</th>
-            <th>Description</th>
-            <th>Status</th>
-@*             <th>Action</th> *@
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var issue in Model)
-        {
-            <tr>
-                <td>@issue.Product.ProductName</td>
-                <td>@issue.SubCategory.Name</td>
-                <td>@issue.Description</td>
-                <td>@issue.Status</td>
-               @*  <td>
-                    @if (issue.Status != "Resolved")
+    <div class="card-body p-4">
+        <div class="row pb-3">
+            <div class="col-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search issues" />
+            </div>
+            <div class="col-6 text-end">
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Issue
+                </a>
+            </div>
+        </div>
+
+        <div class="mb-5 pb-5">
+            <table class="table table-bordered table-striped" id="issueTable">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Subcategory</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="issueTableBody">
+                    @foreach (var issue in Model)
                     {
-                        <a asp-action="Respond" asp-route-id="@issue.Id" class="btn btn-primary">
-                            <i class="fas fa-reply"></i> Respond
-                        </a>
+                        <tr class="issue-row">
+                            <td class="issue-product">@issue.Product.ProductName</td>
+                            <td class="issue-subcategory">@issue.SubCategory.Name</td>
+                            <td class="issue-description">@issue.Description</td>
+                            <td class="issue-status">@issue.Status</td>
+                        </tr>
                     }
-                </td> *@
-            </tr>
-        }
-    </tbody>
-</table>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 <div class="mb-5 pb-5"></div> <!-- This will push the footer down -->
+<!-- JavaScript for Search Functionality -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById("searchInput");
+        const issueRows = document.querySelectorAll(".issue-row");
+
+        // Attach input event listener to filter table rows
+        searchInput.addEventListener("input", function () {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+
+            issueRows.forEach(function (row) {
+                const product = row.querySelector(".issue-product").textContent.toLowerCase();
+                const subcategory = row.querySelector(".issue-subcategory").textContent.toLowerCase();
+                const description = row.querySelector(".issue-description").textContent.toLowerCase();
+                const status = row.querySelector(".issue-status").textContent.toLowerCase();
+
+                // Check if search term is in any of the columns
+                if (product.includes(searchTerm) || subcategory.includes(searchTerm) ||
+                    description.includes(searchTerm) || status.includes(searchTerm)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        });
+    });
+</script>
