@@ -1,165 +1,67 @@
 ﻿@model IEnumerable<SupportHub.Models.Solution>
-
 @{
-    ViewData["Title"] = "Home Page - Approved Solutions";
+    ViewData["Title"] = "Approved Solutions";
+    var solutions = Model.ToList();
+    var distinctClients = solutions.Select(s => s.Product?.ProductName).Where(n => !string.IsNullOrEmpty(n)).Distinct().OrderBy(n => n);
+    var clientProducts = ViewData["ClientProducts"] as Dictionary<string, List<string>>;
+    var categoryCounts = solutions
+        .GroupBy(s => s.Category?.Name ?? "Uncategorized")
+        .ToDictionary(g => g.Key, g => g.Count());
+    var searchString = ViewData["searchString"]?.ToString();
 }
 
-<!-- Custom Styles -->
-<style>
-    body {
-        background-color: #e6f0ff; /* Light blue background */
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        color: #343a40; /* Dark gray text */
-    }
-
-    .solutions-header {
-        background: #0054b3; /* Deep blue header */
-        color: white;
-        padding: 2rem;
-        text-align: center;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .search-container {
-        max-width: 600px;
-        margin: 0 auto 2rem auto;
-    }
-
-    .search-container .input-group {
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        border-radius: 25px;
-        overflow: hidden;
-        background: white;
-    }
-
-    .search-container .form-control {
-        border: none;
-        padding: 0.75rem 1.5rem;
-        font-size: 1rem;
-        background: white;
-    }
-
-    .search-container .btn {
-        border: none;
-        padding: 0.75rem 1.5rem;
-        font-weight: 500;
-    }
-
-    .solutions-card {
-        background: #f5faff; /* Very light blue card */
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .table {
-        margin-bottom: 0;
-    }
-
-    .table th {
-        background-color: #d1e2ff; /* Light blue header */
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.9rem;
-        letter-spacing: 0.05em;
-        color: #343a40;
-    }
-
-    .table td {
-        vertical-align: middle;
-        font-size: 0.95rem;
-    }
-
-    .table tr:hover {
-        background-color: #e6f0ff; /* Light blue hover */
-        transition: background-color 0.2s;
-    }
-
-    .btn-primary {
-        background-color: #0054b3; /* Deep blue */
-        border-color: #0054b3;
-        border-radius: 20px;
-        padding: 0.4rem 1.2rem;
-    }
-
-    .btn-primary:hover {
-        background-color: #007bff; /* Lighter blue hover */
-        border-color: #007bff;
-    }
-
-    .btn-secondary {
-        background-color: #007bff; /* Accent blue */
-        border-color: #007bff;
-        border-radius: 20px;
-        padding: 0.4rem 1.2rem;
-    }
-
-    .btn-secondary:hover {
-        background-color: #0054b3; /* Deep blue hover */
-        border-color: #0054b3;
-    }
-
-    .alert-info {
-        border-radius: 8px;
-        padding: 1rem;
-        font-size: 1rem;
-        background-color: #d1e2ff; /* Light blue alert */
-        border-color: #b3d1ff;
-        color: #343a40;
-    }
-
-    @@media (max-width: 768px) {
-        .solutions-header {
-            padding: 1.5rem;
-        }
-
-        .search-container {
-            padding: 0 1rem;
-        }
-
-        .table {
-            font-size: 0.9rem;
-        }
-    }
-</style>
-
-<!-- Header -->
-<div class="solutions-header">
-    <h2 class="mb-0">Solutions Hub</h2>
-    <p class="lead mt-2 mb-0">Find approved solutions quickly and easily</p>
-</div>
-
-<!-- Search Input -->
-<div class="search-container">
-    <div class="input-group">
-        <input type="text" id="searchInput" class="form-control"
-               placeholder="Search by title, category, client, product, author, content, or issue..."
-               aria-label="Search solutions" />
-        <div class="input-group-append">
-            <button type="button" id="clearButton" class="btn btn-secondary">Clear</button>
+<div class="card shadow border-0">
+    <div class="card-header bg-secondary bg-gradient py-3">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="py-2">Approved Solutions</h2>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Solutions Table -->
-@if (!Model.Any())
-{
-    <div class="container">
-        <div class="alert alert-info text-center">
-            No approved solutions are available right now.
+    <div class="card-body p-4">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search solutions" value="@searchString" />
+            </div>
+            <div class="col-md-3">
+                <select id="clientFilter" class="form-select">
+                    <option value="">Filter by Client</option>
+                    @foreach (var client in distinctClients)
+                    {
+                        <option value="@client">@client</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="productFilter" class="form-select">
+                    <option value="">Filter by Product</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn w-100" style="background-color: #000000; color: #ffffff;" id="clearFilters">Clear</button>
+            </div>
         </div>
-    </div>
-}
-else
-{
-    <div class="container">
-        <div class="solutions-card">
-            <table class="table table-striped table-bordered" id="solutionsTable">
+
+        <div class="mb-4 text-center">
+            <div style="max-width: 600px; display: inline-block;">
+                <canvas id="categoryChart"></canvas>
+                <p class="mt-2" style="font-size: 0.9rem; color: #333;">Solutions Distribution by Category</p>
+            </div>
+        </div>
+
+        @if (!solutions.Any())
+        {
+            <div class="alert alert-info text-center">
+                No approved solutions available.
+            </div>
+        }
+        else
+        {
+            <table class="table table-bordered table-striped" id="solutionsTable">
                 <thead>
                     <tr>
+                        <th>DocId</th>
                         <th>Title</th>
                         <th>Category</th>
                         <th>Client</th>
@@ -169,18 +71,24 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var solution in Model)
+                    @foreach (var solution in solutions)
                     {
-                        <tr data-html-content="@(solution.HtmlContent?.ToLower() ?? "")"
-                            data-issue-description="@(solution.IssueDescription?.ToLower() ?? "")">
-                            <td>@(solution.Title ?? "N/A")</td>
-                            <td>@(solution.Category?.Name ?? "N/A")</td>
-                            <td>@(solution.Product?.ProductName ?? "N/A")</td>
-                            <td>@(solution.SubCategory?.Name ?? "N/A")</td>
-                            <td>@(solution.Author?.FirstName ?? "N/A")</td>
+                        <tr data-title="@solution.Title?.ToLower()"
+                            data-category="@solution.Category?.Name?.ToLower()"
+                            data-client="@solution.Product?.ProductName?.ToLower()"
+                            data-product="@solution.SubCategory?.Name?.ToLower()"
+                            data-author="@solution.Author?.FirstName?.ToLower()"
+                            data-content="@solution.HtmlContent?.ToLower()"
+                            data-issue="@solution.IssueDescription?.ToLower()"
+                            data-docid="@solution.DocId">
+                            <td>@solution.DocId</td>
+                            <td>@solution.Title</td>
+                            <td>@solution.Category?.Name</td>
+                            <td>@solution.Product?.ProductName</td>
+                            <td>@solution.SubCategory?.Name</td>
+                            <td>@solution.Author?.FirstName</td>
                             <td>
-                                <a asp-area="Public" asp-controller="Home" asp-action="Details"
-                                   asp-route-id="@solution.Id" class="btn btn-primary btn-sm">
+                                <a asp-area="Public" asp-controller="Home" asp-action="Details" asp-route-id="@solution.Id" class="btn btn-primary btn-sm">
                                     View
                                 </a>
                             </td>
@@ -188,72 +96,21 @@ else
                     }
                 </tbody>
             </table>
-        </div>
-    </div>
-}
-<div class="mb-5 pb-5"></div>
-<!-- Spacer to push content above footer -->
-<div style="min-height: 100px;"></div>
-<script>
-    // Get DOM elements
-    const searchInput = document.getElementById('searchInput');
-    const clearButton = document.getElementById('clearButton');
-    const table = document.getElementById('solutionsTable');
-    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
-
-    // Debounce function to limit search frequency
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Search function
-    function filterTable() {
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        console.log('Search term:', searchTerm); // Debug log
-
-        for (let row of rows) {
-            const cells = row.getElementsByTagName('td');
-            const title = cells[0].textContent.toLowerCase();
-            const category = cells[1].textContent.toLowerCase();
-            const product = cells[2].textContent.toLowerCase();
-            const subcategory = cells[3].textContent.toLowerCase();
-            const author = cells[4].textContent.toLowerCase();
-            const htmlContent = row.dataset.htmlContent || '';
-            const issueDescription = row.dataset.issueDescription || '';
-
-            // Show row if any field matches the search term
-            const matches = (
-                title.includes(searchTerm) ||
-                category.includes(searchTerm) ||
-                product.includes(searchTerm) ||
-                subcategory.includes(searchTerm) ||
-                author.includes(searchTerm) ||
-                htmlContent.includes(searchTerm) ||
-                issueDescription.includes(searchTerm)
-            );
-
-            row.style.display = matches || searchTerm === '' ? '' : 'none';
         }
-    }
+    </div>
+</div>
 
-    // Debounced search
-    const debouncedFilter = debounce(filterTable, 300);
+<div class="mb-5 pb-5"></div>
 
-    // Event listeners
-    searchInput.addEventListener('input', debouncedFilter);
-    clearButton.addEventListener('click', () => {
-        searchInput.value = '';
-        filterTable(); // Reset to show all rows
-    });
-
-    // Initial filter
-    filterTable();
-</script>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Pass data to external script
+        window.categoryCounts = {
+            labels: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(categoryCounts.Keys)),
+            data: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(categoryCounts.Values))
+        };
+        window.clientProducts = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(clientProducts));
+    </script>
+    <script src="/js/approved-solutions.js"></script>
+}

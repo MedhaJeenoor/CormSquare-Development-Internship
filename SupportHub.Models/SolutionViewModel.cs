@@ -22,6 +22,9 @@ namespace SupportHub.Models
         [Range(1, int.MaxValue, ErrorMessage = "Please select a valid subcategory if applicable.")]
         public int? SubCategoryId { get; set; }
 
+        [StringLength(500, ErrorMessage = "Author cannot exceed 500 characters.")]
+        public string Author { get; set; }
+
         [StringLength(500, ErrorMessage = "Contributors cannot exceed 500 characters.")]
         public string? Contributors { get; set; }
 
@@ -35,6 +38,9 @@ namespace SupportHub.Models
         public string? Feedback { get; set; }
 
         public string Status { get; set; } = "Draft";
+
+        [StringLength(50, ErrorMessage = "DocId cannot exceed 50 characters.")]
+        public string DocId { get; set; }
 
         public List<Category> Categories { get; set; }
         public List<Product> Products { get; set; }

@@ -3,6 +3,8 @@ using SupportHub.DataAccess.Repository.IRepository;
 using SupportHub.Models;
 using System.Diagnostics;
 using System.Linq;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace CormSquareSupportHub.Areas.Public.Controllers
 {
@@ -18,7 +20,7 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
             _logger = logger;
         }
 
-        public IActionResult Index(string? searchString)
+        public async Task<IActionResult> Index(string? searchString)
         {
             // Persist search term in ViewData for the view
             ViewData["searchString"] = searchString;
@@ -39,6 +41,46 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
                     (s.Author != null && !string.IsNullOrEmpty(s.Author.FirstName) && s.Author.FirstName.ToLower().Contains(searchString))
                 ).ToList();
             }
+
+            // Get distinct ProductNames from solutions
+            var solutionProductNames = solutions
+                .Select(s => s.Product?.ProductName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Distinct()
+                .ToList();
+
+            // Fetch all products and their subcategories
+            var products = await _unitOfWork.Product.GetAllAsync(
+                includeProperties: "SubCategories"
+            );
+            var clientProducts = products
+                .Select(p => new
+                {
+                    p.ProductName,
+                    SubCategories = p.SubCategories
+                        .Select(s => s.Name)
+                        .Where(n => !string.IsNullOrEmpty(n))
+                        .Distinct()
+                        .OrderBy(n => n)
+                        .ToList()
+                })
+                .Where(p => !string.IsNullOrEmpty(p.ProductName))
+                .ToDictionary(
+                    p => p.ProductName,
+                    p => p.SubCategories
+                );
+
+            // Ensure all ProductNames from solutions are in clientProducts (with empty list if no subcategories)
+            foreach (var productName in solutionProductNames)
+            {
+                if (!clientProducts.ContainsKey(productName))
+                {
+                    clientProducts[productName] = new List<string>();
+                }
+            }
+
+            // Pass clientProducts to the view via ViewData
+            ViewData["ClientProducts"] = clientProducts;
 
             _logger.LogInformation("Retrieved {Count} approved solutions with search term: {Search}", solutions.Count, searchString ?? "none");
 
@@ -72,11 +114,13 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
             var viewModel = new SolutionViewModel
             {
                 Id = solution.Id,
+                DocId = solution.DocId,
+                Author = solution.Author?.FirstName,
+                Contributors = solution.Contributors,
                 Title = solution.Title,
                 CategoryId = solution.CategoryId,
                 ProductId = solution.ProductId,
                 SubCategoryId = solution.SubCategoryId,
-                Contributors = solution.Author?.FirstName, // Map Author to Contributors for consistency
                 HtmlContent = solution.HtmlContent,
                 IssueDescription = solution.IssueDescription,
                 Feedback = solution.Feedback,
@@ -88,7 +132,6 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
                 SubCategories = new List<SubCategory>()
             };
 
-            // Filter out internal attachments and references for ExternalUser role
             if (User.IsInRole("ExternalUser"))
             {
                 viewModel.Attachments = viewModel.Attachments

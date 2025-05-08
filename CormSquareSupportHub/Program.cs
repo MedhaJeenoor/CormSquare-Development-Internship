@@ -10,10 +10,10 @@ using SupportHub.Utility;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHttpsRedirection(options =>
-{
-    options.HttpsPort = 7295;
-});
+//builder.Services.AddHttpsRedirection(options =>
+//{
+//    options.HttpsPort = 7295;
+//});
 builder.Services.AddLogging(logging =>
 {
     logging.AddConsole();

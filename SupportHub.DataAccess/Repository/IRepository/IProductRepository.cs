@@ -12,5 +12,9 @@ namespace SupportHub.DataAccess.Repository.IRepository
     {
         Task AddAsync(Product product);
         void Update(Product product);
+        Task<IEnumerable<Product>> GetAllAsync(
+            Expression<Func<Product, bool>>? filter = null,
+            string? includeProperties = null
+        );
     }
 }
