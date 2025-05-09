@@ -137,7 +137,7 @@
                     {
                         <li>
                             <span>@attachment.FileName</span>
-                            <a class="btn-view" href="@Url.Action("DownloadAttachmentaftercreate", "Solution", new { area = "Admin", id = attachment.Id })" target="_blank">View</a>
+                            <a class="btn-view attachment-link" href="@Url.Action("DownloadAttachment", "Home", new { area = "Public", id = attachment.Id })" target="_blank" rel="noopener noreferrer">View</a>
                         </li>
                     }
                 </ul>
@@ -205,4 +205,14 @@
             }, 2000);
         });
     }
+
+    // Ensure attachment links open in a new tab
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.attachment-link').forEach(link => {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.open(this.href, '_blank', 'noopener,noreferrer');
+            });
+        });
+    });
 </script>

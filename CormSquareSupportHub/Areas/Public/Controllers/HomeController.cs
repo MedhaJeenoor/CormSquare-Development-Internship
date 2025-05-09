@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
+using System.IO;
 
 namespace CormSquareSupportHub.Areas.Public.Controllers
 {
@@ -13,11 +15,13 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<HomeController> _logger;
+        private readonly AttachmentSettings _attachmentSettings;
 
-        public HomeController(IUnitOfWork unitOfWork, ILogger<HomeController> logger)
+        public HomeController(IUnitOfWork unitOfWork, ILogger<HomeController> logger, IOptions<AttachmentSettings> attachmentSettings)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _attachmentSettings = attachmentSettings.Value;
         }
 
         public async Task<IActionResult> Index(string? searchString)
@@ -143,6 +147,84 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
             }
 
             return View("Details", viewModel);
+        }
+
+        [HttpGet]
+        [Route("Public/Home/DownloadAttachment/{id?}")]
+        public async Task<IActionResult> DownloadAttachment(int id)
+        {
+            var attachment = await _unitOfWork.SolutionAttachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+            if (attachment == null)
+            {
+                _logger.LogWarning("Attachment with ID {Id} not found", id);
+                return NotFound();
+            }
+
+            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath).Replace('/', Path.DirectorySeparatorChar);
+            _logger.LogInformation("Attempting to access attachment at path: {Path}", fullPath);
+
+            if (!System.IO.File.Exists(fullPath))
+            {
+                _logger.LogWarning("Attachment file not found at path: {Path}", fullPath);
+                return NotFound();
+            }
+
+            try
+            {
+                // Determine MIME type and Content-Disposition
+                string mimeType = "application/octet-stream";
+                string contentDisposition = "attachment"; // Default to download
+                string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
+
+                if (ext != null)
+                {
+                    switch (ext)
+                    {
+                        case ".pdf":
+                            mimeType = "application/pdf";
+                            contentDisposition = "inline"; // Allow opening in browser
+                            break;
+                        case ".png":
+                            mimeType = "image/png";
+                            contentDisposition = "inline";
+                            break;
+                        case ".jpg":
+                        case ".jpeg":
+                            mimeType = "image/jpeg";
+                            contentDisposition = "inline";
+                            break;
+                        case ".txt":
+                            mimeType = "text/plain";
+                            contentDisposition = "inline";
+                            break;
+                        case ".docx":
+                            mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                            contentDisposition = "attachment"; // Force download for non-viewable types
+                            break;
+                        default:
+                            mimeType = "application/octet-stream";
+                            contentDisposition = "attachment";
+                            break;
+                    }
+                }
+
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                _logger.LogInformation("Serving attachment ID {Id}: {FileName}, MIME: {MimeType}, Disposition: {Disposition}", id, attachment.FileName, mimeType, contentDisposition);
+
+                // Set Content-Disposition header
+                Response.Headers.Add("Content-Disposition", $"{contentDisposition}; filename=\"{attachment.FileName}\"");
+                return File(fileStream, mimeType);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "IO Error accessing attachment ID {Id} at path: {Path}", id, fullPath);
+                return StatusCode(500, "Error reading the attachment file.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error serving attachment ID {Id}", id);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
         }
     }
 }

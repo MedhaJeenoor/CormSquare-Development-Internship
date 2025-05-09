@@ -18,6 +18,7 @@ namespace SupportHub.Models
         public string HtmlContent { get; set; }
         public string PlainTextContent { get; set; }
         public string? ApprovedById { get; set; }
+        public DateTime? PublishedDate { get; set; }
         public string? IssueDescription { get; set; }
         public string Status { get; set; } = "Draft"; // "Draft", "Submitted", "Under Review", "Approved and Published", "Rejected", "Needs Revision"
         public string? Feedback { get; set; }

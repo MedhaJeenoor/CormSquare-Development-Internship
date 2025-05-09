@@ -188,10 +188,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
                     solution.AuthorId = userId;
                     solution.UpdateAudit(userId);
-                    if (submitAction == "Submit" && solution.DocId == null)
-                    {
-                        solution.DocId = await GenerateDocId(solution);
-                    }
+                    //if (submitAction == "Submit" && solution.DocId == null)
+                    //{
+                    //    solution.DocId = await GenerateDocId(solution);
+                    //}
                     _unitOfWork.Solution.Update(solution);
                 }
                 else // Create
@@ -920,10 +920,13 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             if (status == "Approved")
             {
                 solution.ApprovedById = user.Id;
+                solution.PublishedDate = DateTime.UtcNow;
+                solution.DocId = await GenerateDocId(solution);
             }
             else
             {
                 solution.ApprovedById = null;
+                solution.PublishedDate = null;
             }
 
             try
@@ -981,7 +984,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
 
             var solutions = await _unitOfWork.Solution.GetAllAsync(
-                s => !s.IsDeleted && s.Status == "Approved & Published" && s.ApprovedById == user.Id,
+                s => !s.IsDeleted && s.Status == "Approved" && s.ApprovedById == user.Id,
                 includeProperties: "Category,Product,SubCategory,Author"
             );
 
