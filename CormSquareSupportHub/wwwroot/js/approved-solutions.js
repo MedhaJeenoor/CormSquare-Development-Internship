@@ -69,6 +69,16 @@
         filterSolutions();
     });
 
+    // Function to generate dynamic colors based on data length
+    function generateColors(count) {
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = (i * 360 / count) % 360; // Spread hues evenly
+            colors.push(`hsl(${hue}, 70%, 60%)`); // Vibrant colors with fixed saturation and lightness
+        }
+        return colors;
+    }
+
     // Chart
     const ctx = document.getElementById('categoryChart').getContext('2d');
     const chart = new Chart(ctx, {
@@ -77,9 +87,7 @@
             labels: window.categoryCounts.labels,
             datasets: [{
                 data: window.categoryCounts.data,
-                backgroundColor: [
-                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796', '#5a5c69'
-                ]
+                backgroundColor: generateColors(window.categoryCounts.data.length)
             }]
         },
         options: {
