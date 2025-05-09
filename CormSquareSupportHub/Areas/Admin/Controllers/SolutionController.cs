@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
+using System.Security.Policy;
 
 namespace CormSquareSupportHub.Areas.Admin.Controllers
 {
@@ -119,7 +120,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
         [HttpPost]
         public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-            string? ReferenceData, string? AttachmentData, string submitAction)
+    string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -131,6 +132,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             ModelState.Remove("Attachments");
             ModelState.Remove("References");
             ModelState.Remove("AuthorId");
+            ModelState.Remove("Author");
             ModelState.Remove("CreatedBy");
             ModelState.Remove("CreatedDate");
             ModelState.Remove("UpdatedBy");
@@ -145,7 +147,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             string userId = user.Id;
             var savedAttachments = new List<object>();
             var savedReferences = new List<object>();
-            List<(SolutionAttachment Entity, string SourcePath, string DestPath)> stagedAttachments = null;
+            List<(SolutionAttachment Entity, string SourcePath, string DestPath)> stagedAttachments = new List<(SolutionAttachment, string, string)>();
 
             if (submitAction == "Cancel")
             {
@@ -156,9 +158,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             if (!ModelState.IsValid)
             {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                Console.WriteLine($"ModelState invalid: {string.Join(", ", errors)}");
                 await PopulateViewModel(model);
-                Console.WriteLine($"ModelState invalid: {string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))}");
-                return Json(new { success = false, message = "Validation failed", errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage) });
+                return Json(new { success = false, message = "Validation failed", errors });
             }
 
             await _unitOfWork.BeginTransactionAsync();
@@ -183,14 +186,13 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent);
                     solution.IssueDescription = model.IssueDescription;
                     solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
+                    solution.AuthorId = userId;
                     solution.UpdateAudit(userId);
                     if (submitAction == "Submit" && solution.DocId == null)
                     {
                         solution.DocId = await GenerateDocId(solution);
                     }
                     _unitOfWork.Solution.Update(solution);
-                    await _unitOfWork.SaveAsync();
-                    Console.WriteLine($"Updated and saved solution: {solution.Id}");
                 }
                 else // Create
                 {
@@ -213,9 +215,17 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         solution.DocId = await GenerateDocId(solution);
                     }
                     _unitOfWork.Solution.Add(solution);
-                    await _unitOfWork.SaveAsync();
-                    Console.WriteLine($"Created and saved new solution: {solution.Id}");
                 }
+
+                if (string.IsNullOrEmpty(solution.AuthorId))
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    Console.WriteLine("Validation failed: AuthorId is null or empty.");
+                    return Json(new { success = false, message = "AuthorId is required." });
+                }
+
+                await _unitOfWork.SaveAsync();
+                Console.WriteLine($"Saved solution: {solution.Id}, AuthorId: {solution.AuthorId}");
 
                 // Process References
                 try
@@ -240,7 +250,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     if (!string.IsNullOrEmpty(AttachmentData))
                     {
                         savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
-                        stagedAttachments = new List<(SolutionAttachment, string, string)>();
                         var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
 
                         foreach (var item in savedAttachments)
@@ -258,10 +267,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                 entity = existingAttachments.FirstOrDefault(a => a.Id == id);
                                 if (entity != null)
                                 {
-                                    entity.Caption = caption;
-                                    entity.IsInternal = isInternal;
-                                    entity.UpdateAudit(userId);
-                                    _unitOfWork.SolutionAttachment.Update(entity);
+                                    // Already updated in ProcessAttachmentsAsync
+                                    Console.WriteLine($"Attachment ID {id} already updated in ProcessAttachmentsAsync.");
                                 }
                                 else
                                 {
@@ -281,6 +288,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                                 entity.UpdateAudit(userId);
                                 _unitOfWork.SolutionAttachment.Add(entity);
                                 existingAttachments.Add(entity);
+                                Console.WriteLine($"Added new attachment: fileName={guidFileName}, filePath={filePath}");
                             }
 
                             string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
@@ -310,7 +318,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
                         if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
 
-                        if (stagedAttachments != null && stagedAttachments.Any())
+                        if (stagedAttachments.Any())
                         {
                             foreach (var (entity, sourcePath, destPath) in stagedAttachments)
                             {
@@ -498,16 +506,22 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         {
             var attachments = new List<object>();
             var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
+            Console.WriteLine($"Processing attachments for solution {solution.Id}. Existing attachments: {existingAttachments.Count}");
 
             if (!string.IsNullOrEmpty(attachmentData))
             {
                 var stagedAttachments = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                Console.WriteLine($"Received AttachmentData: {attachmentData}");
                 foreach (var att in stagedAttachments)
                 {
                     int attachmentId = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
                     string originalFileName = att["fileName"].ToString();
                     bool isDeleted = att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString());
-                    if (isDeleted) continue; // Skip deleted attachments
+                    if (isDeleted)
+                    {
+                        Console.WriteLine($"Skipping attachment ID {attachmentId} (fileName: {originalFileName}) marked as deleted.");
+                        continue;
+                    }
 
                     string guidFileName = att.ContainsKey("guidFileName") && !string.IsNullOrEmpty(att["guidFileName"]?.ToString())
                         ? att["guidFileName"].ToString()
@@ -515,11 +529,16 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
                     bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
                     string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
+                    Console.WriteLine($"Processing attachment ID {attachmentId}: fileName={originalFileName}, isInternal={isInternal}, caption={caption}");
 
                     var existingAttachment = attachmentId > 0 ? existingAttachments.FirstOrDefault(a => a.Id == attachmentId) : null;
 
                     if (existingAttachment != null)
                     {
+                        existingAttachment.Caption = caption;
+                        existingAttachment.IsInternal = isInternal;
+                        existingAttachment.UpdateAudit(userId);
+                        _unitOfWork.SolutionAttachment.Update(existingAttachment);
                         attachments.Add(new
                         {
                             id = existingAttachment.Id,
@@ -529,6 +548,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             isInternal,
                             originalFileName
                         });
+                        Console.WriteLine($"Updated attachment ID {existingAttachment.Id}: caption={caption}, isInternal={isInternal}");
                     }
                     else if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
                     {
@@ -541,19 +561,22 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             isInternal,
                             originalFileName
                         });
+                        Console.WriteLine($"Staged new attachment: fileName={guidFileName}, filePath={filePath}, isInternal={isInternal}");
                     }
                 }
 
-                // Process deletions
                 foreach (var existing in existingAttachments)
                 {
-                    if (!stagedAttachments.Any(att => Convert.ToInt32(att["id"]) == existing.Id))
+                    if (!stagedAttachments.Any(att => Convert.ToInt32(att["id"]) == existing.Id && !(att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString()))))
                     {
+                        Console.WriteLine($"Marking attachment ID {existing.Id} for soft deletion.");
                         _unitOfWork.SolutionAttachment.SoftDelete(existing, userId);
                     }
                 }
             }
 
+            await _unitOfWork.SaveAsync();
+            Console.WriteLine($"Saved {attachments.Count} attachments for solution {solution.Id}");
             return attachments;
         }
 
@@ -575,21 +598,33 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
                 foreach (var reference in references)
                 {
-                    if (reference.IsDeleted) continue; // Skip deleted references
+                    if (reference.IsDeleted)
+                    {
+                        Console.WriteLine($"Skipping reference ID {reference.Id} (url: {reference.Url}) marked as deleted.");
+                        continue; // Skip deleted references
+                    }
 
                     if (reference.Id > 0)
                     {
                         var existing = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
                         if (existing != null)
                         {
+                            // Update existing reference
                             existing.Url = reference.Url;
                             existing.Description = reference.Description;
                             existing.IsInternal = reference.IsInternal;
                             existing.OpenOption = reference.OpenOption;
                             existing.UpdateAudit(userId);
                             _unitOfWork.SolutionReference.Update(existing);
-                            savedReferences.Add(new { id = existing.Id, url = existing.Url, description = existing.Description, isInternal = existing.IsInternal, openOption = existing.OpenOption });
-                            Console.WriteLine($"Updated reference: {existing.Url}, ID: {existing.Id}");
+                            savedReferences.Add(new
+                            {
+                                id = existing.Id,
+                                url = existing.Url,
+                                description = existing.Description,
+                                isInternal = existing.IsInternal,
+                                openOption = existing.OpenOption
+                            });
+                            Console.WriteLine($"Updated reference: ID={existing.Id}, url={existing.Url}, description={existing.Description}");
                         }
                         else
                         {
@@ -598,6 +633,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     }
                     else
                     {
+                        // New reference
                         var newReference = new SolutionReference
                         {
                             Url = reference.Url,
@@ -608,16 +644,24 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         };
                         newReference.UpdateAudit(userId);
                         _unitOfWork.SolutionReference.Add(newReference);
-                        savedReferences.Add(new { id = 0, url = newReference.Url, description = newReference.Description, isInternal = newReference.IsInternal, openOption = newReference.OpenOption });
-                        Console.WriteLine($"Staged new reference: {newReference.Url}");
+                        savedReferences.Add(new
+                        {
+                            id = 0,
+                            url = newReference.Url,
+                            description = newReference.Description,
+                            isInternal = newReference.IsInternal,
+                            openOption = newReference.OpenOption
+                        });
+                        Console.WriteLine($"Staged new reference: url={newReference.Url}, description={newReference.Description}");
                     }
                 }
 
-                // Process deletions
+                // Process deletions for existing references not in references
                 foreach (var existing in existingReferences)
                 {
-                    if (!references.Any(r => r.Id == existing.Id))
+                    if (!references.Any(r => r.Id == existing.Id && !r.IsDeleted))
                     {
+                        Console.WriteLine($"Marking reference ID {existing.Id} for soft deletion.");
                         _unitOfWork.SolutionReference.SoftDelete(existing, userId);
                     }
                 }
@@ -703,7 +747,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath);
+            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath).Replace('/', Path.DirectorySeparatorChar);
+            Console.WriteLine($"Computed fullPath: {fullPath}");
             if (!System.IO.File.Exists(fullPath))
             {
                 Console.WriteLine($"File not found: {fullPath}");
@@ -712,20 +757,41 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             try
             {
-                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes");
+                string mimeType = "application/octet-stream";
+                string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
+                if (ext != null)
+                {
+                    mimeType = ext switch
+                    {
+                        ".pdf" => "application/pdf",
+                        ".png" => "image/png",
+                        ".jpg" => "image/jpeg",
+                        ".jpeg" => "image/jpeg",
+                        ".txt" => "text/plain",
+                        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        _ => "application/octet-stream"
+                    };
+                }
+
+                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes, MIME: {mimeType}");
                 var fileStream = System.IO.File.OpenRead(fullPath);
-                Console.WriteLine($"Returning File result for {attachment.FileName}");
-                return this.File(fileStream, "application/octet-stream", attachment.FileName);
+                Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{attachment.FileName}\"");
+                return File(fileStream, mimeType, attachment.FileName);
             }
             catch (IOException ex)
             {
                 Console.WriteLine($"IO Error accessing file {fullPath}: {ex.Message}");
-                return StatusCode(500, "Error reading file.");
+                return StatusCode(500, $"Error reading file: {ex.Message}");
             }
             catch (UnauthorizedAccessException ex)
             {
                 Console.WriteLine($"Access denied for file {fullPath}: {ex.Message}");
-                return StatusCode(403, "Access denied.");
+                return StatusCode(403, $"Access denied: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error for file {fullPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return StatusCode(500, $"Unexpected error: {ex.Message}");
             }
         }
 
@@ -915,7 +981,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
 
             var solutions = await _unitOfWork.Solution.GetAllAsync(
-                s => !s.IsDeleted && s.Status == "Approved" && s.ApprovedById == user.Id,
+                s => !s.IsDeleted && s.Status == "Approved & Published" && s.ApprovedById == user.Id,
                 includeProperties: "Category,Product,SubCategory,Author"
             );
 

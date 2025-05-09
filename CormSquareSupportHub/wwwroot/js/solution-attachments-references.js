@@ -1,4 +1,4 @@
-﻿console.log("Script starting: solution-attachments-references.js (v3.3)");
+﻿console.log("Script starting: solution-attachments-references.js (v4.0)");
 
 (function () {
     // Determine if in create mode (no solutionId in URL)
@@ -405,42 +405,51 @@
             references: referencesFromCategory
         });
 
-        if (!Array.isArray(referencesFromCategory)) {
-            console.warn("referencesFromCategory is not an array:", referencesFromCategory);
-            referencesFromCategory = [];
+        // Clear existing attachments and references
+        window.attachments = [];
+        window.references = [];
+
+        // Validate and add new attachments
+        if (Array.isArray(attachmentsFromCategory)) {
+            attachmentsFromCategory.forEach(att => {
+                if (att && att.fileName) {
+                    window.attachments.push({
+                        id: att.id || 0,
+                        fileName: att.fileName,
+                        url: att.url || null,
+                        caption: att.caption || '',
+                        isInternal: att.isInternal || false,
+                        isDeleted: false
+                    });
+                } else {
+                    console.warn("Skipping invalid attachment:", att);
+                }
+            });
+        } else {
+            console.warn("attachmentsFromCategory is not an array:", attachmentsFromCategory);
         }
 
-        attachmentsFromCategory.forEach(att => {
-            if (!window.attachments.some(a => a.fileName === att.fileName && a.id === att.id && !a.isDeleted)) {
-                window.attachments.push({
-                    id: att.id || 0,
-                    fileName: att.fileName,
-                    url: att.url || null,
-                    caption: att.caption || '',
-                    isInternal: att.isInternal || false,
-                    isDeleted: false
-                });
-            }
-        });
+        // Validate and add new references
+        if (Array.isArray(referencesFromCategory)) {
+            referencesFromCategory.forEach(ref => {
+                if (ref && ref.url) {
+                    window.references.push({
+                        id: isCreateMode ? 0 : (ref.id || 0),
+                        url: ref.url,
+                        description: ref.description || '',
+                        isInternal: ref.isInternal || false,
+                        openOption: ref.openOption || '_self',
+                        isDeleted: false
+                    });
+                } else {
+                    console.warn("Skipping invalid reference:", ref);
+                }
+            });
+        } else {
+            console.warn("referencesFromCategory is not an array:", referencesFromCategory);
+        }
 
-        referencesFromCategory.forEach(ref => {
-            if (!ref.url) {
-                console.warn("Skipping invalid reference (missing url):", ref);
-                return;
-            }
-            if (!window.references.some(r => r.url === ref.url && r.id === ref.id && !r.isDeleted)) {
-                window.references.push({
-                    id: isCreateMode ? 0 : (ref.id || 0),
-                    url: ref.url,
-                    description: ref.description || '',
-                    isInternal: ref.isInternal || false,
-                    openOption: ref.openOption || '_self',
-                    isDeleted: false
-                });
-            }
-        });
-
-        console.log("After adding category data:", {
+        console.log("After updating with category data:", {
             attachments: window.attachments,
             references: window.references
         });

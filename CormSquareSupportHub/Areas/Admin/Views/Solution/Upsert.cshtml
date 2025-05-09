@@ -21,9 +21,9 @@
                 <!-- Product and Subcategory in the same row -->
                 <div class="mb-3 row">
                     <div class="col-md-6">
-                        <label asp-for="ProductId">Product</label>
+                        <label asp-for="ProductId">Client</label>
                         <select asp-for="ProductId" class="form-control" id="productDropdown" required>
-                            <option value="">Select Product</option>
+                            <option value="">Select Client</option>
                             @foreach (var product in Model.Products)
                             {
                                 <option value="@product.Id">@product.ProductName</option>
@@ -32,9 +32,9 @@
                         <span asp-validation-for="ProductId" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
-                        <label asp-for="SubCategoryId">Subcategory</label>
+                        <label asp-for="SubCategoryId">Product</label>
                         <select asp-for="SubCategoryId" class="form-control" id="subCategoryDropdown">
-                            <option value="">Select Subcategory</option>
+                            <option value="">Select Product</option>
                             @if (Model.SubCategories != null)
                             {
                                 @foreach (var sub in Model.SubCategories)
@@ -161,19 +161,23 @@
 
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="~/js/tinymce-solution.js"></script>
-    <script src="~/js/solution-attachments-references.js?v=3.2"></script>
+    <script src="~/js/solution-attachments-references.js"></script>
     <partial name="_ValidationScriptsPartial" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/css/toastr.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
 
     <script>
         $(document).ready(function () {
-            console.log("Upsert view script loaded (v3.2)");
+            console.log("Upsert view script loaded (v4.0)");
             const urlParams = new URLSearchParams(window.location.search);
             const isCreateMode = !urlParams.has('solutionId');
             console.log("isCreateMode:", isCreateMode);
             let submitActionValue = null;
+
+
 
             // Store initial state for rollback
             const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
@@ -219,7 +223,7 @@
                 if (productId) {
                     $.get('/Admin/Issue/GetSubCategories', { productId: productId }, function (data) {
                         var subCatDropdown = $('#subCategoryDropdown');
-                        subCatDropdown.empty().append('<option value="">Select Subcategory</option>');
+                        subCatDropdown.empty().append('<option value="">Select Product</option>');
                         $.each(data, function (i, item) {
                             subCatDropdown.append($('<option>').val(item.id).text(item.name));
                         });
