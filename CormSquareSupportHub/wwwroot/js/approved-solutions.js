@@ -73,8 +73,8 @@
     function generateColors(count) {
         const colors = [];
         for (let i = 0; i < count; i++) {
-            const hue = (i * 360 / count) % 360; // Spread hues evenly
-            colors.push(`hsl(${hue}, 70%, 60%)`); // Vibrant colors with fixed saturation and lightness
+            const hue = (i * 360 / count) % 360;
+            colors.push(`hsl(${hue}, 70%, 60%)`);
         }
         return colors;
     }
@@ -115,5 +115,25 @@
                 padding: 20
             }
         }
+    });
+
+    // Generate scrollable legend
+    const legendContainer = document.getElementById('chartLegend');
+    const labels = window.categoryCounts.labels;
+    const data = window.categoryCounts.data;
+    const colors = generateColors(data.length);
+    const total = data.reduce((a, b) => a + b, 0);
+
+    labels.forEach((label, index) => {
+        const percent = ((data[index] / total) * 100).toFixed(1);
+        const legendItem = document.createElement('div');
+        legendItem.style.display = 'flex';
+        legendItem.style.alignItems = 'center';
+        legendItem.style.marginBottom = '8px';
+        legendItem.innerHTML = `
+        <span style="display:inline-block; width:12px; height:12px; background-color:${colors[index]}; margin-right:6px; border-radius:2px;"></span>
+        ${label}: ${data[index]} (${percent}%)
+    `;
+        legendContainer.appendChild(legendItem);
     });
 });
