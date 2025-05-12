@@ -1,4 +1,4 @@
-﻿console.log("Script starting: category-attachments-references.js (v2.13)");
+﻿console.log("Script starting: category-attachments-references.js (v2.14)");
 
 (function () {
     const urlParams = new URLSearchParams(window.location.search);
@@ -124,64 +124,92 @@
         const isEditMode = !!categoryId && categoryId !== 'create';
         console.log('restoreState: isEditMode=', isEditMode, 'categoryId=', categoryId);
 
-        let attachments, references, pendingFilesMeta;
+        let sessionAttachments, sessionReferences, pendingFilesMeta;
         try {
             const savedAttachments = sessionStorage.getItem(`categoryAttachments_${categoryId}`);
             const savedReferences = sessionStorage.getItem(`categoryReferences_${categoryId}`);
             const savedPendingFiles = sessionStorage.getItem(`categoryPendingFiles_${categoryId}`);
 
-            attachments = savedAttachments ? JSON.parse(savedAttachments) : [];
-            references = savedReferences ? JSON.parse(savedReferences) : [];
+            sessionAttachments = savedAttachments ? JSON.parse(savedAttachments) : [];
+            sessionReferences = savedReferences ? JSON.parse(savedReferences) : [];
             pendingFilesMeta = savedPendingFiles ? JSON.parse(savedPendingFiles) : [];
 
-            attachments = attachments.filter(a => a && a.fileName && typeof a.isDeleted === 'boolean');
-            references = references.filter(r => r && r.url && typeof r.isDeleted === 'boolean');
-            console.log('Validated sessionStorage data:', { attachments, references, pendingFilesMeta });
+            sessionAttachments = sessionAttachments.filter(a => a && a.fileName && typeof a.isDeleted === 'boolean');
+            sessionReferences = sessionReferences.filter(r => r && r.url && typeof r.isDeleted === 'boolean');
+            console.log('Validated sessionStorage data:', { sessionAttachments, sessionReferences, pendingFilesMeta });
         } catch (e) {
             console.error('Error parsing sessionStorage data:', e);
-            attachments = [];
-            references = [];
+            sessionAttachments = [];
+            sessionReferences = [];
             pendingFilesMeta = [];
         }
 
-        // Preserve existing window.pendingFiles if it contains File objects
-        // Only reset if we need to restore from sessionStorage and there are no pending files
-        if (window.pendingFiles.length === 0) {
-            // Since we can't store File objects in sessionStorage, pendingFiles cannot be fully restored
-            // Keep window.pendingFiles as-is if it already contains files
-            console.log('No File objects can be restored from sessionStorage; preserving existing window.pendingFiles');
+        // Always initialize from DOM first to ensure all parent attachments/references are included
+        console.log('Initializing from DOM before merging with sessionStorage');
+        initializeFromDOM();
+
+        // If there is sessionStorage data, merge it with the DOM-initialized data
+        if (sessionAttachments.length > 0 || sessionReferences.length > 0 || pendingFilesMeta.length > 0) {
+            console.log('Merging sessionStorage data with DOM-initialized data');
+
+            // Merge attachments: Update existing or add new ones from sessionStorage
+            sessionAttachments.forEach(sessionAtt => {
+                const existingIndex = window.attachments.findIndex(a =>
+                    (sessionAtt.fromParent && sessionAtt.parentAttachmentId && a.parentAttachmentId === sessionAtt.parentAttachmentId) ||
+                    (!sessionAtt.fromParent && a.fileName === sessionAtt.fileName)
+                );
+                if (existingIndex !== -1) {
+                    // Update existing attachment with sessionStorage data
+                    window.attachments[existingIndex] = { ...window.attachments[existingIndex], ...sessionAtt };
+                    console.log(`Merged sessionStorage attachment: fileName=${sessionAtt.fileName}, fromParent=${sessionAtt.fromParent}, parentAttachmentId=${sessionAtt.parentAttachmentId}`);
+                } else {
+                    // Add new attachment (e.g., user-added attachment not in DOM)
+                    window.attachments.push(sessionAtt);
+                    console.log(`Added sessionStorage attachment: fileName=${sessionAtt.fileName}, fromParent=${sessionAtt.fromParent}, parentAttachmentId=${sessionAtt.parentAttachmentId}`);
+                }
+            });
+
+            // Merge references: Update existing or add new ones from sessionStorage
+            sessionReferences.forEach(sessionRef => {
+                const existingIndex = window.references.findIndex(r =>
+                    (sessionRef.fromParent && sessionRef.parentReferenceId && r.parentReferenceId === sessionRef.parentReferenceId) ||
+                    (!sessionRef.fromParent && r.url === sessionRef.url)
+                );
+                if (existingIndex !== -1) {
+                    // Update existing reference with sessionStorage data
+                    window.references[existingIndex] = { ...window.references[existingIndex], ...sessionRef };
+                    console.log(`Merged sessionStorage reference: url=${sessionRef.url}, fromParent=${sessionRef.fromParent}, parentReferenceId=${sessionRef.parentReferenceId}`);
+                } else {
+                    // Add new reference (e.g., user-added reference not in DOM)
+                    window.references.push(sessionRef);
+                    console.log(`Added sessionStorage reference: url=${sessionRef.url}, fromParent=${sessionRef.fromParent}, parentReferenceId=${sessionRef.parentReferenceId}`);
+                }
+            });
+
+            // Restore pendingFiles metadata (but File objects can't be restored)
+            if (pendingFilesMeta.length > 0) {
+                console.log('Pending files metadata restored from sessionStorage (File objects not restored):', pendingFilesMeta);
+            }
         } else {
-            console.log('window.pendingFiles already contains files, preserving:', window.pendingFiles);
+            console.log('No sessionStorage data to merge, using DOM-initialized data');
         }
 
-        // In Edit mode, prefer DOM initialization unless sessionStorage has unsaved changes
-        if (isEditMode && attachments.length === 0 && references.length === 0 && pendingFilesMeta.length === 0) {
-            console.log('Edit mode with no sessionStorage data, initializing from DOM');
-            initializeFromDOM();
-        } else if (attachments.length > 0 || references.length > 0 || pendingFilesMeta.length > 0) {
-            console.log('Restoring from sessionStorage:', { attachments, references, pendingFilesMeta });
-            window.attachments = attachments;
-            window.references = references;
-
-            const attachmentList = document.getElementById("attachmentList");
-            const referenceList = document.getElementById("referenceList");
-            if (attachmentList) {
-                attachmentList.innerHTML = "";
-                console.log('Cleared attachmentList');
-            }
-            if (referenceList) {
-                referenceList.innerHTML = "";
-                console.log('Cleared referenceList');
-            }
-
-            window.reindexAttachments();
-            window.reindexReferences();
-            updateAttachmentData();
-            updateReferenceData();
-        } else {
-            console.log('No sessionStorage data, initializing from DOM');
-            initializeFromDOM();
+        // Reindex to update the UI
+        const attachmentList = document.getElementById("attachmentList");
+        const referenceList = document.getElementById("referenceList");
+        if (attachmentList) {
+            attachmentList.innerHTML = "";
+            console.log('Cleared attachmentList');
         }
+        if (referenceList) {
+            referenceList.innerHTML = "";
+            console.log('Cleared referenceList');
+        }
+
+        window.reindexAttachments();
+        window.reindexReferences();
+        updateAttachmentData();
+        updateReferenceData();
     }
 
     function initializeFromDOM() {
@@ -490,7 +518,9 @@
                     console.log(`Parent-sourced attachment: marking locally with isMarkedWithX, parentAttachmentId=${parentAttachmentId}`);
                     window.attachments[index].isDeleted = true;
                     window.attachments[index].isMarkedWithX = true;
-                    window.deletedAttachmentIds.push(parentAttachmentId);
+                    if (!window.deletedAttachmentIds.includes(parentAttachmentId)) {
+                        window.deletedAttachmentIds.push(parentAttachmentId);
+                    }
                     window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                     window.reindexAttachments();
                     toastr.success("Parent attachment marked for deletion. Save the form to finalize.");
@@ -499,7 +529,9 @@
                         console.log("RemoveAttachment response:", response);
                         if (response && response.success) {
                             console.log("Successfully marked attachment for deletion:", attachmentId);
-                            window.deletedAttachmentIds.push(attachmentId);
+                            if (!window.deletedAttachmentIds.includes(attachmentId)) {
+                                window.deletedAttachmentIds.push(attachmentId);
+                            }
                             window.attachments[index].isDeleted = true;
                             window.attachments[index].isMarkedWithX = true;
                             window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
@@ -521,6 +553,7 @@
                     window.reindexAttachments();
                     toastr.success("Attachment removed. Save the form to finalize.");
                 }
+                updateAttachmentData();
                 markAsDirty();
             } else {
                 console.warn(`Attachment at index ${index} not found`);
@@ -543,7 +576,9 @@
                     console.log(`Parent-sourced reference: marking locally with isMarkedWithX, parentReferenceId=${parentReferenceId}`);
                     window.references[index].isDeleted = true;
                     window.references[index].isMarkedWithX = true;
-                    window.deletedReferenceIds.push(parentReferenceId);
+                    if (!window.deletedReferenceIds.includes(parentReferenceId)) {
+                        window.deletedReferenceIds.push(parentReferenceId);
+                    }
                     window.reindexReferences();
                     toastr.success("Parent reference marked for deletion. Save the form to finalize.");
                 } else if (referenceId > 0) {
@@ -551,7 +586,9 @@
                         console.log("RemoveReference response:", response);
                         if (response && response.success) {
                             console.log("Successfully marked reference for deletion:", referenceId);
-                            window.deletedReferenceIds.push(referenceId);
+                            if (!window.deletedReferenceIds.includes(referenceId)) {
+                                window.deletedReferenceIds.push(referenceId);
+                            }
                             window.references[index].isDeleted = true;
                             window.references[index].isMarkedWithX = true;
                             window.reindexReferences();
@@ -571,6 +608,7 @@
                     window.reindexReferences();
                     toastr.success("Reference removed. Save the form to finalize.");
                 }
+                updateReferenceData();
                 markAsDirty();
             } else {
                 console.warn(`Reference at index ${index} not found`);
@@ -826,6 +864,12 @@
 
         updateAttachmentData();
         updateReferenceData();
+
+        // Log the final AttachmentData and ReferenceData before submission
+        const attachmentDataInput = document.getElementById("attachmentData");
+        const referenceDataInput = document.getElementById("referenceData");
+        console.log("Final AttachmentData before submission:", attachmentDataInput?.value);
+        console.log("Final ReferenceData before submission:", referenceDataInput?.value);
 
         window.deletedAttachmentIds.forEach(id => {
             const input = document.createElement("input");

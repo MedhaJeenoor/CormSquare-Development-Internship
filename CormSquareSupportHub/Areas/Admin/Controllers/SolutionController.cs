@@ -48,7 +48,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Upsert(int? issueId, int? solutionId)
         {
-            // Disable caching and BFCache
             Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
             Response.Headers["Pragma"] = "no-cache";
             Response.Headers["Expires"] = "0";
@@ -84,13 +83,16 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 model.Attachments = solution.Attachments.Where(a => !a.IsDeleted).ToList();
                 model.References = solution.References.Where(r => !r.IsDeleted).ToList();
 
-                ViewData["AttachmentLinks"] = model.Attachments.Select(a => new
+                // Generate attachment links for solution attachments
+                var attachmentLinks = model.Attachments.Select(a => new
                 {
                     Id = a.Id,
                     FileName = a.FileName,
-                    Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" }),
+                    Url = Url.Action("DownloadAttachment", "Solution", new { attachmentId = a.Id, area = "Admin" }, protocol: Request.Scheme), // Use absolute URL
                     IsInternal = a.IsInternal
                 }).ToList();
+                Console.WriteLine($"Attachment Links: {JsonConvert.SerializeObject(attachmentLinks)}");
+                ViewData["AttachmentLinks"] = attachmentLinks;
 
                 ViewData["ReferenceLinks"] = model.References.Select(r => new
                 {
@@ -260,6 +262,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
                             var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
                             var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+                            var fromParent = (bool)item.GetType().GetProperty("fromParent").GetValue(item);
+                            var parentAttachmentId = item.GetType().GetProperty("parentAttachmentId").GetValue(item) as int?;
 
                             SolutionAttachment entity;
                             if (id > 0)
@@ -294,9 +298,9 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
                             string sourcePath = null;
                             var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
-                            if (uploadedFile == null)
+                            if (uploadedFile == null && fromParent && parentAttachmentId.HasValue)
                             {
-                                var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == solution.CategoryId && !a.IsDeleted);
+                                var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == parentAttachmentId.Value && a.CategoryId == solution.CategoryId && !a.IsDeleted);
                                 sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
                             }
                             stagedAttachments.Add((entity, sourcePath, destPath));
@@ -469,38 +473,58 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCategoryTemplate(int categoryId)
         {
-            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(c => c.Id == categoryId && !c.IsDeleted);
-            if (category == null) return Json(new { success = false, message = "Category not found." });
-
-            var attachments = await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == categoryId && !a.IsDeleted);
-            var references = await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == categoryId && !r.IsDeleted);
-
-            var response = new
+            Console.WriteLine($"GetCategoryTemplate called: categoryId={categoryId}");
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
             {
-                success = true,
-                htmlContent = category.HtmlContent,
-                attachments = attachments.Select(a => new
+                Console.WriteLine("Unauthorized access: User not found.");
+                return Unauthorized();
+            }
+
+            var category = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                c => c.Id == categoryId && !c.IsDeleted,
+                includeProperties: "Attachments,References"
+            );
+            if (category == null)
+            {
+                Console.WriteLine($"Category ID {categoryId} not found or deleted.");
+                return Json(new { success = false, message = "Category not found." });
+            }
+
+            var data = new
+            {
+                htmlContent = category.HtmlContent ?? "",
+                attachments = category.Attachments.Where(a => !a.IsDeleted).Select(a => new
                 {
-                    a.Id,
-                    a.FileName,
-                    a.Caption,
-                    a.IsInternal,
-                    Url = $"/Admin/Solution/DownloadCategoryAttachment?attachmentId={a.Id}",
-                    a.FilePath
-                }),
-                references = references.Select(r => new
+                    id = a.Id,
+                    fileName = a.FileName,
+                    url = Url.Action("OpenAttachment", "Category", new { area = "Admin", attachmentId = a.Id }),
+                    caption = a.Caption,
+                    isInternal = a.IsInternal,
+                    originalFileName = a.FileName,
+                    fromParent = true,
+                    parentAttachmentId = a.Id
+                }).ToList(),
+                references = category.References.Where(r => !r.IsDeleted).Select(r => new
                 {
-                    r.Id,
-                    r.Url,
-                    r.Description,
-                    r.IsInternal,
-                    r.OpenOption
-                })
+                    id = r.Id,
+                    url = r.Url,
+                    description = r.Description,
+                    isInternal = r.IsInternal,
+                    openOption = r.OpenOption,
+                    fromParent = true,
+                    parentReferenceId = r.Id
+                }).ToList()
             };
 
-            Console.WriteLine($"GetCategoryTemplate for categoryId={categoryId}: {JsonConvert.SerializeObject(response.attachments, Formatting.Indented)}");
-            return Json(response);
+            Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+
+            Console.WriteLine($"Returning category template: categoryId={categoryId}, attachments={data.attachments.Count}, references={data.references.Count}");
+            return Json(new { success = true, data });
         }
+
 
         private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId)
         {
@@ -529,12 +553,17 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     string filePath = Path.Combine("solutions", solution.Id.ToString(), guidFileName).Replace("\\", "/");
                     bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
                     string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
-                    Console.WriteLine($"Processing attachment ID {attachmentId}: fileName={originalFileName}, isInternal={isInternal}, caption={caption}");
+                    bool fromParent = att.ContainsKey("fromParent") && bool.Parse(att["fromParent"].ToString());
+                    int? parentAttachmentId = att.ContainsKey("parentAttachmentId") && !string.IsNullOrEmpty(att["parentAttachmentId"]?.ToString())
+                        ? Convert.ToInt32(att["parentAttachmentId"]) : (int?)null;
+
+                    Console.WriteLine($"Processing attachment ID {attachmentId}: fileName={originalFileName}, isInternal={isInternal}, caption={caption}, fromParent={fromParent}, parentAttachmentId={parentAttachmentId}");
 
                     var existingAttachment = attachmentId > 0 ? existingAttachments.FirstOrDefault(a => a.Id == attachmentId) : null;
 
                     if (existingAttachment != null)
                     {
+                        // Update existing solution attachment
                         existingAttachment.Caption = caption;
                         existingAttachment.IsInternal = isInternal;
                         existingAttachment.UpdateAudit(userId);
@@ -546,12 +575,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             filePath = existingAttachment.FilePath,
                             caption,
                             isInternal,
-                            originalFileName
+                            originalFileName,
+                            fromParent = false,
+                            parentAttachmentId = (int?)null
                         });
                         Console.WriteLine($"Updated attachment ID {existingAttachment.Id}: caption={caption}, isInternal={isInternal}");
                     }
                     else if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
                     {
+                        // Handle new attachment (either uploaded or from category)
                         attachments.Add(new
                         {
                             id = 0,
@@ -559,12 +591,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             filePath,
                             caption,
                             isInternal,
-                            originalFileName
+                            originalFileName,
+                            fromParent,
+                            parentAttachmentId
                         });
-                        Console.WriteLine($"Staged new attachment: fileName={guidFileName}, filePath={filePath}, isInternal={isInternal}");
+                        Console.WriteLine($"Staged new attachment: fileName={guidFileName}, filePath={filePath}, isInternal={isInternal}, fromParent={fromParent}");
                     }
                 }
 
+                // Soft delete attachments not in stagedAttachments
                 foreach (var existing in existingAttachments)
                 {
                     if (!stagedAttachments.Any(att => Convert.ToInt32(att["id"]) == existing.Id && !(att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString()))))
@@ -758,6 +793,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             try
             {
                 string mimeType = "application/octet-stream";
+                string contentDisposition = "inline"; // Allow opening in browser
                 string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
                 if (ext != null)
                 {
@@ -771,12 +807,21 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         _ => "application/octet-stream"
                     };
+                    contentDisposition = ext switch
+                    {
+                        ".pdf" => "inline",
+                        ".png" => "inline",
+                        ".jpg" => "inline",
+                        ".jpeg" => "inline",
+                        ".txt" => "inline",
+                        _ => "attachment"
+                    };
                 }
 
-                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes, MIME: {mimeType}");
+                Console.WriteLine($"Opening file: {fullPath}, Size: {new FileInfo(fullPath).Length} bytes, MIME: {mimeType}, Disposition: {contentDisposition}");
                 var fileStream = System.IO.File.OpenRead(fullPath);
-                Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{attachment.FileName}\"");
-                return File(fileStream, mimeType, attachment.FileName);
+                Response.Headers.Add("Content-Disposition", $"{contentDisposition}; filename=\"{attachment.FileName}\"");
+                return File(fileStream, mimeType);
             }
             catch (IOException ex)
             {
@@ -1044,7 +1089,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             }
         }
         [HttpGet]
-        [Route("Admin/Solution/DownloadAttachment/{id?}")]
+        //[Route("Admin/Solution/DownloadAttachment/{id?}")]
         public async Task<IActionResult> DownloadAttachmentaftercreate(int id)
         {
             var user = await _userManager.GetUserAsync(User);
@@ -1190,6 +1235,91 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"DownloadAttachmentForReview: Unexpected error for file {fullPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OpenAttachment(int attachmentId)
+        {
+            Console.WriteLine($"OpenAttachment called: attachmentId={attachmentId}");
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                Console.WriteLine("OpenAttachment: Unauthorized access attempt.");
+                return Unauthorized();
+            }
+
+            var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == attachmentId && !a.IsDeleted);
+            if (attachment == null)
+            {
+                Console.WriteLine($"OpenAttachment: Attachment ID {attachmentId} not found or deleted.");
+                return NotFound();
+            }
+
+            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath).Replace('/', Path.DirectorySeparatorChar);
+            Console.WriteLine($"OpenAttachment: Attempting to access file at {fullPath} for ID {attachmentId}");
+
+            if (!System.IO.File.Exists(fullPath))
+            {
+                Console.WriteLine($"OpenAttachment: File not found at {fullPath} for ID {attachmentId}");
+                return NotFound();
+            }
+
+            try
+            {
+                string mimeType = "application/octet-stream";
+                string contentDisposition = "inline"; // Default to inline for opening in browser
+                string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
+
+                if (ext != null)
+                {
+                    switch (ext)
+                    {
+                        case ".pdf":
+                            mimeType = "application/pdf";
+                            break;
+                        case ".png":
+                            mimeType = "image/png";
+                            break;
+                        case ".jpg":
+                        case ".jpeg":
+                            mimeType = "image/jpeg";
+                            break;
+                        case ".txt":
+                            mimeType = "text/plain";
+                            break;
+                        case ".docx":
+                            mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                            contentDisposition = "attachment"; // Force download for non-viewable types
+                            break;
+                        default:
+                            contentDisposition = "attachment";
+                            break;
+                    }
+                }
+
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                Console.WriteLine($"OpenAttachment: Serving file {attachment.FileName} (ID: {attachmentId}), MIME: {mimeType}, Disposition: {contentDisposition}");
+                Response.Headers.Add("Content-Disposition", $"{contentDisposition}; filename=\"{attachment.FileName}\"");
+                Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+                Response.Headers["Pragma"] = "no-cache";
+                Response.Headers["Expires"] = "0";
+                return File(fileStream, mimeType);
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"OpenAttachment: IO Error accessing file {fullPath}: {ex.Message}");
+                return StatusCode(500, "Error reading the attachment file.");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"OpenAttachment: Access denied for file {fullPath}: {ex.Message}");
+                return StatusCode(403, "Access denied.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"OpenAttachment: Unexpected error for file {fullPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }
