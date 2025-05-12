@@ -43,10 +43,13 @@
             </div>
         </div>
 
-        <div class="mb-4 text-center">
-            <div style="max-width: 600px; display: inline-block;">
-                <canvas id="categoryChart"></canvas>
-                <p class="mt-2" style="font-size: 0.9rem; color: #333;">Solutions Distribution by Category</p>
+        <div class="mb-4 d-flex justify-content-center align-items-center">
+            <div class="chart-legend-container d-flex align-items-center">
+                <div style="max-width: 600px;">
+                    <canvas id="categoryChart"></canvas>
+                    <p class="mt-2 text-center" style="font-size: 0.9rem; color: #333;">Solutions Distribution by Category</p>
+                </div>
+                <div id="chartLegend" class="ms-4" style="max-height: 400px; overflow-y: auto; min-width: 200px;"></div>
             </div>
         </div>
 
@@ -103,9 +106,27 @@
 <div class="mb-5 pb-5"></div>
 
 @section Scripts {
+    <style>
+        .chart-legend-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            max-width: 850px;
+            margin: 0 auto;
+        }
+
+        #chartLegend {
+            padding: 10px;
+            border-left: 1px solid #ddd;
+        }
+
+            #chartLegend div {
+                font-size: 0.9rem;
+                color: #333;
+            }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Pass data to external script
         window.categoryCounts = {
             labels: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(categoryCounts.Keys)),
             data: @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(categoryCounts.Values))
