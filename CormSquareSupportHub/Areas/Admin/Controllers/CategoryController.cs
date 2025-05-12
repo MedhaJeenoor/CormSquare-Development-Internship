@@ -29,6 +29,7 @@ namespace SupportHub.Areas.Admin.Controllers
         private readonly UserManager<ExternalUser> _userManager;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly AttachmentSettings _attachmentSettings;
+        private readonly ILogger<CategoryController> _logger;
 
         public CategoryController(
             IUnitOfWork unitOfWork,
@@ -1506,14 +1507,26 @@ namespace SupportHub.Areas.Admin.Controllers
                 ? JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(ReferenceData)
                 : new List<Dictionary<string, object>>();
 
+            // Log the deserialized data for debugging
+            Console.WriteLine($"Deserialized AttachmentDataItems: {JsonConvert.SerializeObject(attachmentDataItems)}");
+            Console.WriteLine($"Deserialized ReferenceDataItems: {JsonConvert.SerializeObject(referenceDataItems)}");
+
             // Copy Parent Attachments
             var parentAttachments = parentCategory.Attachments
                 .Where(a => !a.IsDeleted && !(deletedAttachmentIds?.Contains(a.Id) ?? false))
                 .Where(a =>
                 {
-                    var attData = attachmentDataItems.FirstOrDefault(d => d.ContainsKey("parentAttachmentId") && Convert.ToInt32(d["parentAttachmentId"]) == a.Id);
-                    bool isDeletedInData = attData != null && attData.ContainsKey("isDeleted") && bool.Parse(attData["isDeleted"].ToString());
-                    bool isMarkedWithX = attData != null && attData.ContainsKey("isMarkedWithX") && bool.Parse(attData["isMarkedWithX"].ToString());
+                    var attData = attachmentDataItems.FirstOrDefault(d => d.ContainsKey("parentAttachmentId") && d["parentAttachmentId"] != null && Convert.ToInt32(d["parentAttachmentId"]) == a.Id);
+                    if (attData == null)
+                    {
+                        Console.WriteLine($"No AttachmentData entry found for parent attachment: Id={a.Id}, FileName={a.FileName}. Including by default.");
+                        return true; // Include by default if no data is provided (adjust based on requirements)
+                    }
+
+                    bool isDeletedInData = attData.ContainsKey("isDeleted") && bool.Parse(attData["isDeleted"].ToString());
+                    bool isMarkedWithX = attData.ContainsKey("isMarkedWithX") && bool.Parse(attData["isMarkedWithX"].ToString());
+                    Console.WriteLine($"Evaluating parent attachment: Id={a.Id}, FileName={a.FileName}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+
                     if (isDeletedInData || isMarkedWithX)
                     {
                         Console.WriteLine($"Skipping parent attachment: Id={a.Id}, FileName={a.FileName}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
@@ -1569,9 +1582,17 @@ namespace SupportHub.Areas.Admin.Controllers
                 .Where(r => !r.IsDeleted && !(deletedReferenceIds?.Contains(r.Id) ?? false))
                 .Where(r =>
                 {
-                    var refData = referenceDataItems.FirstOrDefault(d => d.ContainsKey("parentReferenceId") && Convert.ToInt32(d["parentReferenceId"]) == r.Id);
-                    bool isDeletedInData = refData != null && refData.ContainsKey("isDeleted") && bool.Parse(refData["isDeleted"].ToString());
-                    bool isMarkedWithX = refData != null && refData.ContainsKey("isMarkedWithX") && bool.Parse(refData["isMarkedWithX"].ToString());
+                    var refData = referenceDataItems.FirstOrDefault(d => d.ContainsKey("parentReferenceId") && d["parentReferenceId"] != null && Convert.ToInt32(d["parentReferenceId"]) == r.Id);
+                    if (refData == null)
+                    {
+                        Console.WriteLine($"No ReferenceData entry found for parent reference: Id={r.Id}, Url={r.Url}. Including by default.");
+                        return true; // Include by default if no data is provided (adjust based on requirements)
+                    }
+
+                    bool isDeletedInData = refData.ContainsKey("isDeleted") && bool.Parse(refData["isDeleted"].ToString());
+                    bool isMarkedWithX = refData.ContainsKey("isMarkedWithX") && bool.Parse(refData["isMarkedWithX"].ToString());
+                    Console.WriteLine($"Evaluating parent reference: Id={r.Id}, Url={r.Url}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+
                     if (isDeletedInData || isMarkedWithX)
                     {
                         Console.WriteLine($"Skipping parent reference: Id={r.Id}, Url={r.Url}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");

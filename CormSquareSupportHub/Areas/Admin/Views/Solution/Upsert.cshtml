@@ -60,7 +60,7 @@
                             <option value="">Select Category</option>
                             @foreach (var category in Model.Categories)
                             {
-                                <option value="@category.Id">@category.Name</option>
+                                <option value="@category.Id" selected="@(category.Id == Model.CategoryId)">@category.Name</option>
                             }
                         </select>
                         <span asp-validation-for="CategoryId" class="text-danger"></span>
@@ -97,10 +97,7 @@
                                     var isInternal = attachment?.IsInternal ?? false;
                                     <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
                                         <div>
-                                            <a href="@Url.Action("DownloadAttachmentForReview", "Solution", new { area = "Admin", id = link.Id })"
-                                               class="attachment-link"
-                                               target="_blank"
-                                               rel="noopener noreferrer">@link.FileName</a><br />
+                                            <a href="@link.Url" class="attachment-link" target="_blank" rel="noopener noreferrer">@link.FileName</a><br />
                                             <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@(attachment?.Caption ?? "")" />
                                         </div>
                                         <div>
@@ -141,7 +138,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="referenceData" name="ReferenceData" value="[]" />
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption })))" />
                 </div>
 
                 <!-- Buttons -->
@@ -173,174 +170,243 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
 
     <script>
-        $(document).ready(function () {
-            console.log("Upsert view script loaded (v4.0)");
-            const urlParams = new URLSearchParams(window.location.search);
-            const isCreateMode = !urlParams.has('solutionId');
-            console.log("isCreateMode:", isCreateMode);
-            let submitActionValue = null;
+            $(document).ready(function () {
+        console.log("Upsert view script loaded (v4.3)");
+        const urlParams = new URLSearchParams(window.location.search);
+        const isCreateMode = !urlParams.has('solutionId');
+        console.log("isCreateMode:", isCreateMode);
 
-            // Store initial state for rollback
-            const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
-            const initialReferences = JSON.parse(JSON.stringify(window.references || []));
+        // Initialize arrays with error handling
+        let initialAttachments = [];
+        let initialReferences = [];
+        try {
+            const attachmentData = $('#attachmentData').val();
+            const referenceData = $('#referenceData').val();
+
+            // Parse attachmentData safely
+            window.attachments = [];
+            if (attachmentData) {
+                try {
+                    window.attachments = JSON.parse(attachmentData);
+                    if (!Array.isArray(window.attachments)) {
+                        console.warn("attachmentData is not an array:", window.attachments);
+                        window.attachments = [];
+                    }
+                } catch (e) {
+                    console.error("Error parsing attachmentData:", e, attachmentData);
+                    window.attachments = [];
+                }
+            }
+
+            // Parse referenceData safely
+            window.references = [];
+            if (referenceData) {
+                try {
+                    window.references = JSON.parse(referenceData);
+                    if (!Array.isArray(window.references)) {
+                        console.warn("referenceData is not an array:", window.references);
+                        window.references = [];
+                    }
+                } catch (e) {
+                    console.error("Error parsing referenceData:", e, referenceData);
+                    window.references = [];
+                }
+            }
+
+            // Create deep copies for initial state
+            initialAttachments = JSON.parse(JSON.stringify(window.attachments));
+            initialReferences = JSON.parse(JSON.stringify(window.references));
+            console.log('Initialized from hidden inputs:', { attachments: window.attachments, references: window.references });
             console.log('Stored initial state:', { initialAttachments, initialReferences });
 
             // Force initial state restoration
             if (typeof window.forceRestoreState === 'function') {
                 window.forceRestoreState();
             }
+        } catch (e) {
+            console.error('Error initializing arrays:', e);
+            toastr.error('Failed to initialize data. Please refresh the page.');
+            window.attachments = [];
+            window.references = [];
+        }
 
-            // Handle Save/Submit buttons
-            $('button[type="submit"]').on('click', function (e) {
-                submitActionValue = $(this).val();
-                console.log('Button clicked, submitAction set to:', submitActionValue);
-            });
+        // Handle Save/Submit buttons
+        let submitActionValue = null;
+        $('button[type="submit"]').on('click', function (e) {
+            submitActionValue = $(this).val();
+            console.log('Button clicked, submitAction set to:', submitActionValue);
+        });
 
-            // Handle Cancel button
-            $('#cancelButton').on('click', function (e) {
-                e.preventDefault();
-                console.log('Cancel button clicked');
+        // Handle Cancel button
+        $('#cancelButton').on('click', function (e) {
+            e.preventDefault();
+            console.log('Cancel button clicked');
+            // Assign initial state directly without redundant JSON parsing
+            window.attachments = initialAttachments;
+            window.references = initialReferences;
+            window.reindexAttachments();
+            window.reindexReferences();
+            window.updateAttachmentData();
+            window.updateReferenceData();
+            window.clearSessionStorage();
+            toastr.info('Changes discarded.');
+            const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
+            console.log('Redirecting to:', redirectUrl);
+            window.location.href = redirectUrl;
+        });
 
-                // Restore initial state
-                window.attachments = JSON.parse(JSON.stringify(initialAttachments));
-                window.references = JSON.parse(JSON.stringify(initialReferences));
-                window.reindexAttachments();
-                window.reindexReferences();
-                window.updateAttachmentData();
-                window.updateReferenceData();
-
-                // Clear sessionStorage
-                window.clearSessionStorage();
-                toastr.info('Changes discarded.');
-
-                // Redirect
-                const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
-                console.log('Redirecting to:', redirectUrl);
-                window.location.href = redirectUrl;
-            });
-
+            // Handle product dropdown change
             $('#productDropdown').change(function () {
                 var productId = $(this).val();
+                console.log('ProductId changed to:', productId);
                 if (productId) {
                     $.get('/Admin/Issue/GetSubCategories', { productId: productId }, function (data) {
+                        console.log('GetSubCategories response:', data);
                         var subCatDropdown = $('#subCategoryDropdown');
                         subCatDropdown.empty().append('<option value="">Select Product</option>');
                         $.each(data, function (i, item) {
                             subCatDropdown.append($('<option>').val(item.id).text(item.name));
                         });
-                    }).fail(function () {
-                        console.error('Failed to load subcategories');
+                    }).fail(function (xhr, status, error) {
+                        console.error('Failed to load subcategories:', status, error);
+                        toastr.error('Failed to load products.');
                     });
+                } else {
+                    $('#subCategoryDropdown').empty().append('<option value="">Select Product</option>');
                 }
             });
 
+            // Handle category dropdown change
             $('#categoryDropdown').change(function () {
                 var categoryId = $(this).val();
+                console.log('CategoryId changed to:', categoryId);
                 if (categoryId) {
-                    console.log('Category selected:', categoryId);
-                    loadCategoryTemplate(categoryId);
+                    console.log(`Loading template for categoryId=${categoryId}`);
+                    $.ajax({
+                        url: '/Admin/Solution/GetCategoryTemplate',
+                        type: 'GET',
+                        data: { categoryId: categoryId },
+                        cache: false,
+                        success: function (response) {
+                            console.log('GetCategoryTemplate response:', response);
+                            if (response.success && response.data) {
+                                // Update TinyMCE editor
+                                var editor = tinymce.get('editor');
+                                if (editor) {
+                                    editor.setContent(response.data.htmlContent || '');
+                                    $('#HtmlContent').val(editor.getContent());
+                                    console.log('Updated TinyMCE content:', response.data.htmlContent);
+                                } else {
+                                    console.warn('TinyMCE editor not found');
+                                    $('#HtmlContent').val(response.data.htmlContent || '');
+                                }
+                                // Update attachments and references
+                                window.updateAttachmentsAndReferences(
+                                    response.data.attachments || [],
+                                    response.data.references || []
+                                );
+                                toastr.success('Category template loaded successfully!');
+                            } else {
+                                console.warn('Failed to load template:', response.message);
+                                toastr.error(response.message || 'Failed to load category template.');
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('Error loading template:', status, error, xhr.responseText);
+                            var errorMsg = xhr.responseJSON?.message || error || 'Unknown error';
+                            toastr.error('Error loading template: ' + errorMsg);
+                        }
+                    });
+                } else if (isCreateMode) {
+                    // In Create mode, clear content if no category selected
+                    var editor = tinymce.get('editor');
+                    if (editor) {
+                        editor.setContent('');
+                        $('#HtmlContent').val('');
+                    } else {
+                        $('#HtmlContent').val('');
+                    }
+                    window.updateAttachmentsAndReferences([], []);
+                    console.log('Cleared template content and lists');
                 }
             });
-
-            function loadCategoryTemplate(categoryId) {
-                console.log(`Loading template for categoryId=${categoryId}`);
-                $.get('/Admin/Solution/GetCategoryTemplate', { categoryId: categoryId }, function (data) {
-                    console.log('GetCategoryTemplate response:', data);
-                    if (data.success) {
-                        var editor = tinymce.get('editor');
-                        if (editor) {
-                            editor.setContent(data.htmlContent || '');
-                            $('#HtmlContent').val(editor.getContent());
-                        }
-                        window.updateAttachmentsAndReferences(data.attachments || [], data.references || []);
-                    } else {
-                        console.error('GetCategoryTemplate failed:', data.message);
-                    }
-                }).fail(function (xhr, status, error) {
-                    console.error('GetCategoryTemplate AJAX error:', status, error);
-                });
-            }
 
             // Form submission for Save/Submit
             $('#solutionForm').on('submit', function (e) {
                 e.preventDefault();
                 console.log('Form submit triggered');
 
-                var editor = tinymce.get('editor');
-                if (!editor) {
-                    toastr.error('Editor not initialized. Please try again.');
-                    return false;
-                }
-
-                tinymce.triggerSave();
-                var editorContent = editor.getContent();
-                $('#HtmlContent').val(editorContent);
-
-                // Validate
-                var title = $('#Title').val();
-                var productId = $('#productDropdown').val();
-                var categoryId = $('#categoryDropdown').val();
-                if (!title || !productId || productId === "" || !categoryId || categoryId === "" || !editorContent) {
-                    toastr.error('Please fill all required fields.');
-                    return false;
-                }
-
-                // Update ReferenceData
-                window.updateReferenceData();
-                console.log('ReferenceData before submission:', $('#referenceData').val());
-
-                var formData = new FormData(this);
-                if (submitActionValue) {
-                    formData.append('submitAction', submitActionValue);
-                } else {
-                    toastr.error('Please use the Save Draft or Submit for Review button.');
-                    return false;
-                }
-
-                // Log FormData
-                console.log('FormData contents:');
-                for (let [key, value] of formData.entries()) {
-                    console.log(`${key}: ${value}`);
-                }
-
-                $.ajax({
-                    url: '/Admin/Solution/Upsert',
-                    type: 'POST',
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    success: function (response) {
-                        console.log('Server response:', response);
-                        if (response.success) {
-                            window.clearSessionStorage();
-                            toastr.success('Action completed successfully!');
-                            window.location.href = response.redirectTo;
-                        } else {
-                            toastr.error(response.message || 'Action failed. Please try again.');
-                            if (response.innerException) {
-                                console.error('Inner exception:', response.innerException);
-                                toastr.error('Details: ' + response.innerException);
-                            }
-                            if (response.errors) {
-                                toastr.error('Validation errors: ' + response.errors.join(', '));
-                            }
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('AJAX error:', status, error, xhr.responseText);
-                        toastr.error('An error occurred while submitting: ' + (xhr.responseText || error));
+                try {
+                    var editor = tinymce.get('editor');
+                    if (!editor) {
+                        toastr.error('Editor not initialized. Please try again.');
+                        return false;
                     }
-                });
-            });
 
-            // Ensure attachment links open in a new tab
-            document.addEventListener('DOMContentLoaded', function () {
-                document.querySelectorAll('.attachment-link').forEach(link => {
-                    link.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        window.open(this.href, '_blank', 'noopener,noreferrer');
+                    tinymce.triggerSave();
+                    var editorContent = editor.getContent();
+                    $('#HtmlContent').val(editorContent);
+                    console.log('Editor content:', editorContent);
+
+                    // Validate
+                    var title = $('#Title').val();
+                    var productId = $('#productDropdown').val();
+                    var categoryId = $('#categoryDropdown').val();
+                    if (!title || !productId || productId === "" || !categoryId || categoryId === "" || !editorContent) {
+                        toastr.error('Please fill all required fields.');
+                        return false;
+                    }
+
+                    // Update ReferenceData
+                    window.updateReferenceData();
+                    console.log('ReferenceData before submission:', $('#referenceData').val());
+
+                    var formData = new FormData(this);
+                    if (submitActionValue) {
+                        formData.append('submitAction', submitActionValue);
+                    } else {
+                        toastr.error('Please use the Save Draft or Submit for Review button.');
+                        return false;
+                    }
+
+                    // Log FormData
+                    console.log('FormData contents:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`${key}: ${value}`);
+                    }
+
+                    $.ajax({
+                        url: '/Admin/Solution/Upsert',
+                        type: 'POST',
+                        data: formData,
+                        contentType: false,
+                        processData: false,
+                        success: function (response) {
+                            console.log('Server response:', response);
+                            if (response.success) {
+                                window.clearSessionStorage();
+                                toastr.success('Action completed successfully!');
+                                window.location.href = response.redirectTo;
+                            } else {
+                                toastr.error(response.message || 'Action failed. Please try again.');
+                                if (response.innerException) {
+                                    console.error('Inner exception:', response.innerException);
+                                    toastr.error('Details: ' + response.innerException);
+                                }
+                                if (response.errors) {
+                                    toastr.error('Validation errors: ' + response.errors.join(', '));
+                                }
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('AJAX error:', status, error, xhr.responseText);
+                            toastr.error('An error occurred while submitting: ' + (xhr.responseText || error));
+                        }
                     });
-                });
+                } catch (e) {
+                    console.error('Error during form submission:', e);
+                    toastr.error('An error occurred during submission: ' + e.message);
+                }
             });
         });
     </script>
