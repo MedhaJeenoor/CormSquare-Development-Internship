@@ -59,11 +59,11 @@
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
                                     <div>
-                                        <a href="@Url.Action("DownloadAttachment", "Category", new { attachmentId = attachment.Id, area = "Admin" })" download="@attachment.FileName" class="attachment-link">@attachment.FileName</a><br />
+                                        <a href="@Url.Action("OpenAttachment", "Category", new { attachmentId = attachment.Id, area = "Admin" })" target="_blank" class="attachment-link">@attachment.FileName</a><br />
                                         <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@attachment.Caption" />
                                     </div>
                                     <div>
-                                        <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
+                                        <input type="checkbox" class="form-control mt-1 internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
                                         <span>Internal</span>
                                         <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
                                     </div>

@@ -586,9 +586,27 @@
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.attachmentId = attachment.parentAttachmentId || attachment.id || 0;
         const fileName = attachment.fileName || 'Unnamed_Attachment';
-        const fileNameHtml = attachment.url
-            ? `<a href='${attachment.url}' download="${fileName}" class="attachment-link">${fileName}</a>`
-            : `<strong>${fileName}</strong>`;
+
+        // Determine if the file is an image based on its extension
+        const extension = fileName.toLowerCase().split('.').pop();
+        const isImage = ['jpg', 'jpeg', 'png', 'gif'].includes(extension);
+
+        let fileNameHtml;
+        if (attachment.url) {
+            if (isImage) {
+                // For images (saved or new), open in a new tab without download attribute
+                fileNameHtml = `<a href='${attachment.url}' target="_blank" class="attachment-link">${fileName}</a>`;
+            } else if (attachment.id > 0 || attachment.fromParent) {
+                // For non-image saved attachments, open in a new tab
+                fileNameHtml = `<a href='${attachment.url}' target="_blank" class="attachment-link">${fileName}</a>`;
+            } else {
+                // For non-image new attachments, retain the download attribute
+                fileNameHtml = `<a href='${attachment.url}' download="${fileName}" class="attachment-link">${fileName}</a>`;
+            }
+        } else {
+            fileNameHtml = `<strong>${fileName}</strong>`;
+        }
+
         li.innerHTML = `
         <div>
             ${fileNameHtml}<br />
@@ -602,7 +620,7 @@
     `;
         addAttachmentEventListeners(li, index);
         attachmentList.appendChild(li);
-        console.log(`Added attachment to list: index=${index}, fileName=${fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}, id=${attachment.id}, parentAttachmentId=${attachment.parentAttachmentId}`);
+        console.log(`Added attachment to list: index=${index}, fileName=${fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}, id=${attachment.id}, parentAttachmentId=${attachment.parentAttachmentId}, isImage=${isImage}`);
     }
 
     function addReferenceToList(reference, index) {
