@@ -97,7 +97,10 @@
                                     var isInternal = attachment?.IsInternal ?? false;
                                     <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@link.Id">
                                         <div>
-                                            <a href="@link.Url" download="@link.FileName">@link.FileName</a><br />
+                                            <a href="@Url.Action("DownloadAttachmentForReview", "Solution", new { area = "Admin", id = link.Id })"
+                                               class="attachment-link"
+                                               target="_blank"
+                                               rel="noopener noreferrer">@link.FileName</a><br />
                                             <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@(attachment?.Caption ?? "")" />
                                         </div>
                                         <div>
@@ -176,8 +179,6 @@
             const isCreateMode = !urlParams.has('solutionId');
             console.log("isCreateMode:", isCreateMode);
             let submitActionValue = null;
-
-
 
             // Store initial state for rollback
             const initialAttachments = JSON.parse(JSON.stringify(window.attachments || []));
@@ -329,6 +330,16 @@
                         console.error('AJAX error:', status, error, xhr.responseText);
                         toastr.error('An error occurred while submitting: ' + (xhr.responseText || error));
                     }
+                });
+            });
+
+            // Ensure attachment links open in a new tab
+            document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('.attachment-link').forEach(link => {
+                    link.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        window.open(this.href, '_blank', 'noopener,noreferrer');
+                    });
                 });
             });
         });

@@ -1,4 +1,4 @@
-﻿console.log("Script starting: category-attachments-references.js (v2.12)");
+﻿console.log("Script starting: category-attachments-references.js (v2.13)");
 
 (function () {
     const urlParams = new URLSearchParams(window.location.search);
@@ -81,13 +81,13 @@
     function updateAttachmentData() {
         const attachmentDataInput = document.getElementById("attachmentData");
         if (attachmentDataInput) {
-            // Ensure new attachments are not marked as deleted unless explicitly set
             const updatedAttachments = window.attachments.map(a => ({
                 id: a.id || 0,
                 fileName: a.fileName,
                 caption: a.caption || '',
                 isInternal: a.isInternal || false,
-                isDeleted: a.isDeleted === true, // Explicitly check for true to avoid undefined/false issues
+                isDeleted: a.isDeleted === true,
+                isMarkedWithX: a.isMarkedWithX === true,
                 fromParent: a.fromParent || false,
                 parentAttachmentId: a.parentAttachmentId || 0
             }));
@@ -107,6 +107,7 @@
                 isInternal: r.isInternal || false,
                 openOption: r.openOption || '_self',
                 isDeleted: r.isDeleted || false,
+                isMarkedWithX: r.isMarkedWithX || false,
                 fromParent: r.fromParent || false,
                 parentReferenceId: r.parentReferenceId || 0
             })));
@@ -186,32 +187,32 @@
     function initializeFromDOM() {
         window.attachments = [];
         window.references = [];
-        // Do not clear window.pendingFiles here to preserve uploaded files
         console.log('Preserving existing window.pendingFiles during initializeFromDOM:', window.pendingFiles);
 
-        // First, try to initialize from DOM
+        // Initialize attachments from DOM
         document.querySelectorAll('#attachmentList li').forEach((li, index) => {
             const attachmentId = parseInt(li.dataset.attachmentId) || 0;
             const anchor = li.querySelector('a.attachment-link');
             const fileName = anchor ? anchor.textContent : li.querySelector('strong')?.textContent || 'Unnamed';
             const attachment = {
-                id: attachmentId,
+                id: initialIsCreateMode ? 0 : attachmentId,
                 fileName: fileName,
                 url: anchor ? anchor.getAttribute('href') : null,
                 caption: li.querySelector('.caption-input')?.value || '',
                 isInternal: li.querySelector('.internal-attachment')?.checked || false,
                 isDeleted: false,
-                fromParent: attachmentId > 0, // Assume existing attachments are from parent or previously saved
+                isMarkedWithX: false,
+                fromParent: attachmentId > 0,
                 parentAttachmentId: attachmentId
             };
-            if (attachment.fileName && !window.attachments.some(a => a.fileName === attachment.fileName)) {
+            if (attachment.fileName && !window.attachments.some(a => a.fileName === attachment.fileName && !a.isDeleted)) {
                 window.attachments.push(attachment);
             }
-            console.log(`Initialized attachment ${index} from DOM: fileName=${attachment.fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}`);
+            console.log(`Initialized attachment ${index} from DOM: fileName=${attachment.fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}, id=${attachment.id}, parentAttachmentId=${attachment.parentAttachmentId}`);
             addAttachmentEventListeners(li, index);
         });
 
-        // If no attachments were found in the DOM, try to initialize from a hidden input (server data)
+        // Initialize from server data if no DOM attachments
         if (window.attachments.length === 0) {
             const attachmentLinks = document.querySelector('#attachmentLinks')?.value;
             if (attachmentLinks) {
@@ -220,22 +221,22 @@
                     attachmentsFromServer.forEach((attachment, index) => {
                         if (!attachment.isDeleted) {
                             const att = {
-                                id: attachment.id || 0,
+                                id: initialIsCreateMode ? 0 : (attachment.id || 0),
                                 fileName: attachment.fileName,
-                                url: attachment.filePath || null, // Use filePath from the server
+                                url: attachment.filePath || null,
                                 caption: attachment.caption || '',
                                 isInternal: attachment.isInternal || false,
                                 isDeleted: false,
-                                fromParent: attachment.fromParent || false,
-                                parentAttachmentId: attachment.parentAttachmentId || attachment.id || 0
+                                isMarkedWithX: false,
+                                fromParent: true,
+                                parentAttachmentId: attachment.id || 0
                             };
-                            if (att.fileName && !window.attachments.some(a => a.fileName === att.fileName)) {
+                            if (att.fileName && !window.attachments.some(a => a.fileName === att.fileName && !a.isDeleted)) {
                                 window.attachments.push(att);
-                                console.log(`Initialized attachment ${index} from server data: fileName=${att.fileName}, url=${att.url}, fromParent=${att.fromParent}`);
+                                console.log(`Initialized attachment ${index} from server data: fileName=${att.fileName}, url=${att.url}, fromParent=${att.fromParent}, id=${att.id}, parentAttachmentId=${att.parentAttachmentId}`);
                             }
                         }
                     });
-                    // Reindex to ensure the UI is updated with server-loaded attachments
                     window.reindexAttachments();
                 } catch (e) {
                     console.error('Error parsing attachmentLinks:', e);
@@ -243,25 +244,27 @@
             }
         }
 
+        // Initialize references from DOM
         document.querySelectorAll('#referenceList li').forEach((li, index) => {
             const referenceId = parseInt(li.dataset.referenceId) || 0;
             const anchor = li.querySelector('a.reference-link');
             const openOption = anchor?.getAttribute('target') || '_self';
             const url = anchor?.getAttribute('href') || anchor?.textContent || '';
             const reference = {
-                id: referenceId,
+                id: initialIsCreateMode ? 0 : referenceId,
                 url: url,
                 description: li.querySelector('.description-input')?.value || '',
                 isInternal: li.querySelector('.internal-reference')?.checked || false,
                 openOption: openOption,
                 isDeleted: false,
-                fromParent: referenceId > 0, // Assume existing references are from parent or previously saved
+                isMarkedWithX: false,
+                fromParent: referenceId > 0,
                 parentReferenceId: referenceId
             };
-            if (reference.url && !window.references.some(r => r.url === reference.url)) {
+            if (reference.url && !window.references.some(r => r.url === reference.url && !r.isDeleted)) {
                 window.references.push(reference);
             }
-            console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${reference.openOption}, fromParent=${reference.fromParent}`);
+            console.log(`Initialized reference ${index}: url=${reference.url}, openOption=${reference.openOption}, fromParent=${reference.fromParent}, id=${reference.id}, parentReferenceId=${reference.parentReferenceId}`);
             addReferenceEventListeners(li, index);
         });
 
@@ -484,21 +487,21 @@
                 }
 
                 if (isFromParent && parentAttachmentId > 0) {
-                    // For parent-sourced attachments, mark as deleted locally only
-                    console.log(`Parent-sourced attachment: marking locally as deleted, parentAttachmentId=${parentAttachmentId}`);
+                    console.log(`Parent-sourced attachment: marking locally with isMarkedWithX, parentAttachmentId=${parentAttachmentId}`);
                     window.attachments[index].isDeleted = true;
-                    window.deletedAttachmentIds.push(parentAttachmentId); // Track for form submission
+                    window.attachments[index].isMarkedWithX = true;
+                    window.deletedAttachmentIds.push(parentAttachmentId);
                     window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                     window.reindexAttachments();
                     toastr.success("Parent attachment marked for deletion. Save the form to finalize.");
                 } else if (attachmentId > 0) {
-                    // For existing non-parent attachments, call RemoveAttachment
                     jQuery.post('/Admin/Category/RemoveAttachment', { id: attachmentId }, function (response) {
                         console.log("RemoveAttachment response:", response);
                         if (response && response.success) {
                             console.log("Successfully marked attachment for deletion:", attachmentId);
                             window.deletedAttachmentIds.push(attachmentId);
                             window.attachments[index].isDeleted = true;
+                            window.attachments[index].isMarkedWithX = true;
                             window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                             window.reindexAttachments();
                             toastr.success("Attachment marked for deletion. Save the form to finalize.");
@@ -511,9 +514,9 @@
                         toastr.error("An error occurred while marking the attachment for deletion.");
                     });
                 } else {
-                    // For unsaved attachments, remove locally
                     console.log("Removing unsaved attachment at index:", index);
                     window.attachments[index].isDeleted = true;
+                    window.attachments[index].isMarkedWithX = true;
                     window.pendingFiles = window.pendingFiles.filter(pf => pf.name !== attachment.fileName);
                     window.reindexAttachments();
                     toastr.success("Attachment removed. Save the form to finalize.");
@@ -537,20 +540,20 @@
                 const isFromParent = reference.fromParent;
 
                 if (isFromParent && parentReferenceId > 0) {
-                    // For parent-sourced references, mark as deleted locally only
-                    console.log(`Parent-sourced reference: marking locally as deleted, parentReferenceId=${parentReferenceId}`);
+                    console.log(`Parent-sourced reference: marking locally with isMarkedWithX, parentReferenceId=${parentReferenceId}`);
                     window.references[index].isDeleted = true;
-                    window.deletedReferenceIds.push(parentReferenceId); // Track for form submission
+                    window.references[index].isMarkedWithX = true;
+                    window.deletedReferenceIds.push(parentReferenceId);
                     window.reindexReferences();
                     toastr.success("Parent reference marked for deletion. Save the form to finalize.");
                 } else if (referenceId > 0) {
-                    // For existing non-parent references, call RemoveReference
                     jQuery.post('/Admin/Category/RemoveReference', { id: referenceId }, function (response) {
                         console.log("RemoveReference response:", response);
                         if (response && response.success) {
                             console.log("Successfully marked reference for deletion:", referenceId);
                             window.deletedReferenceIds.push(referenceId);
                             window.references[index].isDeleted = true;
+                            window.references[index].isMarkedWithX = true;
                             window.reindexReferences();
                             toastr.success("Reference marked for deletion. Save the form to finalize.");
                         } else {
@@ -562,9 +565,9 @@
                         toastr.error("An error occurred while marking the reference for deletion.");
                     });
                 } else {
-                    // For unsaved references, remove locally
                     console.log("Removing unsaved reference at index:", index);
                     window.references[index].isDeleted = true;
+                    window.references[index].isMarkedWithX = true;
                     window.reindexReferences();
                     toastr.success("Reference removed. Save the form to finalize.");
                 }
@@ -576,53 +579,53 @@
     });
 
     function addAttachmentToList(attachment, index) {
-        if (attachment.isDeleted || !attachment.fileName) return;
+        if (attachment.isDeleted || attachment.isMarkedWithX || !attachment.fileName) return;
         let attachmentList = document.getElementById("attachmentList");
         let li = document.createElement("li");
         li.id = `attachment-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
-        li.dataset.attachmentId = attachment.id || attachment.parentAttachmentId || 0;
+        li.dataset.attachmentId = attachment.parentAttachmentId || attachment.id || 0;
         const fileName = attachment.fileName || 'Unnamed_Attachment';
         const fileNameHtml = attachment.url
             ? `<a href='${attachment.url}' download="${fileName}" class="attachment-link">${fileName}</a>`
             : `<strong>${fileName}</strong>`;
         li.innerHTML = `
-            <div>
-                ${fileNameHtml}<br />
-                <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption || ''}" data-index="${index}" />
-            </div>
-            <div>
-                <input type="checkbox" class="form-check-input internal-attachment" data-index="${index}" ${attachment.isInternal ? "checked" : ""} />
-                <span>Internal</span>
-                <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
-            </div>
-        `;
+        <div>
+            ${fileNameHtml}<br />
+            <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption || ''}" data-index="${index}" />
+        </div>
+        <div>
+            <input type="checkbox" class="form-check-input internal-attachment" data-index="${index}" ${attachment.isInternal ? "checked" : ""} />
+            <span>Internal</span>
+            <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
+        </div>
+    `;
         addAttachmentEventListeners(li, index);
         attachmentList.appendChild(li);
-        console.log(`Added attachment to list: index=${index}, fileName=${fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}`);
+        console.log(`Added attachment to list: index=${index}, fileName=${fileName}, url=${attachment.url}, fromParent=${attachment.fromParent}, id=${attachment.id}, parentAttachmentId=${attachment.parentAttachmentId}`);
     }
 
     function addReferenceToList(reference, index) {
-        if (reference.isDeleted || !reference.url) return;
+        if (reference.isDeleted || reference.isMarkedWithX || !reference.url) return;
         let referenceList = document.getElementById("referenceList");
         let li = document.createElement("li");
         li.id = `reference-${index}`;
         li.className = "list-group-item d-flex justify-content-between align-items-center";
-        li.dataset.referenceId = reference.id || reference.parentReferenceId || 0;
+        li.dataset.referenceId = reference.parentReferenceId || reference.id || 0;
         li.innerHTML = `
-            <div>
-                <a href="${reference.url}" target="${reference.openOption}" class="reference-link">${reference.url}</a><br />
-                <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
-            </div>
-            <div>
-                <input type="checkbox" class="form-check-input internal-reference" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
-                <span>Internal</span>
-                <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
-            </div>
-        `;
+        <div>
+            <a href="${reference.url}" target="${reference.openOption}" class="reference-link">${reference.url}</a><br />
+            <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
+        </div>
+        <div>
+            <input type="checkbox" class="form-check-input internal-reference" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
+            <span>Internal</span>
+            <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
+        </div>
+    `;
         addReferenceEventListeners(li, index);
         referenceList.appendChild(li);
-        console.log(`Added reference to list: index=${index}, url=${reference.url}, openOption=${reference.openOption}, fromParent=${reference.fromParent}`);
+        console.log(`Added reference to list: index=${index}, url=${reference.url}, openOption=${reference.openOption}, fromParent=${reference.fromParent}, id=${reference.id}, parentReferenceId=${reference.parentReferenceId}`);
     }
 
     function addAttachmentEventListeners(li, index) {
@@ -689,14 +692,13 @@
         }
 
         // Preserve only user-added attachments/references (not from parent)
-        const userAddedAttachments = window.attachments.filter(a => !a.fromParent && !a.isDeleted);
-        const userAddedReferences = window.references.filter(r => !r.fromParent && !r.isDeleted);
+        const userAddedAttachments = window.attachments.filter(a => !a.fromParent && !a.isDeleted && !a.isMarkedWithX);
+        const userAddedReferences = window.references.filter(r => !r.fromParent && !r.isDeleted && !r.isMarkedWithX);
 
         // Clear existing attachments/references and initialize with user-added ones
         window.attachments = userAddedAttachments;
         window.references = userAddedReferences;
-        // Preserve pendingFiles that match remaining attachments
-        window.pendingFiles = window.pendingFiles.filter(f => window.attachments.some(a => a.fileName === f.name && !a.isDeleted));
+        window.pendingFiles = window.pendingFiles.filter(f => window.attachments.some(a => a.fileName === f.name && !a.isDeleted && !a.isMarkedWithX));
         console.log('Preserved pendingFiles after updateAttachmentsAndReferences:', window.pendingFiles);
 
         // Add new parent category attachments
@@ -705,14 +707,15 @@
                 console.warn("Skipping invalid attachment (missing fileName):", att);
                 return;
             }
-            if (!window.attachments.some(a => a.fileName === att.fileName && a.parentAttachmentId === att.id && !a.isDeleted)) {
+            if (!window.attachments.some(a => a.fileName === att.fileName && a.parentAttachmentId === att.id && !a.isDeleted && !a.isMarkedWithX)) {
                 window.attachments.push({
-                    id: 0, // New record for subcategory
+                    id: initialIsCreateMode ? 0 : (att.id || 0),
                     fileName: att.fileName,
                     url: att.url || null,
                     caption: att.caption || '',
                     isInternal: att.isInternal || false,
                     isDeleted: false,
+                    isMarkedWithX: false,
                     fromParent: true,
                     parentAttachmentId: att.id || 0
                 });
@@ -725,14 +728,15 @@
                 console.warn("Skipping invalid reference (missing url):", ref);
                 return;
             }
-            if (!window.references.some(r => r.url === ref.url && r.parentReferenceId === ref.id && !r.isDeleted)) {
+            if (!window.references.some(r => r.url === ref.url && r.parentReferenceId === ref.id && !r.isDeleted && !r.isMarkedWithX)) {
                 window.references.push({
-                    id: 0, // New record for subcategory
+                    id: initialIsCreateMode ? 0 : (ref.id || 0),
                     url: ref.url,
                     description: ref.description || '',
                     isInternal: ref.isInternal || false,
                     openOption: ref.openOption || '_self',
                     isDeleted: false,
+                    isMarkedWithX: false,
                     fromParent: true,
                     parentReferenceId: ref.id || 0
                 });

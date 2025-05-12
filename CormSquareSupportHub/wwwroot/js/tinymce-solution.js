@@ -10,6 +10,7 @@ if (typeof Prism === 'undefined') {
 try {
     tinymce.init({
         selector: '#editor',
+        readonly: false,
         plugins: 'anchor autolink charmap codesample emoticons lists table visualblocks wordcount fullscreen image link media code',
         toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | align lineheight | numlist bullist indent outdent | codesample table link image media | copycode | code fullscreen',
         menubar: 'file edit insert view format table tools help',

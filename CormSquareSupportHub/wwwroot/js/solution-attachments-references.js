@@ -1,4 +1,4 @@
-﻿console.log("Script starting: solution-attachments-references.js (v4.0)");
+﻿console.log("Script starting: solution-attachments-references.js (v4.1)");
 
 (function () {
     // Determine if in create mode (no solutionId in URL)
@@ -312,7 +312,7 @@
         li.dataset.attachmentId = attachment.id || 0;
         const fileName = attachment.fileName || 'Unnamed_Attachment';
         const fileNameHtml = attachment.url
-            ? `<a href="${attachment.url}" download="${fileName}" onclick="console.log('Downloading: ${attachment.url}')">${fileName}</a>`
+            ? `<a href="${attachment.url}" class="attachment-link" target="_blank" rel="noopener noreferrer" onclick="console.log('Opening: ${attachment.url}')">${fileName}</a>`
             : `<strong>${fileName}</strong>`;
         li.innerHTML = `
             <div>
