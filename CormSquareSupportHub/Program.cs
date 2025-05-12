@@ -26,6 +26,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddAntiforgery(options =>
 {
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    //options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; //To publish on IIS Express (it was .Earlier before) Because usually http is converted to https so this is done to avoid that
     options.Cookie.SameSite = SameSiteMode.Lax; // Use Lax unless cross-site is required
 });
 

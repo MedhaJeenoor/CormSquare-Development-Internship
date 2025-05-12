@@ -210,10 +210,10 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         Status = submitAction == "Save" ? "Draft" : "Submitted"
                     };
                     solution.UpdateAudit(userId);
-                    if (submitAction == "Submit")
-                    {
-                        solution.DocId = await GenerateDocId(solution);
-                    }
+                    //if (submitAction == "Submit")
+                    //{
+                    //    solution.DocId = await GenerateDocId(solution);
+                    //}
                     _unitOfWork.Solution.Add(solution);
                 }
 
@@ -889,6 +889,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             return View(model);
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Review(int id, string feedback, string status)
@@ -921,12 +922,26 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             {
                 solution.ApprovedById = user.Id;
                 solution.PublishedDate = DateTime.UtcNow;
-                solution.DocId = await GenerateDocId(solution);
+                solution.DocId = await GenerateDocId(solution); // DocId generated here
+
+                // Update the associated issue's status to "Published"
+                var issue = await _unitOfWork.Issue.GetFirstOrDefaultAsync(i => i.Description == solution.IssueDescription && !i.IsDeleted);
+                if (issue != null)
+                {
+                    issue.Status = "Published";
+                    issue.UpdateAudit(user.Id);
+                    _unitOfWork.Issue.Update(issue);
+                }
+                else
+                {
+                    Console.WriteLine($"No issue found with Description matching Solution.IssueDescription: {solution.IssueDescription}");
+                }
             }
             else
             {
                 solution.ApprovedById = null;
                 solution.PublishedDate = null;
+                solution.DocId = null; // Ensure DocId is cleared if not approved
             }
 
             try
@@ -1093,6 +1108,89 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 TempData["error"] = "Error accessing the attachment file.";
                 Console.WriteLine($"DownloadAttachment: Error opening file {fullPath} for ID {id}: {ex.Message}");
                 return StatusCode(500, "Error accessing the file.");
+            }
+        }
+
+        [HttpGet]
+        [Route("Admin/Solution/DownloadAttachmentForReview/{id?}")]
+        public async Task<IActionResult> DownloadAttachmentForReview(int id)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                Console.WriteLine("DownloadAttachmentForReview: Unauthorized access attempt.");
+                return Unauthorized();
+            }
+
+            var attachment = await _unitOfWork.SolutionAttachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
+            if (attachment == null)
+            {
+                Console.WriteLine($"DownloadAttachmentForReview: Attachment ID {id} not found or deleted.");
+                return NotFound();
+            }
+
+            string fullPath = Path.Combine(_attachmentSettings.UploadPath, attachment.FilePath).Replace('/', Path.DirectorySeparatorChar);
+            Console.WriteLine($"DownloadAttachmentForReview: Attempting to access file at {fullPath} for ID {id}");
+
+            if (!System.IO.File.Exists(fullPath))
+            {
+                Console.WriteLine($"DownloadAttachmentForReview: File not found at {fullPath} for ID {id}");
+                return NotFound();
+            }
+
+            try
+            {
+                // Determine MIME type and Content-Disposition
+                string mimeType = "application/octet-stream";
+                string contentDisposition = "attachment"; // Default to download
+                string ext = Path.GetExtension(attachment.FileName)?.ToLowerInvariant();
+
+                if (ext != null)
+                {
+                    switch (ext)
+                    {
+                        case ".pdf":
+                            mimeType = "application/pdf";
+                            contentDisposition = "inline"; // Allow opening in browser
+                            break;
+                        case ".png":
+                            mimeType = "image/png";
+                            contentDisposition = "inline";
+                            break;
+                        case ".jpg":
+                        case ".jpeg":
+                            mimeType = "image/jpeg";
+                            contentDisposition = "inline";
+                            break;
+                        case ".txt":
+                            mimeType = "text/plain";
+                            contentDisposition = "inline";
+                            break;
+                        case ".docx":
+                            mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                            contentDisposition = "attachment"; // Force download for non-viewable types
+                            break;
+                        default:
+                            mimeType = "application/octet-stream";
+                            contentDisposition = "attachment";
+                            break;
+                    }
+                }
+
+                var fileStream = System.IO.File.OpenRead(fullPath);
+                Console.WriteLine($"DownloadAttachmentForReview: Serving file {attachment.FileName} (ID: {id}), MIME: {mimeType}, Disposition: {contentDisposition}");
+                Response.Headers.Add("Content-Disposition", $"{contentDisposition}; filename=\"{attachment.FileName}\"");
+                return File(fileStream, mimeType);
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"DownloadAttachmentForReview: IO Error accessing file {fullPath} for ID {id}: {ex.Message}");
+                return StatusCode(500, "Error reading the attachment file.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DownloadAttachmentForReview: Unexpected error for file {fullPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
     }

@@ -11,6 +11,14 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Net.Http.Headers;
+using Humanizer;
+using Microsoft.VisualStudio.Web.CodeGeneration.Utils;
+using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.Blazor;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+//using System.Net.Mail;
+using System.Reflection.Metadata;
+using System.Threading.Channels;
 
 namespace SupportHub.Areas.Admin.Controllers
 {
@@ -99,7 +107,6 @@ namespace SupportHub.Areas.Admin.Controllers
             {
                 Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted && c.ParentCategoryId == null)).ToList()
             };
-
             return View(category);
         }
 
@@ -120,7 +127,7 @@ namespace SupportHub.Areas.Admin.Controllers
             }
 
             // Log form data
-            Console.WriteLine($"Form submission: Name={category.Name}, ParentCategoryId={category.ParentCategoryId}, FilesCount={(files?.Length ?? 0)}, AttachmentData={AttachmentData}, ReferenceData={ReferenceData}, DeletedAttachmentIds={string.Join(",", deletedAttachmentIds ?? new List<int>())}");
+            Console.WriteLine($"Form submission: Name={category.Name}, ParentCategoryId={category.ParentCategoryId}, FilesCount={(files?.Length ?? 0)}, AttachmentData={AttachmentData}, ReferenceData={ReferenceData}, DeletedAttachmentIds={string.Join(",", deletedAttachmentIds ?? new List<int>())}, DeletedReferenceIds={string.Join(",", deletedReferenceIds ?? new List<int>())}");
             foreach (var key in Request.Form.Keys)
             {
                 Console.WriteLine($"Form key: {key}, Value: {Request.Form[key]}");
@@ -226,6 +233,14 @@ namespace SupportHub.Areas.Admin.Controllers
                 var savedAttachments = new List<object>();
                 List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new();
 
+                // Parse AttachmentData and ReferenceData for deletion checks
+                var attachmentDataItems = string.IsNullOrEmpty(AttachmentData)
+                    ? new List<Dictionary<string, object>>()
+                    : JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(AttachmentData);
+                var referenceDataItems = string.IsNullOrEmpty(ReferenceData)
+                    ? new List<Dictionary<string, object>>()
+                    : JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(ReferenceData);
+
                 // Process Parent Category Attachments and References
                 if (category.ParentCategoryId.HasValue)
                 {
@@ -235,13 +250,39 @@ namespace SupportHub.Areas.Admin.Controllers
 
                     if (parentCategory != null)
                     {
+                        // Log parent category attachments and references
+                        Console.WriteLine($"Parent Category ID: {parentCategory.Id}, Attachments: {JsonConvert.SerializeObject(parentCategory.Attachments.Select(a => new { a.Id, a.FileName, a.IsDeleted }))}");
+                        Console.WriteLine($"Parent Category ID: {parentCategory.Id}, References: {JsonConvert.SerializeObject(parentCategory.References.Select(r => new { r.Id, r.Url, r.IsDeleted }))}");
+                        Console.WriteLine($"DeletedAttachmentIds: {string.Join(",", deletedAttachmentIds ?? new List<int>())}");
+                        Console.WriteLine($"DeletedReferenceIds: {string.Join(",", deletedReferenceIds ?? new List<int>())}");
+                        Console.WriteLine($"AttachmentData: {AttachmentData}");
+                        Console.WriteLine($"ReferenceData: {ReferenceData}");
+
                         // Copy Parent Attachments
                         var parentAttachments = parentCategory.Attachments
                             .Where(a => !a.IsDeleted && !(deletedAttachmentIds?.Contains(a.Id) ?? false))
+                            .Where(a =>
+                            {
+                                var attData = attachmentDataItems.FirstOrDefault(d => d.ContainsKey("parentAttachmentId") && Convert.ToInt32(d["parentAttachmentId"]) == a.Id);
+                                bool isDeletedInData = attData != null && attData.ContainsKey("isDeleted") && bool.Parse(attData["isDeleted"].ToString());
+                                bool isMarkedWithX = attData != null && attData.ContainsKey("isMarkedWithX") && bool.Parse(attData["isMarkedWithX"].ToString());
+                                if (isDeletedInData || isMarkedWithX)
+                                {
+                                    Console.WriteLine($"Skipping parent attachment: Id={a.Id}, FileName={a.FileName}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+                                    return false;
+                                }
+                                return true;
+                            })
                             .ToList();
+
+                        if (!parentAttachments.Any())
+                        {
+                            Console.WriteLine("No non-deleted parent attachments to copy after filtering.");
+                        }
 
                         foreach (var parentAttachment in parentAttachments)
                         {
+                            Console.WriteLine($"Processing parent attachment: Id={parentAttachment.Id}, FileName={parentAttachment.FileName}");
                             string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(parentAttachment.FileName);
                             string relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
                             string destPath = Path.Combine(_attachmentSettings.UploadPath, relativeFilePath);
@@ -265,7 +306,10 @@ namespace SupportHub.Areas.Admin.Controllers
                                 filePath = relativeFilePath,
                                 originalFileName = parentAttachment.FileName,
                                 caption = parentAttachment.Caption,
-                                isInternal = parentAttachment.IsInternal
+                                isInternal = parentAttachment.IsInternal,
+                                fromParent = true,
+                                parentAttachmentId = parentAttachment.Id,
+                                isMarkedWithX = false
                             });
 
                             stagedAttachments.Add((newAttachment, sourcePath, destPath, parentAttachment.FileName));
@@ -275,10 +319,28 @@ namespace SupportHub.Areas.Admin.Controllers
                         // Copy Parent References
                         var parentReferences = parentCategory.References
                             .Where(r => !r.IsDeleted && !(deletedReferenceIds?.Contains(r.Id) ?? false))
+                            .Where(r =>
+                            {
+                                var refData = referenceDataItems.FirstOrDefault(d => d.ContainsKey("parentReferenceId") && Convert.ToInt32(d["parentReferenceId"]) == r.Id);
+                                bool isDeletedInData = refData != null && refData.ContainsKey("isDeleted") && bool.Parse(refData["isDeleted"].ToString());
+                                bool isMarkedWithX = refData != null && refData.ContainsKey("isMarkedWithX") && bool.Parse(refData["isMarkedWithX"].ToString());
+                                if (isDeletedInData || isMarkedWithX)
+                                {
+                                    Console.WriteLine($"Skipping parent reference: Id={r.Id}, Url={r.Url}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+                                    return false;
+                                }
+                                return true;
+                            })
                             .ToList();
+
+                        if (!parentReferences.Any())
+                        {
+                            Console.WriteLine("No non-deleted parent references to copy after filtering.");
+                        }
 
                         foreach (var parentReference in parentReferences)
                         {
+                            Console.WriteLine($"Processing parent reference: Id={parentReference.Id}, Url={parentReference.Url}");
                             var newReference = new Reference
                             {
                                 Url = parentReference.Url,
@@ -296,19 +358,30 @@ namespace SupportHub.Areas.Admin.Controllers
                                 url = parentReference.Url,
                                 description = parentReference.Description,
                                 isInternal = parentReference.IsInternal,
-                                openOption = parentReference.OpenOption
+                                openOption = parentReference.OpenOption,
+                                fromParent = true,
+                                parentReferenceId = parentReference.Id,
+                                isMarkedWithX = false
                             });
                             Console.WriteLine($"Added parent reference: {parentReference.Url}");
                         }
 
                         await _unitOfWork.SaveAsync();
                     }
+                    else
+                    {
+                        Console.WriteLine($"Parent category not found: ParentCategoryId={category.ParentCategoryId}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No parent category specified.");
                 }
 
                 // Process Form References
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
-                    var formReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
+                    var formReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id, isCreateAction: true);
                     savedReferences.AddRange(formReferences);
                     await _unitOfWork.SaveAsync();
                     Console.WriteLine($"Saved {formReferences.Count} form references for category {category.Id}");
@@ -317,7 +390,7 @@ namespace SupportHub.Areas.Admin.Controllers
                 // Process Form Attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || (files?.Any() ?? false))
                 {
-                    var formAttachments = await ProcessAttachmentsAsync(category, files?.ToList(), AttachmentData, user.Id);
+                    var formAttachments = await ProcessAttachmentsAsync(category, files?.ToList(), AttachmentData, user.Id, isCreateAction: true);
                     var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
 
                     foreach (var item in formAttachments)
@@ -331,9 +404,10 @@ namespace SupportHub.Areas.Admin.Controllers
                         var fromParent = (bool)item.GetType().GetProperty("fromParent").GetValue(item);
                         var parentAttachmentId = (int)item.GetType().GetProperty("parentAttachmentId").GetValue(item);
 
-                        // Skip parent attachments already processed
+                        // Skip parent-sourced attachments (already processed)
                         if (fromParent && parentAttachmentId > 0)
                         {
+                            Console.WriteLine($"Skipping parent-sourced attachment in form loop: parentAttachmentId={parentAttachmentId}, fileName={originalFileName}");
                             continue;
                         }
 
@@ -420,8 +494,8 @@ namespace SupportHub.Areas.Admin.Controllers
                             }
                             else
                             {
-                                Console.WriteLine($"Error: No source or uploaded file for {originalFileName} (GUID: {entity.FileName})");
-                                entity.IsDeleted = true;
+                                Console.WriteLine($"Warning: No source or uploaded file for {originalFileName} (GUID: {entity.FileName})");
+                                entity.SoftDelete(user.Id);
                                 _unitOfWork.Attachment.Update(entity);
                                 await _unitOfWork.SaveAsync();
                             }
@@ -437,6 +511,12 @@ namespace SupportHub.Areas.Admin.Controllers
                 await _unitOfWork.SaveAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 Console.WriteLine($"Committed transaction: Created category {category.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
+
+                // Log final database state
+                var finalAttachments = await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted);
+                var finalReferences = await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == category.Id && !r.IsDeleted);
+                Console.WriteLine($"Final Attachments: {JsonConvert.SerializeObject(finalAttachments.Select(a => new { a.Id, a.FileName }))}");
+                Console.WriteLine($"Final References: {JsonConvert.SerializeObject(finalReferences.Select(r => new { r.Id, r.Url }))}");
 
                 return Json(new { success = true, redirectUrl = "/Admin/Category/Index" });
             }
@@ -478,7 +558,7 @@ namespace SupportHub.Areas.Admin.Controllers
             var attachments = category.Attachments.Where(a => !a.IsDeleted).ToList();
             var references = category.References.Where(r => !r.IsDeleted).ToList();
 
-            // Copy parent attachments and references to the category if not already present
+            // Copy parent attachments and references only if they don't already exist
             if (category.ParentCategoryId.HasValue)
             {
                 var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(
@@ -489,7 +569,8 @@ namespace SupportHub.Areas.Admin.Controllers
                 {
                     foreach (var parentAttachment in parentCategory.Attachments.Where(a => !a.IsDeleted))
                     {
-                        if (!category.Attachments.Any(a => a.FileName == parentAttachment.FileName && !a.IsDeleted))
+                        // Check if an attachment with the same FileName and FilePath already exists
+                        if (!attachments.Any(a => a.FileName == parentAttachment.FileName && a.FilePath == parentAttachment.FilePath && !a.IsDeleted))
                         {
                             var newAttachment = new Attachment
                             {
@@ -502,7 +583,7 @@ namespace SupportHub.Areas.Admin.Controllers
                             };
                             newAttachment.UpdateAudit(user.Id);
                             _unitOfWork.Attachment.Add(newAttachment);
-                            category.Attachments.Add(newAttachment);
+                            attachments.Add(newAttachment);
 
                             // Copy the physical file
                             string sourcePath = Path.Combine(_attachmentSettings.UploadPath, parentAttachment.FilePath);
@@ -518,11 +599,16 @@ namespace SupportHub.Areas.Admin.Controllers
                                 Console.WriteLine($"Copied parent attachment: {sourcePath} to {destPath}");
                             }
                         }
+                        else
+                        {
+                            Console.WriteLine($"Skipping duplicate parent attachment: FileName={parentAttachment.FileName}");
+                        }
                     }
 
                     foreach (var parentReference in parentCategory.References.Where(r => !r.IsDeleted))
                     {
-                        if (!category.References.Any(r => r.Url == parentReference.Url && !r.IsDeleted))
+                        // Check if a reference with the same Url and Description already exists
+                        if (!references.Any(r => r.Url == parentReference.Url && r.Description == parentReference.Description && !r.IsDeleted))
                         {
                             var newReference = new Reference
                             {
@@ -535,7 +621,11 @@ namespace SupportHub.Areas.Admin.Controllers
                             };
                             newReference.UpdateAudit(user.Id);
                             _unitOfWork.Reference.Add(newReference);
-                            category.References.Add(newReference);
+                            references.Add(newReference);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Skipping duplicate parent reference: Url={parentReference.Url}");
                         }
                     }
 
@@ -570,6 +660,7 @@ namespace SupportHub.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(Category model, List<IFormFile> files, string ReferenceData, string AttachmentData, string submitAction, List<int> deletedAttachmentIds, List<int> deletedReferenceIds)
         {
             var user = await _userManager.GetUserAsync(User);
@@ -652,18 +743,152 @@ namespace SupportHub.Areas.Admin.Controllers
                 }
 
                 var savedReferences = new List<object>();
+                var savedAttachments = new List<object>();
+                List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new();
+
+                // Process Parent Category Attachments and References
+                if (category.ParentCategoryId.HasValue)
+                {
+                    var parentCategory = await _unitOfWork.Category.GetFirstOrDefaultAsync(
+                        c => c.Id == category.ParentCategoryId.Value && !c.IsDeleted,
+                        includeProperties: "Attachments,References");
+
+                    if (parentCategory != null)
+                    {
+                        // Copy Parent Attachments (only if not already in category and not deleted)
+                        var parentAttachments = parentCategory.Attachments
+                            .Where(a => !a.IsDeleted && !(deletedAttachmentIds?.Contains(a.Id) ?? false))
+                            .Where(a =>
+                            {
+                                var attachmentDataItems = !string.IsNullOrEmpty(AttachmentData)
+                                ? JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(AttachmentData)
+                                : new List<Dictionary<string, object>>();
+                                var attData = attachmentDataItems.FirstOrDefault(d => d.ContainsKey("parentAttachmentId") && d["parentAttachmentId"] != null && Convert.ToInt32(d["parentAttachmentId"]) == a.Id);
+                                bool isDeletedInData = attData != null && attData.ContainsKey("isDeleted") && bool.Parse(attData["isDeleted"].ToString());
+                                bool isMarkedWithX = attData != null && attData.ContainsKey("isMarkedWithX") && bool.Parse(attData["isMarkedWithX"].ToString());
+                                if (isDeletedInData || isMarkedWithX)
+                                {
+                                    Console.WriteLine($"Skipping parent attachment: Id={a.Id}, FileName={a.FileName}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .ToList();
+                        var existingAttachments = category.Attachments.Where(a => !a.IsDeleted).ToList();
+
+                        foreach (var parentAttachment in parentAttachments)
+                        {
+                            // Skip if already exists in the category
+                            if (existingAttachments.Any(a => a.FileName == parentAttachment.FileName && a.FilePath == parentAttachment.FilePath))
+                            {
+                                Console.WriteLine($"Parent attachment already exists in category {category.Id}: {parentAttachment.FileName}");
+                                continue;
+                            }
+
+                            string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(parentAttachment.FileName);
+                            string relativeFilePath = Path.Combine("categories", category.Id.ToString(), guidFileName);
+                            string destPath = Path.Combine(_attachmentSettings.UploadPath, relativeFilePath);
+                            string sourcePath = Path.Combine(_attachmentSettings.UploadPath, parentAttachment.FilePath);
+
+                            var newAttachment = new Attachment
+                            {
+                                FileName = parentAttachment.FileName,
+                                FilePath = relativeFilePath,
+                                Caption = parentAttachment.Caption,
+                                IsInternal = parentAttachment.IsInternal,
+                                CategoryId = category.Id
+                            };
+                            newAttachment.UpdateAudit(user.Id);
+                            _unitOfWork.Attachment.Add(newAttachment);
+
+                            savedAttachments.Add(new
+                            {
+                                id = 0,
+                                fileName = guidFileName,
+                                filePath = relativeFilePath,
+                                originalFileName = parentAttachment.FileName,
+                                caption = parentAttachment.Caption,
+                                isInternal = parentAttachment.IsInternal,
+                                fromParent = true,
+                                parentAttachmentId = parentAttachment.Id,
+                                isMarkedWithX = false
+                            });
+
+                            stagedAttachments.Add((newAttachment, sourcePath, destPath, parentAttachment.FileName));
+                            Console.WriteLine($"Staged parent attachment for category {category.Id}: {parentAttachment.FileName} -> {relativeFilePath}");
+                        }
+
+                        // Copy Parent References (only if not already in category and not deleted)
+                        var parentReferences = parentCategory.References
+                            .Where(r => !r.IsDeleted && !(deletedReferenceIds?.Contains(r.Id) ?? false))
+                            .Where(r =>
+                            {
+                                var referenceDataItems = !string.IsNullOrEmpty(ReferenceData)
+                                ? JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(ReferenceData)
+                                : new List<Dictionary<string, object>>();
+                                var refData = referenceDataItems.FirstOrDefault(d => d.ContainsKey("parentReferenceId") && d["parentReferenceId"] != null && Convert.ToInt32(d["parentReferenceId"]) == r.Id);
+                                bool isDeletedInData = refData != null && refData.ContainsKey("isDeleted") && bool.Parse(refData["isDeleted"].ToString());
+                                bool isMarkedWithX = refData != null && refData.ContainsKey("isMarkedWithX") && bool.Parse(refData["isMarkedWithX"].ToString());
+                                if (isDeletedInData || isMarkedWithX)
+                                {
+                                    Console.WriteLine($"Skipping parent reference: Id={r.Id}, Url={r.Url}, isDeletedInData={isDeletedInData}, isMarkedWithX={isMarkedWithX}");
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .ToList();
+                        var existingReferences = category.References.Where(r => !r.IsDeleted).ToList();
+
+                        foreach (var parentReference in parentReferences)
+                        {
+                            // Skip if already exists in the category
+                            if (existingReferences.Any(r => r.Url == parentReference.Url && r.Description == parentReference.Description))
+                            {
+                                Console.WriteLine($"Parent reference already exists in category {category.Id}: {parentReference.Url}");
+                                continue;
+                            }
+
+                            var newReference = new Reference
+                            {
+                                Url = parentReference.Url,
+                                Description = parentReference.Description,
+                                IsInternal = parentReference.IsInternal,
+                                OpenOption = parentReference.OpenOption,
+                                CategoryId = category.Id
+                            };
+                            newReference.UpdateAudit(user.Id);
+                            _unitOfWork.Reference.Add(newReference);
+
+                            savedReferences.Add(new
+                            {
+                                id = 0,
+                                url = parentReference.Url,
+                                description = parentReference.Description,
+                                isInternal = parentReference.IsInternal,
+                                openOption = parentReference.OpenOption,
+                                fromParent = true,
+                                parentReferenceId = parentReference.Id,
+                                isMarkedWithX = false
+                            });
+                            Console.WriteLine($"Added parent reference for category {category.Id}: {parentReference.Url}");
+                        }
+
+                        await _unitOfWork.SaveAsync();
+                    }
+                }
+
+                // Process Form References
                 if (!string.IsNullOrEmpty(ReferenceData))
                 {
-                    savedReferences = await ProcessReferencesAsync(category, ReferenceData, user.Id);
+                    savedReferences.AddRange(await ProcessReferencesAsync(category, ReferenceData, user.Id));
                     await _unitOfWork.SaveAsync();
                     Console.WriteLine($"Saved {savedReferences.Count} references for category {category.Id}");
                 }
 
-                var savedAttachments = new List<object>();
-                List<(Attachment Entity, string SourcePath, string DestPath, string OriginalFileName)> stagedAttachments = new();
+                // Process Form Attachments
                 if (!string.IsNullOrEmpty(AttachmentData) || files?.Any() == true)
                 {
-                    savedAttachments = await ProcessAttachmentsAsync(category, files, AttachmentData, user.Id);
+                    savedAttachments.AddRange(await ProcessAttachmentsAsync(category, files, AttachmentData, user.Id));
                     var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
 
                     foreach (var item in savedAttachments)
@@ -674,6 +899,8 @@ namespace SupportHub.Areas.Admin.Controllers
                         var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
                         var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
                         var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
+                        var fromParent = (bool)item.GetType().GetProperty("fromParent").GetValue(item);
+                        var parentAttachmentId = (int)item.GetType().GetProperty("parentAttachmentId").GetValue(item);
 
                         Attachment entity;
                         if (id > 0)
@@ -714,7 +941,7 @@ namespace SupportHub.Areas.Admin.Controllers
                         {
                             var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.FileName == originalFileName && a.CategoryId == category.Id && !a.IsDeleted);
                             sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
-                            Console.WriteLine($"No uploaded file for {originalFileName}, sourcePath: {sourcePath}");
+                            Console.WriteLine($"No uploaded file for {originalFileName}, sourcePath: {sourcePath ?? "null"}");
                         }
 
                         stagedAttachments.Add((entity, sourcePath, destPath, originalFileName));
@@ -722,6 +949,7 @@ namespace SupportHub.Areas.Admin.Controllers
                     await _unitOfWork.SaveAsync();
                 }
 
+                // Soft-delete attachments
                 if (deletedAttachmentIds?.Any() == true)
                 {
                     foreach (var id in deletedAttachmentIds)
@@ -729,15 +957,15 @@ namespace SupportHub.Areas.Admin.Controllers
                         var attachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
                         if (attachment != null)
                         {
-                            //attachment.IsDeleted = true;
                             attachment.SoftDelete(user.Id);
-                            //_unitOfWork.Attachment.Update(attachment);
+                            _unitOfWork.Attachment.Update(attachment);
                             Console.WriteLine($"Marked attachment {id} as deleted for category {category.Id}");
                         }
                     }
                     await _unitOfWork.SaveAsync();
                 }
 
+                // Soft-delete references
                 if (deletedReferenceIds?.Any() == true)
                 {
                     foreach (var id in deletedReferenceIds)
@@ -745,15 +973,15 @@ namespace SupportHub.Areas.Admin.Controllers
                         var reference = await _unitOfWork.Reference.GetFirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
                         if (reference != null)
                         {
-                            //reference.IsDeleted = true;
                             reference.SoftDelete(user.Id);
-                            //_unitOfWork.Reference.Update(reference);
+                            _unitOfWork.Reference.Update(reference);
                             Console.WriteLine($"Marked reference {id} as deleted for category {category.Id}");
                         }
                     }
                     await _unitOfWork.SaveAsync();
                 }
 
+                // Save Files
                 foreach (var (entity, sourcePath, destPath, originalFileName) in stagedAttachments)
                 {
                     if (System.IO.File.Exists(destPath))
@@ -1149,7 +1377,7 @@ namespace SupportHub.Areas.Admin.Controllers
             return htmlContent;
         }
 
-        private async Task<List<object>> ProcessReferencesAsync(Category category, string referenceData, string userId)
+        private async Task<List<object>> ProcessReferencesAsync(Category category, string referenceData, string userId, bool isCreateAction = false)
         {
             var references = new List<object>();
             if (string.IsNullOrEmpty(referenceData))
@@ -1160,6 +1388,7 @@ namespace SupportHub.Areas.Admin.Controllers
             try
             {
                 var stagedReferences = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(referenceData);
+                Console.WriteLine($"Processing ReferenceData: {JsonConvert.SerializeObject(stagedReferences)}");
                 var existingReferences = (await _unitOfWork.Reference.GetAllAsync(r => r.CategoryId == category.Id && !r.IsDeleted)).ToList();
 
                 foreach (var refItem in stagedReferences)
@@ -1170,17 +1399,21 @@ namespace SupportHub.Areas.Admin.Controllers
                     bool isInternal = refItem.ContainsKey("isInternal") && bool.Parse(refItem["isInternal"].ToString());
                     string openOption = refItem["openOption"]?.ToString() ?? "";
                     bool isDeleted = refItem.ContainsKey("isDeleted") && bool.Parse(refItem["isDeleted"].ToString());
+                    bool isMarkedWithX = refItem.ContainsKey("isMarkedWithX") && bool.Parse(refItem["isMarkedWithX"].ToString());
                     bool fromParent = refItem.ContainsKey("fromParent") && bool.Parse(refItem["fromParent"].ToString());
                     int parentReferenceId = refItem.ContainsKey("parentReferenceId") ? Convert.ToInt32(refItem["parentReferenceId"]) : 0;
 
-                    // Skip parent references already processed
-                    //if (fromParent && parentReferenceId > 0)
-                    //{
-                    //    continue;
-                    //}
-
-                    if (isDeleted)
+                    // Skip deleted or marked references
+                    if (isDeleted || isMarkedWithX)
                     {
+                        Console.WriteLine($"Skipping reference: url={url}, parentReferenceId={parentReferenceId}, isDeleted={isDeleted}, isMarkedWithX={isMarkedWithX}");
+                        continue;
+                    }
+
+                    // Skip parent-sourced references in Create action
+                    if (isCreateAction && fromParent && parentReferenceId > 0)
+                    {
+                        Console.WriteLine($"Skipping parent-sourced reference in Create: parentReferenceId={parentReferenceId}, url={url}");
                         continue;
                     }
 
@@ -1196,6 +1429,7 @@ namespace SupportHub.Areas.Admin.Controllers
                             reference.OpenOption = openOption;
                             reference.UpdateAudit(userId);
                             _unitOfWork.Reference.Update(reference);
+                            Console.WriteLine($"Updated reference: id={reference.Id}, url={url}");
                         }
                         else
                         {
@@ -1216,6 +1450,7 @@ namespace SupportHub.Areas.Admin.Controllers
                         reference.UpdateAudit(userId);
                         _unitOfWork.Reference.Add(reference);
                         existingReferences.Add(reference);
+                        Console.WriteLine($"Added new reference: url={url}");
                     }
 
                     references.Add(new
@@ -1224,7 +1459,10 @@ namespace SupportHub.Areas.Admin.Controllers
                         url,
                         description,
                         isInternal,
-                        openOption
+                        openOption,
+                        fromParent,
+                        parentReferenceId,
+                        isMarkedWithX = false
                     });
                 }
             }
@@ -1236,7 +1474,8 @@ namespace SupportHub.Areas.Admin.Controllers
 
             return references;
         }
-        private async Task<List<object>> ProcessAttachmentsAsync(Category category, List<IFormFile> files, string attachmentData, string userId)
+
+        private async Task<List<object>> ProcessAttachmentsAsync(Category category, List<IFormFile> files, string attachmentData, string userId, bool isCreateAction = false)
         {
             var attachments = new List<object>();
             if (string.IsNullOrEmpty(attachmentData))
@@ -1247,29 +1486,70 @@ namespace SupportHub.Areas.Admin.Controllers
             try
             {
                 var stagedAttachments = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                Console.WriteLine($"Processing AttachmentData: {JsonConvert.SerializeObject(stagedAttachments)}");
+                var existingAttachments = (await _unitOfWork.Attachment.GetAllAsync(a => a.CategoryId == category.Id && !a.IsDeleted)).ToList();
+
                 foreach (var att in stagedAttachments)
                 {
                     int id = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
                     string originalFileName = att["fileName"]?.ToString() ?? "";
                     bool isDeleted = att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString());
+                    bool isMarkedWithX = att.ContainsKey("isMarkedWithX") && bool.Parse(att["isMarkedWithX"].ToString());
                     bool fromParent = att.ContainsKey("fromParent") && bool.Parse(att["fromParent"].ToString());
                     int parentAttachmentId = att.ContainsKey("parentAttachmentId") ? Convert.ToInt32(att["parentAttachmentId"]) : 0;
+                    bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
+                    string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
 
-                    if (isDeleted)
+                    // Skip deleted or marked attachments
+                    if (isDeleted || isMarkedWithX)
                     {
+                        Console.WriteLine($"Skipping attachment: fileName={originalFileName}, parentAttachmentId={parentAttachmentId}, isDeleted={isDeleted}, isMarkedWithX={isMarkedWithX}");
                         continue;
                     }
 
-                    // Skip parent attachments already processed
-                    //if (fromParent && parentAttachmentId > 0)
-                    //{
-                    //    continue;
-                    //}
+                    // Skip parent-sourced attachments in Create action (handled separately)
+                    if (isCreateAction && fromParent && parentAttachmentId > 0)
+                    {
+                        Console.WriteLine($"Skipping parent-sourced attachment in Create: parentAttachmentId={parentAttachmentId}, fileName={originalFileName}");
+                        continue;
+                    }
 
                     string guidFileName = Guid.NewGuid().ToString() + Path.GetExtension(originalFileName);
                     string filePath = Path.Combine("categories", category.Id.ToString(), guidFileName).Replace("\\", "/");
-                    bool isInternal = att.ContainsKey("isInternal") && bool.Parse(att["isInternal"].ToString());
-                    string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
+
+                    Attachment attachment;
+                    if (id > 0)
+                    {
+                        attachment = existingAttachments.FirstOrDefault(a => a.Id == id);
+                        if (attachment != null)
+                        {
+                            attachment.Caption = caption;
+                            attachment.IsInternal = isInternal;
+                            attachment.UpdateAudit(userId);
+                            _unitOfWork.Attachment.Update(attachment);
+                            Console.WriteLine($"Updated attachment: id={attachment.Id}, fileName={originalFileName}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Attachment ID {id} not found, skipping.");
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        attachment = new Attachment
+                        {
+                            FileName = guidFileName,
+                            FilePath = filePath,
+                            Caption = caption,
+                            IsInternal = isInternal,
+                            CategoryId = category.Id
+                        };
+                        attachment.UpdateAudit(userId);
+                        _unitOfWork.Attachment.Add(attachment);
+                        existingAttachments.Add(attachment);
+                        Console.WriteLine($"Added new attachment: fileName={originalFileName}");
+                    }
 
                     attachments.Add(new
                     {
@@ -1280,7 +1560,8 @@ namespace SupportHub.Areas.Admin.Controllers
                         caption,
                         isInternal,
                         fromParent,
-                        parentAttachmentId
+                        parentAttachmentId,
+                        isMarkedWithX = false
                     });
                 }
             }

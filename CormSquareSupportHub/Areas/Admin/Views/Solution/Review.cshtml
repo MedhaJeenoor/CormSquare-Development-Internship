@@ -269,8 +269,10 @@
                                     </div>
                                     @if (attachment.Id > 0)
                                     {
-                                        <a href="@Url.Action("DownloadAttachment", "Solution", new { area = "Admin", id = attachment.Id })"
+                                        <a href="@Url.Action("DownloadAttachmentForReview", "Solution", new { area = "Admin", id = attachment.Id })"
                                            class="btn btn-sm btn-outline-primary download-attachment"
+                                           target="_blank"
+                                           rel="noopener noreferrer"
                                            data-attachment-id="@attachment.Id">View</a>
                                     }
                                     else
@@ -363,6 +365,7 @@
     <script>
         tinymce.init({
             selector: '#feedbackEditor',
+            readonly: false,
             plugins: 'lists table wordcount',
             toolbar: 'undo redo | bold italic | numlist bullist | table',
             menubar: false,
@@ -407,6 +410,16 @@
 
         $('.download-attachment').on('click', function () {
             console.log('Download clicked for attachment ID: ' + $(this).data('attachment-id'));
+        });
+
+        // Ensure attachment links open in a new tab
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.download-attachment').forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    window.open(this.href, '_blank', 'noopener,noreferrer');
+                });
+            });
         });
 
         function copyCode(button, event) {

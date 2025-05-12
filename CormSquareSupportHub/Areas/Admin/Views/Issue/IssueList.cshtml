@@ -51,7 +51,7 @@
                                 <td class="issue-user">@(issue.User?.EmployeeID ?? "N/A")</td>
                                 <td class="issue-description">@issue.Description</td>
                                 <td>
-                                    <span class="badge @(issue.Status == "Pending" ? "bg-warning" : "bg-success")">
+                                    <span class="badge @(issue.Status == "Pending" ? "bg-warning" : issue.Status == "Published" ? "bg-success" : "bg-info")">
                                         @issue.Status
                                     </span>
                                 </td>

@@ -72,7 +72,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Where(a => !a.IsDeleted).Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal, isDeleted = false, fromParent = false, parentAttachmentId = a.Id })))" />
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Where(a => !a.IsDeleted).Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal, isDeleted = false, isMarkedWithX = false, fromParent = false, parentAttachmentId = a.Id })))" />
                 </div>
 
                 <!-- References Section -->
@@ -99,7 +99,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Where(r => !r.IsDeleted).Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption, isDeleted = false, fromParent = false, parentReferenceId = r.Id })))" />
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Where(r => !r.IsDeleted).Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption, isDeleted = false, isMarkedWithX = false, fromParent = false, parentReferenceId = r.Id })))" />
                 </div>
 
                 <!-- Buttons -->
