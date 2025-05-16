@@ -41,6 +41,7 @@ namespace SupportHub.Models
 
         [StringLength(50, ErrorMessage = "DocId cannot exceed 50 characters.")]
         public string DocId { get; set; }
+        public DateTime? PublishedDate { get; set; }
 
         public List<Category> Categories { get; set; }
         public List<Product> Products { get; set; }

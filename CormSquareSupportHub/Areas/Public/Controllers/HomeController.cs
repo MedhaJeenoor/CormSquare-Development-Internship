@@ -119,6 +119,7 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
             {
                 Id = solution.Id,
                 DocId = solution.DocId,
+                PublishedDate = solution.PublishedDate,
                 Author = solution.Author?.FirstName,
                 Contributors = solution.Contributors,
                 Title = solution.Title,
