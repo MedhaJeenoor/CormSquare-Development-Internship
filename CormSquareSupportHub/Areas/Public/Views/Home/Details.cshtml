@@ -103,7 +103,12 @@
 
     <div class="section">
         <div class="section-title">Title</div>
-        <div class="section-content">@Model.Title</div>
+        <div class="section-content">
+            @Model.Title
+            <div style="font-size: 0.9rem; color: #6c757d; margin-top: 8px; font-style: italic">
+                Published Date: @(Model.PublishedDate.HasValue ? Model.PublishedDate.Value.ToString("MMMM dd, yyyy") : "Not specified")
+            </div>
+        </div>
     </div>
 
     <div class="section">
