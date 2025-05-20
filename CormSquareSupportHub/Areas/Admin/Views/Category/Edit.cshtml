@@ -52,18 +52,19 @@
                     <button type="button" id="uploadAttachmentBtn" class="btn btn-success btn-sm">Add Attachment</button>
                     <input type="file" name="files" id="attachmentInput" multiple style="display: none;" />
                     <ul id="attachmentList" class="list-group mt-2">
-                        @if (Model.Attachments != null && Model.Attachments.Any())
+                        @if (ViewData["AttachmentLinks"] != null)
                         {
+                            var attachmentLinks = (IEnumerable<dynamic>)ViewData["AttachmentLinks"];
                             var index = 0;
-                            foreach (var attachment in Model.Attachments.Where(a => !a.IsDeleted))
+                            foreach (var attachment in attachmentLinks)
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center" data-attachment-id="@attachment.Id">
                                     <div>
-                                        <a href="@Url.Action("OpenAttachment", "Category", new { attachmentId = attachment.Id, area = "Admin" })" target="_blank" class="attachment-link">@attachment.FileName</a><br />
+                                        <a href="@attachment.Url" target="_blank" class="attachment-link">@attachment.FileName</a><br />
                                         <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" data-index="@index" value="@attachment.Caption" />
                                     </div>
                                     <div>
-                                        <input type="checkbox" class="form-control mt-1 internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
+                                        <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(attachment.IsInternal ? "checked" : "") />
                                         <span>Internal</span>
                                         <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
                                     </div>
@@ -72,17 +73,18 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(Model.Attachments.Where(a => !a.IsDeleted).Select(a => new { id = a.Id, fileName = a.FileName, caption = a.Caption, isInternal = a.IsInternal, isDeleted = false, isMarkedWithX = false, fromParent = false, parentAttachmentId = a.Id })))" />
+                    <input type="hidden" id="attachmentData" name="AttachmentData" value="@Html.Raw(Json.Serialize(ViewData["AttachmentLinks"]))" />
                 </div>
 
                 <!-- References Section -->
                 <div class="mb-3">
                     <button type="button" id="addReferenceBtn" class="btn btn-success btn-sm">Add Reference</button>
                     <ul id="referenceList" class="list-group mt-2">
-                        @if (Model.References != null && Model.References.Any())
+                        @if (ViewData["ReferenceLinks"] != null)
                         {
+                            var referenceLinks = (IEnumerable<dynamic>)ViewData["ReferenceLinks"];
                             var index = 0;
-                            foreach (var reference in Model.References.Where(r => !r.IsDeleted))
+                            foreach (var reference in referenceLinks)
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center" data-reference-id="@reference.Id">
                                     <div>
@@ -99,7 +101,7 @@
                             }
                         }
                     </ul>
-                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Where(r => !r.IsDeleted).Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption, isDeleted = false, isMarkedWithX = false, fromParent = false, parentReferenceId = r.Id })))" />
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(ViewData["ReferenceLinks"]))" />
                 </div>
 
                 <!-- Buttons -->
