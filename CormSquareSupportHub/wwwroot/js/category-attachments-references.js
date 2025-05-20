@@ -90,7 +90,7 @@
                 isMarkedWithX: a.isMarkedWithX === true,
                 fromParent: a.fromParent || false,
                 parentAttachmentId: a.parentAttachmentId || 0
-            }));
+            })).filter(a => !a.isDeleted && !a.isMarkedWithX);
             attachmentDataInput.value = JSON.stringify(updatedAttachments);
             console.log("Updated attachmentData:", attachmentDataInput.value);
         }
@@ -100,7 +100,7 @@
     function updateReferenceData() {
         const referenceDataInput = document.getElementById("referenceData");
         if (referenceDataInput) {
-            referenceDataInput.value = JSON.stringify(window.references.map(r => ({
+            const updatedReferences = window.references.map(r => ({
                 id: r.id || 0,
                 url: r.url,
                 description: r.description || '',
@@ -110,7 +110,8 @@
                 isMarkedWithX: r.isMarkedWithX || false,
                 fromParent: r.fromParent || false,
                 parentReferenceId: r.parentReferenceId || 0
-            })));
+            })).filter(r => !r.isDeleted && !r.isMarkedWithX);
+            referenceDataInput.value = JSON.stringify(updatedReferences);
             console.log("Updated referenceData:", referenceDataInput.value);
         }
         saveStateToStorage();
