@@ -30,13 +30,15 @@
         const attachmentDataInput = document.getElementById("attachmentData");
         if (attachmentDataInput) {
             attachmentDataInput.value = JSON.stringify(window.attachments.map(a => ({
-                id: a.id,
+                id: a.id || 0,
                 fileName: a.fileName,
-                url: a.url, // Include url
-                caption: a.caption,
-                isInternal: a.isInternal,
+                guidFileName: a.guidFileName || a.fileName,
+                url: a.url,
+                caption: a.caption || '',
+                isInternal: a.isInternal || false,
                 isDeleted: a.isDeleted || false,
-                fromParent: a.fromParent || false
+                fromParent: a.fromParent || false,
+                parentAttachmentId: a.parentAttachmentId || null
             })));
             console.log("Updated AttachmentData:", attachmentDataInput.value);
             console.log("Attachment URLs:", window.attachments.map(a => ({ id: a.id, fileName: a.fileName, url: a.url, fromParent: a.fromParent })));
@@ -262,16 +264,19 @@
 
             for (let file of files) {
                 if (!window.attachments.some(a => a.fileName === file.name && !a.isDeleted)) {
+                    const guidFileName = `${Date.now()}-${file.name}`;
                     const attachment = {
                         id: 0,
                         fileName: file.name,
+                        guidFileName: guidFileName,
                         url: null,
                         caption: "",
                         isInternal: false,
-                        isDeleted: false
+                        isDeleted: false,
+                        fromParent: false
                     };
                     window.attachments.push(attachment);
-                    console.log(`Added uploaded attachment: fileName=${file.name}`);
+                    console.log(`Added uploaded attachment: fileName=${file.name}, guidFileName=${guidFileName}`);
                     addAttachmentToList(attachment, window.attachments.length - 1);
                 }
             }
@@ -358,30 +363,19 @@
         li.className = "list-group-item d-flex justify-content-between align-items-center";
         li.dataset.referenceId = reference.id || 0;
         li.innerHTML = `
-            <div>
-                <a href="${reference.url}" target="${reference.openOption}">${reference.description || reference.url}</a><br />
-                <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
-            </div>
-            <div>
-                <input type="checkbox" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
-                <span>Internal</span>
-                <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
-            </div>
-        `;
-        console.log(`Added reference to list: index=${index}, url=${reference.url}, openOption=${reference.openOption}`);
+        <div>
+            <a href="${reference.url}" target="${reference.openOption}" class="reference-link">${reference.url}</a><br />
+            <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
+        </div>
+        <div>
+            <input type="checkbox" class="form-check-input internal-reference" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
+            <span>Internal</span>
+            <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
+        </div>
+    `;
+        console.log(`Added reference to list: index=${index}, url=${reference.url}, openOption=${reference.openOption}, isInternal=${reference.isInternal}`);
         addReferenceEventListeners(li, index);
         referenceList.appendChild(li);
-    }
-
-    function addAttachmentEventListeners(li, index) {
-        const captionInput = li.querySelector(".caption-input");
-        if (captionInput) {
-            captionInput.addEventListener("input", function () {
-                window.attachments[index].caption = this.value;
-                console.log(`Updated attachment caption: index=${index}, caption=${this.value}`);
-                updateAttachmentData();
-            });
-        }
     }
 
     function addReferenceEventListeners(li, index) {
@@ -391,6 +385,25 @@
                 window.references[index].description = this.value;
                 console.log(`Updated reference description: index=${index}, description=${this.value}`);
                 updateReferenceData();
+            });
+        }
+        const internalCheckbox = li.querySelector(".internal-reference");
+        if (internalCheckbox) {
+            internalCheckbox.addEventListener("change", function () {
+                window.references[index].isInternal = this.checked;
+                console.log(`Updated reference internal: index=${index}, isInternal=${this.checked}`);
+                updateReferenceData();
+            });
+        }
+    }
+
+    function addAttachmentEventListeners(li, index) {
+        const captionInput = li.querySelector(".caption-input");
+        if (captionInput) {
+            captionInput.addEventListener("input", function () {
+                window.attachments[index].caption = this.value;
+                console.log(`Updated attachment caption: index=${index}, caption=${this.value}`);
+                updateAttachmentData();
             });
         }
     }

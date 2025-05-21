@@ -149,7 +149,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             string userId = user.Id;
             var savedAttachments = new List<object>();
             var savedReferences = new List<object>();
-            List<(SolutionAttachment Entity, string SourcePath, string DestPath)> stagedAttachments = new List<(SolutionAttachment, string, string)>();
+            List<(SolutionAttachment Entity, string SourcePath, string DestPath, IFormFile File)> stagedAttachments = new List<(SolutionAttachment, string, string, IFormFile)>();
 
             if (submitAction == "Cancel")
             {
@@ -169,6 +169,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             await _unitOfWork.BeginTransactionAsync();
             try
             {
+                // Save Solution
                 if (model.Id > 0) // Edit
                 {
                     solution = await _unitOfWork.Solution.GetFirstOrDefaultAsync(s => s.Id == model.Id && !s.IsDeleted,
@@ -190,10 +191,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
                     solution.AuthorId = userId;
                     solution.UpdateAudit(userId);
-                    //if (submitAction == "Submit" && solution.DocId == null)
-                    //{
-                    //    solution.DocId = await GenerateDocId(solution);
-                    //}
                     _unitOfWork.Solution.Update(solution);
                 }
                 else // Create
@@ -212,10 +209,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         Status = submitAction == "Save" ? "Draft" : "Submitted"
                     };
                     solution.UpdateAudit(userId);
-                    //if (submitAction == "Submit")
-                    //{
-                    //    solution.DocId = await GenerateDocId(solution);
-                    //}
                     _unitOfWork.Solution.Add(solution);
                 }
 
@@ -249,63 +242,11 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 // Process Attachments
                 try
                 {
-                    if (!string.IsNullOrEmpty(AttachmentData))
+                    if (!string.IsNullOrEmpty(AttachmentData) || (files != null && files.Any()))
                     {
-                        savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId);
-                        var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
-
-                        foreach (var item in savedAttachments)
-                        {
-                            var id = (int)item.GetType().GetProperty("id").GetValue(item);
-                            var guidFileName = (string)item.GetType().GetProperty("fileName").GetValue(item);
-                            var filePath = (string)item.GetType().GetProperty("filePath").GetValue(item);
-                            var originalFileName = (string)item.GetType().GetProperty("originalFileName").GetValue(item);
-                            var caption = (string)item.GetType().GetProperty("caption")?.GetValue(item);
-                            var isInternal = (bool)item.GetType().GetProperty("isInternal").GetValue(item);
-                            var fromParent = (bool)item.GetType().GetProperty("fromParent").GetValue(item);
-                            var parentAttachmentId = item.GetType().GetProperty("parentAttachmentId").GetValue(item) as int?;
-
-                            SolutionAttachment entity;
-                            if (id > 0)
-                            {
-                                entity = existingAttachments.FirstOrDefault(a => a.Id == id);
-                                if (entity != null)
-                                {
-                                    // Already updated in ProcessAttachmentsAsync
-                                    Console.WriteLine($"Attachment ID {id} already updated in ProcessAttachmentsAsync.");
-                                }
-                                else
-                                {
-                                    continue;
-                                }
-                            }
-                            else
-                            {
-                                entity = new SolutionAttachment
-                                {
-                                    FileName = guidFileName,
-                                    FilePath = filePath,
-                                    Caption = caption,
-                                    IsInternal = isInternal,
-                                    SolutionId = solution.Id
-                                };
-                                entity.UpdateAudit(userId);
-                                _unitOfWork.SolutionAttachment.Add(entity);
-                                existingAttachments.Add(entity);
-                                Console.WriteLine($"Added new attachment: fileName={guidFileName}, filePath={filePath}");
-                            }
-
-                            string destPath = Path.Combine(_attachmentSettings.UploadPath, entity.FilePath);
-                            string sourcePath = null;
-                            var uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
-                            if (uploadedFile == null && fromParent && parentAttachmentId.HasValue)
-                            {
-                                var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == parentAttachmentId.Value && a.CategoryId == solution.CategoryId && !a.IsDeleted);
-                                sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
-                            }
-                            stagedAttachments.Add((entity, sourcePath, destPath));
-                        }
+                        savedAttachments = await ProcessAttachmentsAsync(solution, files, AttachmentData, userId, stagedAttachments);
                         await _unitOfWork.SaveAsync();
+                        Console.WriteLine($"Saved {savedAttachments.Count} attachments for solution {solution.Id}");
                     }
                 }
                 catch (Exception ex)
@@ -315,59 +256,51 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     return Json(new { success = false, message = $"Attachment processing failed: {ex.Message}" });
                 }
 
-                switch (submitAction)
+                // Save Files
+                string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
+                if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
+
+                foreach (var (entity, sourcePath, destPath, file) in stagedAttachments)
                 {
-                    case "Save":
-                    case "Submit":
-                        string solutionPath = Path.Combine(_attachmentSettings.UploadPath, "solutions", solution.Id.ToString());
-                        if (!Directory.Exists(solutionPath)) Directory.CreateDirectory(solutionPath);
+                    if (System.IO.File.Exists(destPath))
+                    {
+                        Console.WriteLine($"File already exists: {destPath}, skipping copy.");
+                        continue;
+                    }
 
-                        if (stagedAttachments.Any())
+                    try
+                    {
+                        if (file != null)
                         {
-                            foreach (var (entity, sourcePath, destPath) in stagedAttachments)
+                            using (var fileStream = new FileStream(destPath, FileMode.Create))
                             {
-                                if (System.IO.File.Exists(destPath))
-                                {
-                                    Console.WriteLine($"File already exists: {destPath}, skipping copy.");
-                                    continue;
-                                }
-
-                                if (sourcePath != null && System.IO.File.Exists(sourcePath))
-                                {
-                                    System.IO.File.Copy(sourcePath, destPath, overwrite: false);
-                                    Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
-                                }
-                                else
-                                {
-                                    var file = files?.FirstOrDefault(f => f.FileName.EndsWith(Path.GetExtension(entity.FileName)));
-                                    if (file != null)
-                                    {
-                                        using (var fileStream = new FileStream(destPath, FileMode.Create))
-                                        {
-                                            await file.CopyToAsync(fileStream);
-                                            Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
-                                        }
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine($"Warning: No source file found for {entity.FileName} and it’s not uploaded.");
-                                    }
-                                }
+                                await file.CopyToAsync(fileStream);
+                                Console.WriteLine($"Uploaded file: {entity.FileName} to {destPath}");
                             }
                         }
-
-                        await _unitOfWork.SaveAsync();
-                        await _unitOfWork.CommitTransactionAsync();
-                        Console.WriteLine($"Committed transaction: {submitAction} solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
-                        TempData["success"] = submitAction == "Save" ? "Solution saved as draft!" : "Solution submitted for review!";
-                        redirectUrl = submitAction == "Save" ? Url.Action("MySolutions") : Url.Action("Approvals");
-                        break;
-
-                    default:
-                        await _unitOfWork.RollbackTransactionAsync();
-                        Console.WriteLine("Unknown submitAction: " + submitAction);
-                        return Json(new { success = false, message = "Invalid submit action." });
+                        else if (sourcePath != null && System.IO.File.Exists(sourcePath))
+                        {
+                            System.IO.File.Copy(sourcePath, destPath, overwrite: false);
+                            Console.WriteLine($"Copied category file: {sourcePath} to {destPath}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Warning: No source file found for {entity.FileName} and it’s not uploaded.");
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error saving file {entity.FileName} to {destPath}: {ex.Message}");
+                        throw;
+                    }
                 }
+
+                await _unitOfWork.SaveAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                Console.WriteLine($"Committed transaction: {submitAction} solution {solution.Id}, {savedAttachments.Count} attachments, {savedReferences.Count} references");
+                TempData["success"] = submitAction == "Save" ? "Solution saved as draft!" : "Solution submitted for review!";
+                redirectUrl = submitAction == "Save" ? Url.Action("MySolutions") : Url.Action("Approvals");
 
                 return Json(new { success = true, redirectTo = redirectUrl, attachments = savedAttachments, references = savedReferences });
             }
@@ -526,7 +459,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         }
 
 
-        private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId)
+        private async Task<List<object>> ProcessAttachmentsAsync(Solution solution, List<IFormFile>? files, string? attachmentData, string userId, List<(SolutionAttachment Entity, string SourcePath, string DestPath, IFormFile File)> stagedAttachments)
         {
             var attachments = new List<object>();
             var existingAttachments = (await _unitOfWork.SolutionAttachment.GetAllAsync(a => a.SolutionId == solution.Id && !a.IsDeleted)).ToList();
@@ -534,12 +467,13 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
 
             if (!string.IsNullOrEmpty(attachmentData))
             {
-                var stagedAttachments = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
+                var stagedAttachmentData = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(attachmentData);
                 Console.WriteLine($"Received AttachmentData: {attachmentData}");
-                foreach (var att in stagedAttachments)
+
+                foreach (var att in stagedAttachmentData)
                 {
                     int attachmentId = att.ContainsKey("id") ? Convert.ToInt32(att["id"]) : 0;
-                    string originalFileName = att["fileName"].ToString();
+                    string originalFileName = att["fileName"]?.ToString();
                     bool isDeleted = att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString());
                     if (isDeleted)
                     {
@@ -555,15 +489,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     string caption = att.ContainsKey("caption") ? att["caption"]?.ToString() : null;
                     bool fromParent = att.ContainsKey("fromParent") && bool.Parse(att["fromParent"].ToString());
                     int? parentAttachmentId = att.ContainsKey("parentAttachmentId") && !string.IsNullOrEmpty(att["parentAttachmentId"]?.ToString())
-                        ? Convert.ToInt32(att["parentAttachmentId"]) : (int?)null;
+                        ? Convert.ToInt32(att["parentAttachmentId"]) : null;
 
-                    Console.WriteLine($"Processing attachment ID {attachmentId}: fileName={originalFileName}, isInternal={isInternal}, caption={caption}, fromParent={fromParent}, parentAttachmentId={parentAttachmentId}");
+                    Console.WriteLine($"Processing attachment ID {attachmentId}: fileName={originalFileName}, guidFileName={guidFileName}, isInternal={isInternal}, fromParent={fromParent}");
 
                     var existingAttachment = attachmentId > 0 ? existingAttachments.FirstOrDefault(a => a.Id == attachmentId) : null;
+                    SolutionAttachment entity;
 
                     if (existingAttachment != null)
                     {
-                        // Update existing solution attachment
                         existingAttachment.Caption = caption;
                         existingAttachment.IsInternal = isInternal;
                         existingAttachment.UpdateAudit(userId);
@@ -579,14 +513,34 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             fromParent = false,
                             parentAttachmentId = (int?)null
                         });
-                        Console.WriteLine($"Updated attachment ID {existingAttachment.Id}: caption={caption}, isInternal={isInternal}");
+                        stagedAttachments.Add((existingAttachment, null, Path.Combine(_attachmentSettings.UploadPath, existingAttachment.FilePath), null));
+                        Console.WriteLine($"Updated attachment: ID={existingAttachment.Id}, fileName={existingAttachment.FileName}");
                     }
-                    else if (!existingAttachments.Any(a => a.FilePath == filePath) && !attachments.Any(a => (string)a.GetType().GetProperty("filePath").GetValue(a) == filePath))
+                    else
                     {
-                        // Handle new attachment (either uploaded or from category)
+                        entity = new SolutionAttachment
+                        {
+                            FileName = guidFileName,
+                            FilePath = filePath,
+                            Caption = caption,
+                            IsInternal = isInternal,
+                            SolutionId = solution.Id
+                        };
+                        entity.UpdateAudit(userId);
+                        _unitOfWork.SolutionAttachment.Add(entity);
+                        await _unitOfWork.SaveAsync(); // Save to get ID
+
+                        string sourcePath = null;
+                        IFormFile uploadedFile = files?.FirstOrDefault(f => f.FileName == originalFileName);
+                        if (uploadedFile == null && fromParent && parentAttachmentId.HasValue)
+                        {
+                            var categoryAttachment = await _unitOfWork.Attachment.GetFirstOrDefaultAsync(a => a.Id == parentAttachmentId.Value && a.CategoryId == solution.CategoryId && !a.IsDeleted);
+                            sourcePath = categoryAttachment != null ? Path.Combine(_attachmentSettings.UploadPath, categoryAttachment.FilePath) : null;
+                        }
+
                         attachments.Add(new
                         {
-                            id = 0,
+                            id = entity.Id,
                             fileName = guidFileName,
                             filePath,
                             caption,
@@ -595,14 +549,15 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             fromParent,
                             parentAttachmentId
                         });
-                        Console.WriteLine($"Staged new attachment: fileName={guidFileName}, filePath={filePath}, isInternal={isInternal}, fromParent={fromParent}");
+                        stagedAttachments.Add((entity, sourcePath, Path.Combine(_attachmentSettings.UploadPath, filePath), uploadedFile));
+                        Console.WriteLine($"Added new attachment: ID={entity.Id}, fileName={guidFileName}, filePath={filePath}");
                     }
                 }
 
-                // Soft delete attachments not in stagedAttachments
+                // Soft delete attachments not in stagedAttachmentData
                 foreach (var existing in existingAttachments)
                 {
-                    if (!stagedAttachments.Any(att => Convert.ToInt32(att["id"]) == existing.Id && !(att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString()))))
+                    if (!stagedAttachmentData.Any(att => Convert.ToInt32(att["id"]) == existing.Id && !(att.ContainsKey("isDeleted") && bool.Parse(att["isDeleted"].ToString()))))
                     {
                         Console.WriteLine($"Marking attachment ID {existing.Id} for soft deletion.");
                         _unitOfWork.SolutionAttachment.SoftDelete(existing, userId);
@@ -610,8 +565,6 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 }
             }
 
-            await _unitOfWork.SaveAsync();
-            Console.WriteLine($"Saved {attachments.Count} attachments for solution {solution.Id}");
             return attachments;
         }
 
@@ -628,82 +581,98 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
             try
             {
                 var existingReferences = (await _unitOfWork.SolutionReference.GetAllAsync(r => r.SolutionId == solution.Id && !r.IsDeleted)).ToList();
-                var references = JsonConvert.DeserializeObject<List<SolutionReference>>(ReferenceData);
+                var references = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(ReferenceData);
                 Console.WriteLine($"Deserialized {references.Count} references");
 
-                foreach (var reference in references)
+                foreach (var refDict in references)
                 {
-                    if (reference.IsDeleted)
+                    bool isDeleted = refDict.ContainsKey("isDeleted") && bool.Parse(refDict["isDeleted"].ToString());
+                    if (isDeleted)
                     {
-                        Console.WriteLine($"Skipping reference ID {reference.Id} (url: {reference.Url}) marked as deleted.");
-                        continue; // Skip deleted references
+                        int refId = refDict.ContainsKey("id") ? Convert.ToInt32(refDict["id"]) : 0;
+                        Console.WriteLine($"Skipping reference ID {refId} marked as deleted.");
+                        continue;
                     }
 
-                    if (reference.Id > 0)
+                    int id = refDict.ContainsKey("id") ? Convert.ToInt32(refDict["id"]) : 0;
+                    string url = refDict["url"]?.ToString();
+                    string description = refDict.ContainsKey("description") ? refDict["description"]?.ToString() : null;
+                    bool isInternal = refDict.ContainsKey("isInternal") && bool.Parse(refDict["isInternal"].ToString());
+                    string openOption = refDict.ContainsKey("openOption") ? refDict["openOption"]?.ToString() : "_self";
+
+                    if (string.IsNullOrEmpty(url))
                     {
-                        var existing = existingReferences.FirstOrDefault(r => r.Id == reference.Id);
+                        Console.WriteLine("Skipping reference with empty URL.");
+                        continue;
+                    }
+
+                    if (id > 0)
+                    {
+                        var existing = existingReferences.FirstOrDefault(r => r.Id == id);
                         if (existing != null)
                         {
-                            // Update existing reference
-                            existing.Url = reference.Url;
-                            existing.Description = reference.Description;
-                            existing.IsInternal = reference.IsInternal;
-                            existing.OpenOption = reference.OpenOption;
+                            existing.Url = url;
+                            existing.Description = description;
+                            existing.IsInternal = isInternal;
+                            existing.OpenOption = openOption;
                             existing.UpdateAudit(userId);
                             _unitOfWork.SolutionReference.Update(existing);
                             savedReferences.Add(new
                             {
                                 id = existing.Id,
-                                url = existing.Url,
-                                description = existing.Description,
-                                isInternal = existing.IsInternal,
-                                openOption = existing.OpenOption
+                                url,
+                                description,
+                                isInternal,
+                                openOption
                             });
-                            Console.WriteLine($"Updated reference: ID={existing.Id}, url={existing.Url}, description={existing.Description}");
+                            Console.WriteLine($"Updated reference: ID={existing.Id}, url={url}, description={description}");
                         }
                         else
                         {
-                            Console.WriteLine($"Reference ID {reference.Id} not found in existing references");
+                            Console.WriteLine($"Reference ID {id} not found in existing references");
                         }
                     }
                     else
                     {
-                        // New reference
                         var newReference = new SolutionReference
                         {
-                            Url = reference.Url,
-                            Description = reference.Description,
-                            IsInternal = reference.IsInternal,
-                            OpenOption = reference.OpenOption,
+                            Url = url,
+                            Description = description,
+                            IsInternal = isInternal,
+                            OpenOption = openOption,
                             SolutionId = solution.Id
                         };
                         newReference.UpdateAudit(userId);
                         _unitOfWork.SolutionReference.Add(newReference);
+                        await _unitOfWork.SaveAsync(); // Save immediately to get ID
                         savedReferences.Add(new
                         {
-                            id = 0,
-                            url = newReference.Url,
-                            description = newReference.Description,
-                            isInternal = newReference.IsInternal,
-                            openOption = newReference.OpenOption
+                            id = newReference.Id,
+                            url,
+                            description,
+                            isInternal,
+                            openOption
                         });
-                        Console.WriteLine($"Staged new reference: url={newReference.Url}, description={newReference.Description}");
+                        Console.WriteLine($"Added new reference: ID={newReference.Id}, url={url}, description={description}");
                     }
                 }
 
-                // Process deletions for existing references not in references
+                // Soft delete references not in the submitted list
                 foreach (var existing in existingReferences)
                 {
-                    if (!references.Any(r => r.Id == existing.Id && !r.IsDeleted))
+                    if (!references.Any(r => Convert.ToInt32(r["id"]) == existing.Id && !(r.ContainsKey("isDeleted") && bool.Parse(r["isDeleted"].ToString()))))
                     {
                         Console.WriteLine($"Marking reference ID {existing.Id} for soft deletion.");
                         _unitOfWork.SolutionReference.SoftDelete(existing, userId);
                     }
                 }
+
+                await _unitOfWork.SaveAsync();
+                Console.WriteLine($"Saved {savedReferences.Count} references for solution {solution.Id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error deserializing or processing references: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                Console.WriteLine($"Error processing references: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 throw;
             }
 
