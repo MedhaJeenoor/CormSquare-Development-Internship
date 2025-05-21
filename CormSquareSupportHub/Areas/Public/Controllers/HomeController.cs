@@ -34,6 +34,12 @@ namespace CormSquareSupportHub.Areas.Public.Controllers
                 includeProperties: "Category,Product,SubCategory,Author"
             );
 
+            // Filter out internal template solutions for external users
+            if (User.IsInRole("ExternalUser"))
+            {
+                solutions = solutions.Where(s => !s.IsInternalTemplate).ToList();
+            }
+
             if (!string.IsNullOrWhiteSpace(searchString))
             {
                 searchString = searchString.ToLower();

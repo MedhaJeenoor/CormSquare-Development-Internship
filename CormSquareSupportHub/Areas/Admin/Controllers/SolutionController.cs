@@ -121,8 +121,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files,
-    string? ReferenceData, string? AttachmentData, string submitAction)
+        public async Task<IActionResult> Upsert(SolutionViewModel model, List<IFormFile>? files, string? ReferenceData, string? AttachmentData, string submitAction)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -189,6 +188,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     solution.PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent);
                     solution.IssueDescription = model.IssueDescription;
                     solution.Status = submitAction == "Save" ? "Draft" : "Submitted";
+                    solution.IsInternalTemplate = model.IsInternalTemplate; // Save checkbox value
                     solution.AuthorId = userId;
                     solution.UpdateAudit(userId);
                     _unitOfWork.Solution.Update(solution);
@@ -206,7 +206,8 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         HtmlContent = model.HtmlContent,
                         PlainTextContent = ConvertHtmlToPlainText(model.HtmlContent),
                         IssueDescription = model.IssueDescription,
-                        Status = submitAction == "Save" ? "Draft" : "Submitted"
+                        Status = submitAction == "Save" ? "Draft" : "Submitted",
+                        IsInternalTemplate = model.IsInternalTemplate // Save checkbox value
                     };
                     solution.UpdateAudit(userId);
                     _unitOfWork.Solution.Add(solution);
@@ -220,7 +221,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 }
 
                 await _unitOfWork.SaveAsync();
-                Console.WriteLine($"Saved solution: {solution.Id}, AuthorId: {solution.AuthorId}");
+                Console.WriteLine($"Saved solution: {solution.Id}, AuthorId: {solution.AuthorId}, IsInternalTemplate: {solution.IsInternalTemplate}");
 
                 // Process References
                 try
@@ -599,6 +600,9 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                     string description = refDict.ContainsKey("description") ? refDict["description"]?.ToString() : null;
                     bool isInternal = refDict.ContainsKey("isInternal") && bool.Parse(refDict["isInternal"].ToString());
                     string openOption = refDict.ContainsKey("openOption") ? refDict["openOption"]?.ToString() : "_self";
+                    bool fromParent = refDict.ContainsKey("fromParent") && bool.Parse(refDict["fromParent"].ToString());
+                    int? parentReferenceId = refDict.ContainsKey("parentReferenceId") && !string.IsNullOrEmpty(refDict["parentReferenceId"]?.ToString())
+                        ? Convert.ToInt32(refDict["parentReferenceId"]) : null;
 
                     if (string.IsNullOrEmpty(url))
                     {
@@ -606,7 +610,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         continue;
                     }
 
-                    if (id > 0)
+                    if (id > 0 && !fromParent)
                     {
                         var existing = existingReferences.FirstOrDefault(r => r.Id == id);
                         if (existing != null)
@@ -617,14 +621,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                             existing.OpenOption = openOption;
                             existing.UpdateAudit(userId);
                             _unitOfWork.SolutionReference.Update(existing);
-                            savedReferences.Add(new
-                            {
-                                id = existing.Id,
-                                url,
-                                description,
-                                isInternal,
-                                openOption
-                            });
+                            savedReferences.Add(new { id = existing.Id, url, description, isInternal, openOption });
                             Console.WriteLine($"Updated reference: ID={existing.Id}, url={url}, description={description}");
                         }
                         else
@@ -644,20 +641,21 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                         };
                         newReference.UpdateAudit(userId);
                         _unitOfWork.SolutionReference.Add(newReference);
-                        await _unitOfWork.SaveAsync(); // Save immediately to get ID
+                        await _unitOfWork.SaveAsync();
                         savedReferences.Add(new
                         {
                             id = newReference.Id,
                             url,
                             description,
                             isInternal,
-                            openOption
+                            openOption,
+                            fromParent,
+                            parentReferenceId
                         });
-                        Console.WriteLine($"Added new reference: ID={newReference.Id}, url={url}, description={description}");
+                        Console.WriteLine($"Added new reference: ID={newReference.Id}, url={url}, description={description}, fromParent={fromParent}");
                     }
                 }
 
-                // Soft delete references not in the submitted list
                 foreach (var existing in existingReferences)
                 {
                     if (!references.Any(r => Convert.ToInt32(r["id"]) == existing.Id && !(r.ContainsKey("isDeleted") && bool.Parse(r["isDeleted"].ToString()))))
@@ -894,12 +892,17 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 IssueDescription = solution.IssueDescription,
                 HtmlContent = solution.HtmlContent,
                 Feedback = solution.Feedback,
+                IsInternalTemplate = solution.IsInternalTemplate, // Convert int to bool
                 Attachments = solution.Attachments?.Where(a => !a.IsDeleted).ToList(),
                 References = solution.References?.Where(r => !r.IsDeleted).ToList(),
                 Products = (await _unitOfWork.Product.GetAllAsync()).ToList(),
                 Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList(),
                 SubCategories = (await _unitOfWork.SubCategory.GetAllAsync(s => s.ProductId == solution.ProductId)).ToList()
             };
+
+            // Log for debugging
+            //_logger.LogInformation("Review GET: Id={Id}, IsInternalTemplate={IsInternalTemplate} (DB: {DbValue})",
+                //model.Id, model.IsInternalTemplate, solution.IsInternalTemplate);
 
             return View(model);
         }
@@ -971,6 +974,7 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 return await ReloadReviewView(id, feedback);
             }
         }
+
         // Helper method to reload the Review view
         private async Task<IActionResult> ReloadReviewView(int id, string feedback)
         {
@@ -992,12 +996,17 @@ namespace CormSquareSupportHub.Areas.Admin.Controllers
                 IssueDescription = solution.IssueDescription,
                 HtmlContent = solution.HtmlContent,
                 Feedback = feedback,
+                IsInternalTemplate = solution.IsInternalTemplate, // Convert int to bool
                 Attachments = solution.Attachments?.Where(a => !a.IsDeleted).ToList(),
                 References = solution.References?.Where(r => !r.IsDeleted).ToList(),
                 Products = (await _unitOfWork.Product.GetAllAsync()).ToList(),
                 Categories = (await _unitOfWork.Category.GetAllAsync(c => !c.IsDeleted)).ToList(),
                 SubCategories = (await _unitOfWork.SubCategory.GetAllAsync(s => s.ProductId == solution.ProductId)).ToList()
             };
+
+            // Log for debugging
+            //_logger.LogInformation("ReloadReviewView: Id={Id}, IsInternalTemplate={IsInternalTemplate} (DB: {DbValue})",
+                //model.Id, model.IsInternalTemplate, solution.IsInternalTemplate);
 
             return View(model);
         }

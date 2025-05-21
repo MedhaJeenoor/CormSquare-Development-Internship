@@ -22,6 +22,7 @@ namespace SupportHub.Models
         public string? IssueDescription { get; set; }
         public string Status { get; set; } = "Draft"; // "Draft", "Submitted", "Under Review", "Approved and Published", "Rejected", "Needs Revision"
         public string? Feedback { get; set; }
+        public bool IsInternalTemplate { get; set; } // New field for template checkbox
         public List<SolutionAttachment> Attachments { get; set; } = new List<SolutionAttachment>();
         public List<SolutionReference> References { get; set; } = new List<SolutionReference>();
   

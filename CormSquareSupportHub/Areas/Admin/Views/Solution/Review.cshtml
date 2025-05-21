@@ -81,6 +81,7 @@
         font-size: 0.75rem;
         padding: 0.4rem 0.8rem;
         border-radius: 12px;
+        margin-left: 0.5rem;
     }
 
     .form-select,
@@ -241,7 +242,13 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label">Solution Content</label>
+                    <label class="form-label">
+                        Solution Content
+                        @if (Model.IsInternalTemplate)
+                        {
+                            <span class="badge bg-warning text-dark">Internal</span>
+                        }
+                    </label>
                     <div class="content-preview">
                         @Html.Raw(Regex.Replace(Model.HtmlContent, @"<pre[^>]*>\s*<code>(.*?)</code>\s*</pre>", m =>
                                  "<div class='code-block'>" +
@@ -363,6 +370,9 @@
     <partial name="_ValidationScriptsPartial" />
 
     <script>
+        // Log IsInternalTemplate for debugging
+        console.log('IsInternalTemplate:', @Model.IsInternalTemplate.ToString().ToLower());
+
         tinymce.init({
             selector: '#feedbackEditor',
             readonly: false,

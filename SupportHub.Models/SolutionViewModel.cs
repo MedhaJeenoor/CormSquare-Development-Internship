@@ -42,6 +42,7 @@ namespace SupportHub.Models
         [StringLength(50, ErrorMessage = "DocId cannot exceed 50 characters.")]
         public string DocId { get; set; }
         public DateTime? PublishedDate { get; set; }
+        public bool IsInternalTemplate { get; set; } // New field for template checkbox
 
         public List<Category> Categories { get; set; }
         public List<Product> Products { get; set; }
