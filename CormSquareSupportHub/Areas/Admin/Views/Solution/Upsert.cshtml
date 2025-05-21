@@ -11,9 +11,11 @@
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data" asp-action="Upsert" id="solutionForm">
                 <input type="hidden" asp-for="Id" />
+                <input type="hidden" id="isInternalTemplateHidden" name="IsInternalTemplate" value="@Model.IsInternalTemplate.ToString().ToLower()" />
+
                 <!-- Title -->
                 <div class="mb-3">
-                    <label asp-for="Title"></label>
+                    <label asp-for="Title" class="form-label"></label>
                     <input asp-for="Title" class="form-control" required />
                     <span asp-validation-for="Title" class="text-danger"></span>
                 </div>
@@ -21,7 +23,7 @@
                 <!-- Product and Subcategory in the same row -->
                 <div class="mb-3 row">
                     <div class="col-md-6">
-                        <label asp-for="ProductId">Client</label>
+                        <label asp-for="ProductId" class="form-label">Client</label>
                         <select asp-for="ProductId" class="form-control" id="productDropdown" required>
                             <option value="">Select Client</option>
                             @foreach (var product in Model.Products)
@@ -32,7 +34,7 @@
                         <span asp-validation-for="ProductId" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
-                        <label asp-for="SubCategoryId">Product</label>
+                        <label asp-for="SubCategoryId" class="form-label">Product</label>
                         <select asp-for="SubCategoryId" class="form-control" id="subCategoryDropdown">
                             <option value="">Select Product</option>
                             @if (Model.SubCategories != null)
@@ -48,14 +50,14 @@
 
                 <!-- Issue Description -->
                 <div class="mb-3">
-                    <label asp-for="IssueDescription">Related Issue</label>
+                    <label asp-for="IssueDescription" class="form-label">Related Issue</label>
                     <textarea asp-for="IssueDescription" class="form-control" readonly="@(!string.IsNullOrEmpty(Model.IssueDescription))"></textarea>
                 </div>
 
                 <!-- Category and Contributors in the same row -->
                 <div class="mb-3 row">
                     <div class="col-md-6">
-                        <label asp-for="CategoryId">Category</label>
+                        <label asp-for="CategoryId" class="form-label">Category</label>
                         <select asp-for="CategoryId" class="form-control" id="categoryDropdown" required>
                             <option value="">Select Category</option>
                             @foreach (var category in Model.Categories)
@@ -66,17 +68,20 @@
                         <span asp-validation-for="CategoryId" class="text-danger"></span>
                     </div>
                     <div class="col-md-6">
-                        <label asp-for="Contributors">Contributors</label>
+                        <label asp-for="Contributors" class="form-label">Contributors</label>
                         <input asp-for="Contributors" class="form-control" placeholder="e.g., John Doe, Jane Smith" />
                     </div>
                 </div>
 
-                <!-- Template -->
+                <!-- Template Section with IsInternalTemplate Checkbox -->
                 <div class="mb-3">
-                    <label asp-for="HtmlContent">Solution Content</label>
-                    <textarea id="editor">@Html.Raw(Model.HtmlContent)</textarea>
-                    <input type="hidden" id="HtmlContent" name="HtmlContent" value="@Html.Raw(Model.HtmlContent)" />
-                    <span asp-validation-for="HtmlContent" class="text-danger"></span>
+                    <label class="form-label">Solution Content</label>
+                    <textarea id="editor" name="HtmlContent">@Model.HtmlContent</textarea>
+                    <input type="hidden" id="HtmlContent" asp-for="HtmlContent" />
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="isInternalTemplate" @(Model.IsInternalTemplate ? "checked" : "") />
+                        <label class="form-check-label" for="isInternalTemplate">Internal Template</label>
+                    </div>
                 </div>
 
                 <!-- Attachments Section -->
@@ -102,7 +107,7 @@
                                         </div>
                                         <div>
                                             <input type="checkbox" class="form-check-input internal-attachment" data-index="@index" @(isInternal ? "checked" : "") />
-                                            <span>Internal</span>
+                                            <label class="form-check-label ms-2">Internal</label>
                                             <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="@index">❌</span>
                                         </div>
                                     </li>
@@ -130,15 +135,15 @@
                                     </div>
                                     <div>
                                         <input type="checkbox" class="form-check-input internal-reference" data-index="@index" @(reference.IsInternal ? "checked" : "") />
-                                        <span>Internal</span>
+                                        <label class="form-check-label ms-2">Internal</label>
                                         <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="@index">❌</span>
-                                    </div>
                                 </li>
                                 index++;
                             }
                         }
+                        }
                     </ul>
-                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption, isDeleted = false })))" />
+                    <input type="hidden" id="referenceData" name="ReferenceData" value="@Html.Raw(Json.Serialize(Model.References.Select(r => new { id = r.Id, url = r.Url, description = r.Description, isInternal = r.IsInternal, openOption = r.OpenOption, isDeleted = false, fromParent = false, parentReferenceId = (int?)null })))" />
                 </div>
 
                 <!-- Buttons -->
@@ -170,90 +175,95 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
 
     <script>
-            $(document).ready(function () {
-        console.log("Upsert view script loaded (v4.3)");
-        const urlParams = new URLSearchParams(window.location.search);
-        const isCreateMode = !urlParams.has('solutionId');
-        console.log("isCreateMode:", isCreateMode);
+        $(document).ready(function () {
+            console.log("Upsert view script loaded (v4.3)");
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCreateMode = !urlParams.has('solutionId');
+            console.log("isCreateMode:", isCreateMode);
 
-        // Initialize arrays with error handling
-        let initialAttachments = [];
-        let initialReferences = [];
-        try {
-            const attachmentData = $('#attachmentData').val();
-            const referenceData = $('#referenceData').val();
+            // Initialize arrays with error handling
+            let initialAttachments = [];
+            let initialReferences = [];
+            try {
+                const attachmentData = $('#attachmentData').val();
+                const referenceData = $('#referenceData').val();
 
-            // Parse attachmentData safely
-            window.attachments = [];
-            if (attachmentData) {
-                try {
-                    window.attachments = JSON.parse(attachmentData);
-                    if (!Array.isArray(window.attachments)) {
-                        console.warn("attachmentData is not an array:", window.attachments);
+                // Parse attachmentData safely
+                window.attachments = [];
+                if (attachmentData) {
+                    try {
+                        window.attachments = JSON.parse(attachmentData);
+                        if (!Array.isArray(window.attachments)) {
+                            console.warn("attachmentData is not an array:", window.attachments);
+                            window.attachments = [];
+                        }
+                    } catch (e) {
+                        console.error("Error parsing attachmentData:", e, attachmentData);
                         window.attachments = [];
                     }
-                } catch (e) {
-                    console.error("Error parsing attachmentData:", e, attachmentData);
-                    window.attachments = [];
                 }
-            }
 
-            // Parse referenceData safely
-            window.references = [];
-            if (referenceData) {
-                try {
-                    window.references = JSON.parse(referenceData);
-                    if (!Array.isArray(window.references)) {
-                        console.warn("referenceData is not an array:", window.references);
+                // Parse referenceData safely
+                window.references = [];
+                if (referenceData) {
+                    try {
+                        window.references = JSON.parse(referenceData);
+                        if (!Array.isArray(window.references)) {
+                            console.warn("referenceData is not an array:", window.references);
+                            window.references = [];
+                        }
+                    } catch (e) {
+                        console.error("Error parsing referenceData:", e, referenceData);
                         window.references = [];
                     }
-                } catch (e) {
-                    console.error("Error parsing referenceData:", e, referenceData);
-                    window.references = [];
                 }
+
+                // Create deep copies for initial state
+                initialAttachments = JSON.parse(JSON.stringify(window.attachments));
+                initialReferences = JSON.parse(JSON.stringify(window.references));
+                console.log('Initialized from hidden inputs:', { attachments: window.attachments, references: window.references });
+                console.log('Stored initial state:', { initialAttachments, initialReferences });
+
+                // Force initial state restoration
+                if (typeof window.forceRestoreState === 'function') {
+                    window.forceRestoreState();
+                }
+            } catch (e) {
+                console.error('Error initializing arrays:', e);
+                toastr.error('Failed to initialize data. Please refresh the page.');
+                window.attachments = [];
+                window.references = [];
             }
 
-            // Create deep copies for initial state
-            initialAttachments = JSON.parse(JSON.stringify(window.attachments));
-            initialReferences = JSON.parse(JSON.stringify(window.references));
-            console.log('Initialized from hidden inputs:', { attachments: window.attachments, references: window.references });
-            console.log('Stored initial state:', { initialAttachments, initialReferences });
+            // Initialize IsInternalTemplate checkbox
+            $('#isInternalTemplate').on('change', function () {
+                $('#isInternalTemplateHidden').val(this.checked);
+                console.log('IsInternalTemplate set to:', this.checked);
+            });
 
-            // Force initial state restoration
-            if (typeof window.forceRestoreState === 'function') {
-                window.forceRestoreState();
-            }
-        } catch (e) {
-            console.error('Error initializing arrays:', e);
-            toastr.error('Failed to initialize data. Please refresh the page.');
-            window.attachments = [];
-            window.references = [];
-        }
+            // Handle Save/Submit buttons
+            let submitActionValue = null;
+            $('button[type="submit"]').on('click', function (e) {
+                submitActionValue = $(this).val();
+                console.log('Button clicked, submitAction set to:', submitActionValue);
+            });
 
-        // Handle Save/Submit buttons
-        let submitActionValue = null;
-        $('button[type="submit"]').on('click', function (e) {
-            submitActionValue = $(this).val();
-            console.log('Button clicked, submitAction set to:', submitActionValue);
-        });
-
-        // Handle Cancel button
-        $('#cancelButton').on('click', function (e) {
-            e.preventDefault();
-            console.log('Cancel button clicked');
-            // Assign initial state directly without redundant JSON parsing
-            window.attachments = initialAttachments;
-            window.references = initialReferences;
-            window.reindexAttachments();
-            window.reindexReferences();
-            window.updateAttachmentData();
-            window.updateReferenceData();
-            window.clearSessionStorage();
-            toastr.info('Changes discarded.');
-            const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
-            console.log('Redirecting to:', redirectUrl);
-            window.location.href = redirectUrl;
-        });
+            // Handle Cancel button
+            $('#cancelButton').on('click', function (e) {
+                e.preventDefault();
+                console.log('Cancel button clicked');
+                window.attachments = initialAttachments;
+                window.references = initialReferences;
+                window.reindexAttachments();
+                window.reindexReferences();
+                window.updateAttachmentData();
+                window.updateReferenceData();
+                window.clearSessionStorage();
+                toastr.info('Changes discarded.');
+                const redirectUrl = isCreateMode ? '/Admin/Issue/IssueList' : '/Admin/Solution/MySolutions';
+                console.log('Redirecting to:', redirectUrl);
+                window.location.href = redirectUrl;
+            });
 
             // Handle product dropdown change
             $('#productDropdown').change(function () {
@@ -290,7 +300,6 @@
                         success: function (response) {
                             console.log('GetCategoryTemplate response:', response);
                             if (response.success && response.data) {
-                                // Update TinyMCE editor
                                 var editor = tinymce.get('editor');
                                 if (editor) {
                                     editor.setContent(response.data.htmlContent || '');
@@ -300,7 +309,6 @@
                                     console.warn('TinyMCE editor not found');
                                     $('#HtmlContent').val(response.data.htmlContent || '');
                                 }
-                                // Update attachments and references
                                 window.updateAttachmentsAndReferences(
                                     response.data.attachments || [],
                                     response.data.references || []
@@ -318,7 +326,6 @@
                         }
                     });
                 } else if (isCreateMode) {
-                    // In Create mode, clear content if no category selected
                     var editor = tinymce.get('editor');
                     if (editor) {
                         editor.setContent('');
@@ -357,9 +364,12 @@
                         return false;
                     }
 
-                    // Update ReferenceData
+                    // Update ReferenceData and AttachmentData
                     window.updateReferenceData();
+                    window.updateAttachmentData();
                     console.log('ReferenceData before submission:', $('#referenceData').val());
+                    console.log('AttachmentData before submission:', $('#attachmentData').val());
+                    console.log('IsInternalTemplate before submission:', $('#isInternalTemplateHidden').val());
 
                     var formData = new FormData(this);
                     if (submitActionValue) {
@@ -408,6 +418,9 @@
                     toastr.error('An error occurred during submission: ' + e.message);
                 }
             });
+
+            // Trigger initial category dropdown change
+            $('#categoryDropdown').trigger('change');
         });
     </script>
 }

@@ -1,4 +1,4 @@
-﻿console.log("Script starting: solution-attachments-references.js (v4.3)");
+﻿console.log("Script starting: solution-attachments-references.js (v4.4)");
 
 (function () {
     // Determine if in create mode (no solutionId in URL)
@@ -55,7 +55,9 @@
                 description: r.description || '',
                 isInternal: r.isInternal || false,
                 openOption: r.openOption || '_self',
-                isDeleted: r.isDeleted || false
+                isDeleted: r.isDeleted || false,
+                fromParent: r.fromParent || false,
+                parentReferenceId: r.parentReferenceId || null
             })));
             console.log("Updated ReferenceData:", referenceDataInput.value);
         }
@@ -345,8 +347,8 @@
             <input type="text" class="form-control mt-1 caption-input" placeholder="Enter caption" value="${attachment.caption || ''}" data-index="${index}" />
         </div>
         <div>
-            <input type="checkbox" class="form-check-input internal-attachment" data-index="${index}" ${attachment.isInternal ? "checked" : ""} />
-            <span>Internal</span>
+            <input type="checkbox" class="form-check-input internal-attachment" id="internal-attachment-${index}" data-index="${index}" ${attachment.isInternal ? "checked" : ""} />
+            <label class="form-check-label ms-2" for="internal-attachment-${index}">Internal</label>
             <span class="text-danger delete-attachment ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
         </div>
     `;
@@ -368,8 +370,8 @@
             <input type="text" class="form-control mt-1 description-input" placeholder="Enter description" value="${reference.description || ''}" data-index="${index}" />
         </div>
         <div>
-            <input type="checkbox" class="form-check-input internal-reference" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
-            <span>Internal</span>
+            <input type="checkbox" class="form-check-input internal-reference" id="internal-reference-${index}" data-index="${index}" ${reference.isInternal ? "checked" : ""} />
+            <label class="form-check-label ms-2" for="internal-reference-${index}">Internal</label>
             <span class="text-danger delete-reference ms-3" style="cursor:pointer;" data-index="${index}">❌</span>
         </div>
     `;
@@ -453,6 +455,9 @@
                             fromParent: true,
                             parentAttachmentId: att.parentAttachmentId || att.id
                         });
+                        console.log(`Added category attachment: id=${att.id}, fileName=${att.fileName}, fromParent=true`);
+                    } else {
+                        console.log(`Skipped category attachment: id=${att.id}, fileName=${att.fileName} (already exists)`);
                     }
                 });
             }
@@ -472,12 +477,13 @@
                             fromParent: true,
                             parentAttachmentId: att.parentAttachmentId || att.id
                         });
+                        console.log(`Added category attachment: id=${att.id}, fileName=${att.fileName}, fromParent=true`);
                     }
                 });
             }
         }
 
-        // Handle references (unchanged)
+        // Handle references
         if (Array.isArray(referencesFromCategory)) {
             if (isCreateMode) {
                 window.references = [];
@@ -494,6 +500,9 @@
                         fromParent: ref.fromParent || true,
                         parentReferenceId: ref.parentReferenceId || ref.id
                     });
+                    console.log(`Added category reference: id=${ref.id}, url=${ref.url}, fromParent=true`);
+                } else {
+                    console.log(`Skipped category reference: id=${ref.id}, url=${ref.url} (already exists)`);
                 }
             });
         }
@@ -515,6 +524,7 @@
     // Handle delete-attachment click with unique listener
     const attachmentList = document.getElementById("attachmentList");
     if (attachmentList) {
+        // Clone node to prevent duplicate event listeners
         const newList = attachmentList.cloneNode(true);
         attachmentList.parentNode.replaceChild(newList, attachmentList);
         newList.addEventListener("click", function (e) {
